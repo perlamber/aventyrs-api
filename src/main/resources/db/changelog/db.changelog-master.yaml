@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-players.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/002-character-sheets.yaml
+      relativeToChangelogFile: false

@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-character-sheets-collection
+      author: aventyrs-api
+      changes:
+        - createCollection:
+            collectionName: characterSheets
+  - changeSet:
+      id: 002-create-character-sheets-player-id-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: characterSheets
+            keys: '{ "playerId": 1 }'
+            options: '{ "name": "ix_character_sheets_player_id" }'
+  - changeSet:
+      id: 003-create-character-sheets-character-id-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: characterSheets
+            keys: '{ "characterId": 1 }'
+            options: '{ "name": "ix_character_sheets_character_id" }'
