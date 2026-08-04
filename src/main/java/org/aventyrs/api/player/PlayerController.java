@@ -1,5 +1,6 @@
 package org.aventyrs.api.player;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/players")
+@Tag(name = "Players")
 public class PlayerController {
 
     private final PlayerService service;

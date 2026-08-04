@@ -1,5 +1,6 @@
 package org.aventyrs.api.sheet;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/character-sheets")
+@Tag(name = "CharacterSheets")
 public class CharacterSheetController {
 
     private final CharacterSheetService service;
