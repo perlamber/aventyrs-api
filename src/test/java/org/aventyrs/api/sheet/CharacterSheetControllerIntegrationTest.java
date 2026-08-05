@@ -138,6 +138,39 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
+    void filtersByPlayerId() throws Exception {
+        PlayerRequest otherPlayerRequest = new PlayerRequest("Legolas Player", "legolas-" + UUID.randomUUID());
+        String otherPlayerResponse = mockMvc.perform(post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(otherPlayerRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String otherPlayerId = objectMapper.readTree(otherPlayerResponse).get("id").asText();
+
+        CharacterSheetCreateRequest ownSheetRequest =
+                new CharacterSheetCreateRequest(UUID.randomUUID().toString(), playerId);
+        String ownSheetResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ownSheetRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String ownSheetId = objectMapper.readTree(ownSheetResponse).get("id").asText();
+
+        CharacterSheetCreateRequest otherSheetRequest =
+                new CharacterSheetCreateRequest(UUID.randomUUID().toString(), otherPlayerId);
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(otherSheetRequest)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/character-sheets").param("playerId", playerId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].id").value(ownSheetId))
+                .andExpect(jsonPath("$[0].playerId").value(playerId));
+    }
+
+    @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 UUID.randomUUID().toString(), UUID.randomUUID().toString());

@@ -1,0 +1,130 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-dev-seed-players
+      author: aventyrs-api
+      context: dev
+      changes:
+        - insertMany:
+            collectionName: players
+            documents: >
+              [
+                {
+                  "_id": "11111111-1111-1111-1111-111111111111",
+                  "name": "Elara Dawnbringer",
+                  "login": "elara.dawnbringer"
+                },
+                {
+                  "_id": "22222222-2222-2222-2222-222222222222",
+                  "name": "Rowan Ashgrove",
+                  "login": "rowan.ashgrove"
+                },
+                {
+                  "_id": "33333333-3333-3333-3333-333333333333",
+                  "name": "Kestrel Voss",
+                  "login": "kestrel.voss"
+                }
+              ]
+  - changeSet:
+      id: 002-dev-seed-character-sheets
+      author: aventyrs-api
+      context: dev
+      changes:
+        - insertMany:
+            collectionName: characterSheets
+            documents: >
+              [
+                {
+                  "_id": "44444444-4444-4444-4444-444444444444",
+                  "characterId": "55555555-5555-5555-5555-555555555555",
+                  "playerId": "11111111-1111-1111-1111-111111111111",
+                  "totalExperience": 150.0,
+                  "unUsedExperience": 20.0,
+                  "hitPointsSpent": 8,
+                  "magicPointsSpent": 2,
+                  "determinationPointsSpent": 1,
+                  "shieldPoints": 3,
+                  "famaPositiva": 6,
+                  "famaNegativa": 0,
+                  "temporaryEgoPoints": {
+                    "AUTOCONTROLE": 0,
+                    "RECURSOS": 0,
+                    "SORTE": 0,
+                    "INICIATIVA": 0
+                  },
+                  "temporaryBonuses": []
+                },
+                {
+                  "_id": "66666666-6666-6666-6666-666666666666",
+                  "characterId": "77777777-7777-7777-7777-777777777777",
+                  "playerId": "22222222-2222-2222-2222-222222222222",
+                  "totalExperience": 95.5,
+                  "unUsedExperience": 10.0,
+                  "hitPointsSpent": 12,
+                  "magicPointsSpent": 6,
+                  "determinationPointsSpent": 0,
+                  "shieldPoints": 1,
+                  "famaPositiva": 2,
+                  "famaNegativa": 4,
+                  "temporaryEgoPoints": {
+                    "AUTOCONTROLE": 0,
+                    "RECURSOS": 0,
+                    "SORTE": 0,
+                    "INICIATIVA": 0
+                  },
+                  "temporaryBonuses": []
+                },
+                {
+                  "_id": "88888888-8888-8888-8888-888888888888",
+                  "characterId": "99999999-9999-9999-9999-999999999999",
+                  "playerId": "33333333-3333-3333-3333-333333333333",
+                  "totalExperience": 210.0,
+                  "unUsedExperience": 5.0,
+                  "hitPointsSpent": 15,
+                  "magicPointsSpent": 0,
+                  "determinationPointsSpent": 2,
+                  "shieldPoints": 4,
+                  "famaPositiva": 8,
+                  "famaNegativa": 1,
+                  "temporaryEgoPoints": {
+                    "AUTOCONTROLE": 0,
+                    "RECURSOS": 0,
+                    "SORTE": 0,
+                    "INICIATIVA": 0
+                  },
+                  "temporaryBonuses": []
+                }
+              ]
+  - changeSet:
+      id: 003-dev-seed-scene
+      author: aventyrs-api
+      context: dev
+      changes:
+        - insertOne:
+            collectionName: scenes
+            document: >
+              {
+                "_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                "name": "Emboscada na Estrada de Pedra",
+                "participants": [
+                  {
+                    "characterSheetId": "44444444-4444-4444-4444-444444444444",
+                    "initiativeValue": 18,
+                    "group": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    "position": { "x": 10, "y": 10 }
+                  },
+                  {
+                    "characterSheetId": "66666666-6666-6666-6666-666666666666",
+                    "initiativeValue": 15,
+                    "group": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    "position": { "x": 11, "y": 10 }
+                  },
+                  {
+                    "characterSheetId": "88888888-8888-8888-8888-888888888888",
+                    "initiativeValue": 12,
+                    "group": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                    "position": { "x": 10, "y": 11 }
+                  }
+                ],
+                "currentRound": 0,
+                "currentIndex": -1
+              }

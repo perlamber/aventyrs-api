@@ -53,6 +53,10 @@ public class CharacterSheetService {
         return repository.findAll().stream().map(this::toResponse).toList();
     }
 
+    public List<CharacterSheetResponse> listByPlayer(String playerId) {
+        return repository.findByPlayerId(playerId).stream().map(this::toResponse).toList();
+    }
+
     public CharacterSheetResponse update(String id, CharacterSheetUpdateRequest request) {
         CharacterSheetDocument document = findOrThrow(id);
         requirePlayerExists(request.playerId());
