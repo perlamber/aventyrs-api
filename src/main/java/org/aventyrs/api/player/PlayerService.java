@@ -25,6 +25,12 @@ public class PlayerService {
         return toResponse(findOrThrow(id));
     }
 
+    public PlayerResponse getByLogin(String login) {
+        return repository.findByLogin(login)
+                .map(this::toResponse)
+                .orElseThrow(() -> new NotFoundException("Player not found: " + login));
+    }
+
     public List<PlayerResponse> list() {
         return repository.findAll().stream().map(this::toResponse).toList();
     }

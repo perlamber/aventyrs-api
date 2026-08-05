@@ -75,6 +75,29 @@ class PlayerControllerIntegrationTest {
     }
 
     @Test
+    void getsByLogin() throws Exception {
+        PlayerRequest createRequest = new PlayerRequest("Samwise Player", "samwise");
+        String createResponse = mockMvc.perform(post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        mockMvc.perform(get("/api/players/by-login/{login}", "samwise"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.name").value("Samwise Player"))
+                .andExpect(jsonPath("$.login").value("samwise"));
+    }
+
+    @Test
+    void getByLoginReturnsNotFoundForUnknownLogin() throws Exception {
+        mockMvc.perform(get("/api/players/by-login/{login}", "no-such-login"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void rejectsDuplicateLogin() throws Exception {
         PlayerRequest first = new PlayerRequest("Frodo", "frodo");
         mockMvc.perform(post("/api/players")

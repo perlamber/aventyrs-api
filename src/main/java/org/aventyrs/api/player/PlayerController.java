@@ -37,6 +37,11 @@ public class PlayerController {
         return service.get(id);
     }
 
+    @GetMapping("/by-login/{login}")
+    public PlayerResponse getByLogin(@PathVariable String login) {
+        return service.getByLogin(login);
+    }
+
     @GetMapping
     public List<PlayerResponse> list() {
         return service.list();
