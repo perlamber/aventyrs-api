@@ -66,7 +66,7 @@ class SceneControllerIntegrationTest {
 
     private String createCharacterSheet(String playerId) throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5), playerId);
+                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5, null, null, null), playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -123,6 +123,43 @@ class SceneControllerIntegrationTest {
 
         mockMvc.perform(get("/api/scenes/{id}", id))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listGroupsPartitionsParticipantsByGroup() throws Exception {
+        String id = createEmptyScene();
+
+        SceneUpdateRequest updateRequest = new SceneUpdateRequest(
+                "Scene",
+                List.of(
+                        new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(0, 0)),
+                        new SceneParticipantRequest(characterSheetId2, 8, "party", new GridPositionDto(1, 0))),
+                0,
+                0);
+
+        mockMvc.perform(put("/api/scenes/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/scenes/{id}/groups", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].group").value("party"))
+                .andExpect(jsonPath("$[0].participants", hasSize(2)))
+                .andExpect(jsonPath("$[0].participants[0].characterSheetId").value(characterSheetId1))
+                .andExpect(jsonPath("$[0].participants[1].characterSheetId").value(characterSheetId2));
+    }
+
+    @Test
+    void getAvailableReturnsMostRecentlyCreatedScene() throws Exception {
+        createEmptyScene();
+        Thread.sleep(10);
+        String latestId = createEmptyScene();
+
+        mockMvc.perform(get("/api/scenes/available"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(latestId));
     }
 
     @Test

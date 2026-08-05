@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import java.time.Instant;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,7 +16,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * static, so clients that already loaded it via REST shouldn't need it re-embedded here.
  * {@code currentRound}/{@code currentIndex} mirror {@code Scene}'s own turn cursor, but nothing
  * here replays {@code Scene#next()}'s active/pending-entry merge logic yet — that's action-time
- * behavior, not a CRUD concern.
+ * behavior, not a CRUD concern. {@code createdAt} exists purely to resolve "latest" (see
+ * {@code SceneRepository#findTopByOrderByCreatedAtDesc}) — ids are random UUIDs, not ObjectIds,
+ * so there's no implicit chronological ordering to fall back on.
  */
 @Document(collection = "scenes")
 @Getter
@@ -35,4 +38,6 @@ public class SceneDocument {
 
     /** -1 before the first {@code next()}-equivalent action, same convention as core's {@code Scene}. */
     private int currentIndex;
+
+    private Instant createdAt;
 }

@@ -7,13 +7,20 @@ import java.util.Map;
 import java.util.UUID;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerRepository;
+import org.aventyrs.api.sheet.dto.AttributeValueDto;
+import org.aventyrs.api.sheet.dto.AttributeValueResponse;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
+import org.aventyrs.api.sheet.dto.CharacterSkillDto;
+import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.EgoDomain;
+import org.aventyrs.core.character.SizeCategory;
+import org.aventyrs.core.skill.SkillType;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -102,9 +109,46 @@ public class CharacterSheetService {
     /** 1 is core's own {@code Character#tendencia} default — the floor of its 1-10 scale. */
     private static final int DEFAULT_TENDENCIA = 1;
 
+    /** core's own {@code AttributeValue#base} default. */
+    private static final int DEFAULT_ATTRIBUTE_BASE = 1;
+
     private static CharacterEntry toEntry(String characterId, CharacterDto character) {
         int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
-        return new CharacterEntry(characterId, character.name(), character.race(), character.sexo(), tendencia);
+        SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
+        return new CharacterEntry(
+                characterId,
+                character.name(),
+                character.race(),
+                character.sexo(),
+                tendencia,
+                sizeCategory,
+                normalizeAttributes(character.attributes()),
+                normalizeSkills(character.skills()));
+    }
+
+    /** Every {@link AttributeDomain} always has an entry, same as core's {@code CharacterAttributes}. */
+    private static Map<AttributeDomain, AttributeValueEntry> normalizeAttributes(
+            Map<AttributeDomain, AttributeValueDto> provided) {
+        Map<AttributeDomain, AttributeValueEntry> attributes = new EnumMap<>(AttributeDomain.class);
+        for (AttributeDomain domain : AttributeDomain.values()) {
+            AttributeValueDto dto = provided == null ? null : provided.get(domain);
+            int base = dto == null || dto.base() == null ? DEFAULT_ATTRIBUTE_BASE : dto.base();
+            int racialBonus = dto == null || dto.racialBonus() == null ? 0 : dto.racialBonus();
+            int variable = dto == null || dto.variable() == null ? 0 : dto.variable();
+            attributes.put(domain, new AttributeValueEntry(base, racialBonus, variable));
+        }
+        return attributes;
+    }
+
+    /** Unlike attributes, an absent {@link SkillType} key means untrained — nothing to default here. */
+    private static Map<SkillType, CharacterSkillEntry> normalizeSkills(Map<SkillType, CharacterSkillDto> provided) {
+        if (provided == null || provided.isEmpty()) {
+            return Map.of();
+        }
+        Map<SkillType, CharacterSkillEntry> skills = new EnumMap<>(SkillType.class);
+        provided.forEach((type, dto) -> skills.put(
+                type, new CharacterSkillEntry(dto.specialization(), dto.graduationValue() == null ? 0 : dto.graduationValue())));
+        return skills;
     }
 
     private static Map<EgoDomain, Integer> defaultTemporaryEgoPoints() {
@@ -123,13 +167,40 @@ public class CharacterSheetService {
         return pools;
     }
 
+    /**
+     * {@code sizeCategory}/{@code attributes}/{@code skills} fall back to defaults for documents
+     * persisted before those fields existed, same reasoning as {@link #normalizeAttributes}.
+     */
+    private CharacterResponse toCharacterResponse(CharacterEntry character) {
+        SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
+        Map<AttributeDomain, AttributeValueEntry> attributes =
+                character.attributes() == null ? normalizeAttributes(null) : character.attributes();
+        Map<SkillType, CharacterSkillEntry> skills = character.skills() == null ? Map.of() : character.skills();
+
+        Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
+        attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(
+                value.base(), value.racialBonus(), value.variable(), value.base() + value.racialBonus() + value.variable())));
+
+        Map<SkillType, CharacterSkillResponse> skillsResponse = new EnumMap<>(SkillType.class);
+        skills.forEach((type, skill) -> skillsResponse.put(
+                type, new CharacterSkillResponse(skill.specialization(), skill.graduationValue())));
+
+        return new CharacterResponse(
+                character.characterId(),
+                character.name(),
+                character.race(),
+                character.sexo(),
+                character.tendencia(),
+                sizeCategory,
+                attributesResponse,
+                skillsResponse);
+    }
+
     private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
         List<TemporaryBonusDto> bonuses = document.getTemporaryBonuses().stream()
                 .map(bonus -> new TemporaryBonusDto(bonus.type(), bonus.value(), bonus.remainingRounds()))
                 .toList();
-        CharacterEntry character = document.getCharacter();
-        CharacterResponse characterResponse = new CharacterResponse(
-                character.characterId(), character.name(), character.race(), character.sexo(), character.tendencia());
+        CharacterResponse characterResponse = toCharacterResponse(document.getCharacter());
         return new CharacterSheetResponse(
                 document.getId(),
                 characterResponse,

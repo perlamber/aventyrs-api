@@ -1,10 +1,15 @@
 package org.aventyrs.api.scene;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
+import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
@@ -25,7 +30,8 @@ public class SceneService {
     }
 
     public SceneResponse create(SceneCreateRequest request) {
-        SceneDocument document = new SceneDocument(UUID.randomUUID().toString(), request.name(), List.of(), 0, -1);
+        SceneDocument document = new SceneDocument(
+                UUID.randomUUID().toString(), request.name(), List.of(), 0, -1, Instant.now());
         return toResponse(repository.save(document));
     }
 
@@ -33,8 +39,26 @@ public class SceneService {
         return toResponse(findOrThrow(id));
     }
 
+    public SceneResponse getAvailable() {
+        return repository.findTopByOrderByCreatedAtDesc()
+                .map(this::toResponse)
+                .orElseThrow(() -> new NotFoundException("No scenes available"));
+    }
+
     public List<SceneResponse> list() {
         return repository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    public List<SceneGroupResponse> listGroups(String id) {
+        SceneDocument document = findOrThrow(id);
+        Map<String, List<SceneParticipantResponse>> participantsByGroup = document.getParticipants().stream()
+                .collect(Collectors.groupingBy(
+                        SceneParticipantEntry::group,
+                        LinkedHashMap::new,
+                        Collectors.mapping(this::toParticipantResponse, Collectors.toList())));
+        return participantsByGroup.entrySet().stream()
+                .map(entry -> new SceneGroupResponse(entry.getKey(), entry.getValue()))
+                .toList();
     }
 
     public SceneResponse update(String id, SceneUpdateRequest request) {
@@ -99,11 +123,7 @@ public class SceneService {
 
     private SceneResponse toResponse(SceneDocument document) {
         List<SceneParticipantResponse> participants = document.getParticipants().stream()
-                .map(entry -> new SceneParticipantResponse(
-                        entry.characterSheetId(),
-                        entry.initiativeValue(),
-                        entry.group(),
-                        new GridPositionDto(entry.position().x(), entry.position().y())))
+                .map(this::toParticipantResponse)
                 .toList();
         return new SceneResponse(
                 document.getId(),
@@ -111,5 +131,13 @@ public class SceneService {
                 participants,
                 document.getCurrentRound(),
                 document.getCurrentIndex());
+    }
+
+    private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {
+        return new SceneParticipantResponse(
+                entry.characterSheetId(),
+                entry.initiativeValue(),
+                entry.group(),
+                new GridPositionDto(entry.position().x(), entry.position().y()));
     }
 }

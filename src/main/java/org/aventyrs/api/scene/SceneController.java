@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
+import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.springframework.http.HttpStatus;
@@ -33,9 +34,19 @@ public class SceneController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
 
+    @GetMapping("/available")
+    public SceneResponse getAvailable() {
+        return service.getAvailable();
+    }
+
     @GetMapping("/{id}")
     public SceneResponse get(@PathVariable String id) {
         return service.get(id);
+    }
+
+    @GetMapping("/{id}/groups")
+    public List<SceneGroupResponse> listGroups(@PathVariable String id) {
+        return service.listGroups(id);
     }
 
     @GetMapping
