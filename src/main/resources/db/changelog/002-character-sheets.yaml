@@ -19,5 +19,5 @@ databaseChangeLog:
       changes:
         - createIndex:
             collectionName: characterSheets
-            keys: '{ "characterId": 1 }'
+            keys: '{ "character.characterId": 1 }'
             options: '{ "name": "ix_character_sheets_character_id" }'

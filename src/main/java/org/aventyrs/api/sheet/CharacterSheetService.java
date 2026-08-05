@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerRepository;
+import org.aventyrs.api.sheet.dto.CharacterDto;
+import org.aventyrs.api.sheet.dto.CharacterResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
@@ -30,7 +32,7 @@ public class CharacterSheetService {
 
         CharacterSheetDocument document = new CharacterSheetDocument(
                 UUID.randomUUID().toString(),
-                request.characterId(),
+                toEntry(UUID.randomUUID().toString(), request.character()),
                 request.playerId(),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
@@ -61,7 +63,7 @@ public class CharacterSheetService {
         CharacterSheetDocument document = findOrThrow(id);
         requirePlayerExists(request.playerId());
 
-        document.setCharacterId(request.characterId());
+        document.setCharacter(toEntry(document.getCharacter().characterId(), request.character()));
         document.setPlayerId(request.playerId());
         document.setTotalExperience(request.totalExperience());
         document.setUnUsedExperience(request.unUsedExperience());
@@ -97,6 +99,14 @@ public class CharacterSheetService {
                 .orElseThrow(() -> new NotFoundException("CharacterSheet not found: " + id));
     }
 
+    /** 1 is core's own {@code Character#tendencia} default — the floor of its 1-10 scale. */
+    private static final int DEFAULT_TENDENCIA = 1;
+
+    private static CharacterEntry toEntry(String characterId, CharacterDto character) {
+        int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
+        return new CharacterEntry(characterId, character.name(), character.race(), character.sexo(), tendencia);
+    }
+
     private static Map<EgoDomain, Integer> defaultTemporaryEgoPoints() {
         Map<EgoDomain, Integer> pools = new EnumMap<>(EgoDomain.class);
         for (EgoDomain domain : EgoDomain.values()) {
@@ -117,9 +127,12 @@ public class CharacterSheetService {
         List<TemporaryBonusDto> bonuses = document.getTemporaryBonuses().stream()
                 .map(bonus -> new TemporaryBonusDto(bonus.type(), bonus.value(), bonus.remainingRounds()))
                 .toList();
+        CharacterEntry character = document.getCharacter();
+        CharacterResponse characterResponse = new CharacterResponse(
+                character.characterId(), character.name(), character.race(), character.sexo(), character.tendencia());
         return new CharacterSheetResponse(
                 document.getId(),
-                document.getCharacterId(),
+                characterResponse,
                 document.getPlayerId(),
                 document.getTotalExperience(),
                 document.getUnUsedExperience(),

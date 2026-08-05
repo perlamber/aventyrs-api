@@ -7,7 +7,7 @@ import org.aventyrs.core.character.EgoDomain;
 
 public record CharacterSheetResponse(
         String id,
-        String characterId,
+        CharacterResponse character,
         String playerId,
         BigDecimal totalExperience,
         BigDecimal unUsedExperience,

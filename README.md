@@ -85,7 +85,7 @@ All CRUD resources follow the same shape: `POST` (create), `GET /{id}`, `GET` (l
 | Resource | Base path | Notes |
 |---|---|---|
 | Player | `/api/players` | `name` + `login`; `login` is unique (violations return `409`) |
-| CharacterSheet | `/api/character-sheets` | References `characterId`/`playerId` by id rather than embedding them — `Character` has no CRUD yet, and `playerId` is validated against `/api/players`. Create only takes the two references; everything else (experience, resource pools, fama, temporary bonuses) starts at zero, mirroring `CharacterSheet.of(character, player)` in core |
+| CharacterSheet | `/api/character-sheets` | `character` (name, race, sexo, tendencia) is embedded directly rather than referenced by id — Mongo's document model makes that natural, and nothing modifies a Character independently of its sheet. `playerId` is still a reference, validated against `/api/players`. Create only takes the character + player; everything else (experience, resource pools, fama, temporary bonuses) starts at zero, mirroring `CharacterSheet.of(character, player)` in core. Supports `?playerId=` filtering |
 | Scene | `/api/scenes` | Participants reference a `characterSheetId` (validated to exist) plus an initiative value, ally group, and a grid position. Positions must be unique within a Scene and within the fixed 100×100 grid |
 
 Validation/reference errors return `400`, missing resources `404`, unique-constraint violations

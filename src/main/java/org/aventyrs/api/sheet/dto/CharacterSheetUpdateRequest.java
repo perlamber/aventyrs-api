@@ -11,7 +11,7 @@ import java.util.Map;
 import org.aventyrs.core.character.EgoDomain;
 
 public record CharacterSheetUpdateRequest(
-        @NotBlank String characterId,
+        @NotNull @Valid CharacterDto character,
         @NotBlank String playerId,
         @NotNull @DecimalMin("0") BigDecimal totalExperience,
         @NotNull @DecimalMin("0") BigDecimal unUsedExperience,

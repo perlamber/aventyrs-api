@@ -17,7 +17,9 @@ import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
+import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
+import org.aventyrs.core.character.Character.Sexo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,7 +65,8 @@ class SceneControllerIntegrationTest {
     }
 
     private String createCharacterSheet(String playerId) throws Exception {
-        CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(UUID.randomUUID().toString(), playerId);
+        CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
+                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5), playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))

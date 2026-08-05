@@ -12,10 +12,11 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
- * Persisted state backing an {@code org.aventyrs.core.sheet.CharacterSheet}. {@code character}
- * and {@code player} references are kept as plain ids ({@link #characterId}, {@link #playerId})
- * rather than embedding the core domain objects, since {@code Character} CRUD doesn't exist yet
- * and the core module deliberately carries no persistence/web framework coupling.
+ * Persisted state backing an {@code org.aventyrs.core.sheet.CharacterSheet}. {@code character} is
+ * embedded directly (see {@link CharacterEntry}) rather than referenced by id — Mongo's document
+ * model makes that natural, and nothing modifies a Character independently of the sheet wrapping
+ * it. {@code player} is still kept as a plain id ({@link #playerId}) since Players are a
+ * genuinely independent, shared resource (one Player may own several CharacterSheets).
  */
 @Document(collection = "characterSheets")
 @Getter
@@ -27,7 +28,7 @@ public class CharacterSheetDocument {
     @Id
     private String id;
 
-    private String characterId;
+    private CharacterEntry character;
 
     private String playerId;
 

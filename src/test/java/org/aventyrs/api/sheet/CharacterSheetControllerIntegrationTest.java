@@ -15,9 +15,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.aventyrs.api.player.dto.PlayerRequest;
+import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.modifier.ModifierType;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,15 +64,19 @@ class CharacterSheetControllerIntegrationTest {
 
     @Test
     void performsFullCrudLifecycle() throws Exception {
-        String characterId = UUID.randomUUID().toString();
-        CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(characterId, playerId);
+        CharacterDto character = new CharacterDto("Aragorn Character", "HUMAN", Sexo.MASCULINO, 5);
+        CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.characterId").value(characterId))
+                .andExpect(jsonPath("$.character.id").exists())
+                .andExpect(jsonPath("$.character.name").value("Aragorn Character"))
+                .andExpect(jsonPath("$.character.race").value("HUMAN"))
+                .andExpect(jsonPath("$.character.sexo").value("MASCULINO"))
+                .andExpect(jsonPath("$.character.tendencia").value(5))
                 .andExpect(jsonPath("$.playerId").value(playerId))
                 .andExpect(jsonPath("$.totalExperience").value(0))
                 .andExpect(jsonPath("$.unUsedExperience").value(0))
@@ -88,17 +94,19 @@ class CharacterSheetControllerIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
+        String characterId = objectMapper.readTree(createResponse).get("character").get("id").asText();
 
         mockMvc.perform(get("/api/character-sheets/{id}", id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.characterId").value(characterId));
+                .andExpect(jsonPath("$.character.name").value("Aragorn Character"));
 
         mockMvc.perform(get("/api/character-sheets"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
 
+        CharacterDto updatedCharacter = new CharacterDto("Strider", "HUMAN", Sexo.MASCULINO, 7);
         CharacterSheetUpdateRequest updateRequest = new CharacterSheetUpdateRequest(
-                characterId,
+                updatedCharacter,
                 playerId,
                 new BigDecimal("15"),
                 new BigDecimal("5"),
@@ -115,6 +123,9 @@ class CharacterSheetControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateRequest)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.id").value(characterId))
+                .andExpect(jsonPath("$.character.name").value("Strider"))
+                .andExpect(jsonPath("$.character.tendencia").value(7))
                 .andExpect(jsonPath("$.totalExperience").value(15))
                 .andExpect(jsonPath("$.unUsedExperience").value(5))
                 .andExpect(jsonPath("$.damageTaken").value(10))
@@ -138,6 +149,19 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
+    void defaultsTendenciaWhenOmitted() throws Exception {
+        CharacterDto character = new CharacterDto("Gimli", "HUMAN", null, null);
+        CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
+
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.character.sexo").doesNotExist())
+                .andExpect(jsonPath("$.character.tendencia").value(1));
+    }
+
+    @Test
     void filtersByPlayerId() throws Exception {
         PlayerRequest otherPlayerRequest = new PlayerRequest("Legolas Player", "legolas-" + UUID.randomUUID());
         String otherPlayerResponse = mockMvc.perform(post("/api/players")
@@ -147,8 +171,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         String otherPlayerId = objectMapper.readTree(otherPlayerResponse).get("id").asText();
 
-        CharacterSheetCreateRequest ownSheetRequest =
-                new CharacterSheetCreateRequest(UUID.randomUUID().toString(), playerId);
+        CharacterSheetCreateRequest ownSheetRequest = new CharacterSheetCreateRequest(
+                new CharacterDto("Legolas Character", "HUMAN", Sexo.MASCULINO, 3), playerId);
         String ownSheetResponse = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(ownSheetRequest)))
@@ -156,8 +180,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         String ownSheetId = objectMapper.readTree(ownSheetResponse).get("id").asText();
 
-        CharacterSheetCreateRequest otherSheetRequest =
-                new CharacterSheetCreateRequest(UUID.randomUUID().toString(), otherPlayerId);
+        CharacterSheetCreateRequest otherSheetRequest = new CharacterSheetCreateRequest(
+                new CharacterDto("Gimli Character", "HUMAN", Sexo.MASCULINO, 3), otherPlayerId);
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(otherSheetRequest)))
@@ -173,7 +197,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                UUID.randomUUID().toString(), UUID.randomUUID().toString());
+                new CharacterDto("Boromir Character", "HUMAN", Sexo.MASCULINO, 3), UUID.randomUUID().toString());
 
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -182,8 +206,9 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void rejectsCreationWithBlankCharacterId() throws Exception {
-        CharacterSheetCreateRequest request = new CharacterSheetCreateRequest("", playerId);
+    void rejectsCreationWithBlankCharacterName() throws Exception {
+        CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
+                new CharacterDto("", "HUMAN", Sexo.MASCULINO, 3), playerId);
 
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
