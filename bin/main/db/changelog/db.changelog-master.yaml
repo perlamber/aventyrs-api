@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-players.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/002-character-sheets.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/003-scenes.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/005-scenes-created-at-index.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/004-dev-seed-data.yaml
+      relativeToChangelogFile: false
