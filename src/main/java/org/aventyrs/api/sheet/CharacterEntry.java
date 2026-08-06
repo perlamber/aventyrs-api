@@ -3,6 +3,7 @@ package org.aventyrs.api.sheet;
 import java.util.Map;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
+import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.skill.SkillType;
 
@@ -14,9 +15,9 @@ import org.aventyrs.core.skill.SkillType;
  * since core's {@code Race} is a stateless interface with one implementation ({@code Human}) so
  * far, not an enum this layer can reference directly. {@code skills} only contains entries for
  * Perícias actually trained — an absent {@link SkillType} key means untrained, same convention
- * as core's own {@code Character#skills}, unlike {@code attributes}, which always has all seven
- * {@link AttributeDomain} keys (core defaults every attribute to base 1 whether or not a caller
- * ever mentions it).
+ * as core's own {@code Character#skills}, unlike {@code attributes}/{@code egos}, which always
+ * have every {@link AttributeDomain}/{@link EgoDomain} key (core defaults every attribute to
+ * base 1, every Ego to base 2, whether or not a caller ever mentions it).
  *
  * <p>The id field is named {@code characterId}, not {@code id}: Spring Data MongoDB's
  * {@code MappingMongoConverter} treats a property literally named {@code id} as that type's
@@ -32,6 +33,7 @@ public record CharacterEntry(
         int tendencia,
         SizeCategory sizeCategory,
         Map<AttributeDomain, AttributeValueEntry> attributes,
+        Map<EgoDomain, EgoValueEntry> egos,
         Map<SkillType, CharacterSkillEntry> skills
 ) {
 }

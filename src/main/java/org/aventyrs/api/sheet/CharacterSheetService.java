@@ -16,6 +16,8 @@ import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
+import org.aventyrs.api.sheet.dto.EgoValueDto;
+import org.aventyrs.api.sheet.dto.EgoValueResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.EgoDomain;
@@ -112,6 +114,9 @@ public class CharacterSheetService {
     /** core's own {@code AttributeValue#base} default. */
     private static final int DEFAULT_ATTRIBUTE_BASE = 1;
 
+    /** core's own {@code EgoValue#base} default. */
+    private static final int DEFAULT_EGO_BASE = 2;
+
     private static CharacterEntry toEntry(String characterId, CharacterDto character) {
         int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
@@ -123,6 +128,7 @@ public class CharacterSheetService {
                 tendencia,
                 sizeCategory,
                 normalizeAttributes(character.attributes()),
+                normalizeEgos(character.egos()),
                 normalizeSkills(character.skills()));
     }
 
@@ -138,6 +144,18 @@ public class CharacterSheetService {
             attributes.put(domain, new AttributeValueEntry(base, racialBonus, variable));
         }
         return attributes;
+    }
+
+    /** Every {@link EgoDomain} always has an entry, same as core's {@code CharacterEgos}. */
+    private static Map<EgoDomain, EgoValueEntry> normalizeEgos(Map<EgoDomain, EgoValueDto> provided) {
+        Map<EgoDomain, EgoValueEntry> egos = new EnumMap<>(EgoDomain.class);
+        for (EgoDomain domain : EgoDomain.values()) {
+            EgoValueDto dto = provided == null ? null : provided.get(domain);
+            int base = dto == null || dto.base() == null ? DEFAULT_EGO_BASE : dto.base();
+            int variable = dto == null || dto.variable() == null ? 0 : dto.variable();
+            egos.put(domain, new EgoValueEntry(base, variable));
+        }
+        return egos;
     }
 
     /** Unlike attributes, an absent {@link SkillType} key means untrained — nothing to default here. */
@@ -168,18 +186,24 @@ public class CharacterSheetService {
     }
 
     /**
-     * {@code sizeCategory}/{@code attributes}/{@code skills} fall back to defaults for documents
-     * persisted before those fields existed, same reasoning as {@link #normalizeAttributes}.
+     * {@code sizeCategory}/{@code attributes}/{@code egos}/{@code skills} fall back to defaults
+     * for documents persisted before those fields existed, same reasoning as
+     * {@link #normalizeAttributes}.
      */
     private CharacterResponse toCharacterResponse(CharacterEntry character) {
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
         Map<AttributeDomain, AttributeValueEntry> attributes =
                 character.attributes() == null ? normalizeAttributes(null) : character.attributes();
+        Map<EgoDomain, EgoValueEntry> egos = character.egos() == null ? normalizeEgos(null) : character.egos();
         Map<SkillType, CharacterSkillEntry> skills = character.skills() == null ? Map.of() : character.skills();
 
         Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
         attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(
                 value.base(), value.racialBonus(), value.variable(), value.base() + value.racialBonus() + value.variable())));
+
+        Map<EgoDomain, EgoValueResponse> egosResponse = new EnumMap<>(EgoDomain.class);
+        egos.forEach((domain, value) -> egosResponse.put(
+                domain, new EgoValueResponse(value.base(), value.variable(), value.base() + value.variable())));
 
         Map<SkillType, CharacterSkillResponse> skillsResponse = new EnumMap<>(SkillType.class);
         skills.forEach((type, skill) -> skillsResponse.put(
@@ -193,6 +217,7 @@ public class CharacterSheetService {
                 character.tendencia(),
                 sizeCategory,
                 attributesResponse,
+                egosResponse,
                 skillsResponse);
     }
 
