@@ -86,7 +86,14 @@ All CRUD resources follow the same shape: `POST` (create), `GET /{id}`, `GET` (l
 |---|---|---|
 | Player | `/api/players` | `name` + `login`; `login` is unique (violations return `409`) |
 | CharacterSheet | `/api/character-sheets` | `character` (name, race, sexo, tendencia) is embedded directly rather than referenced by id — Mongo's document model makes that natural, and nothing modifies a Character independently of its sheet. `playerId` is still a reference, validated against `/api/players`. Create only takes the character + player; everything else (experience, resource pools, fama, temporary bonuses) starts at zero, mirroring `CharacterSheet.of(character, player)` in core. Supports `?playerId=` filtering |
-| Scene | `/api/scenes` | Participants reference a `characterSheetId` (validated to exist) plus an initiative value, ally group, and a grid position. Positions must be unique within a Scene and within the fixed 100×100 grid |
+| Scene | `/api/scenes` | Participants reference a `characterSheetId` (validated to exist), an initiative value, an ally sub-group (`group`, a `UUID` — participants sharing one are allies, mirroring core's `InitiativeEntry#group`), and a grid position. Positions must be unique within a Scene and within the fixed 100×100 grid. Also exposes `GET /{id}/groups` (participants partitioned by `group`) |
+
+Adding participants to a Scene: `PUT /api/scenes/{id}` replaces the full participant list in one
+call (name, participants, round/turn cursor together) and requires each participant's grid
+`position` explicitly — use it when repositioning or reordering. `POST
+/api/scenes/{id}/participants` instead joins a single participant to an already-existing Scene:
+just `characterSheetId`, `initiativeValue`, and `group`, no `position` — the server assigns the
+first free grid cell automatically and returns the created participant (`201`).
 
 Validation/reference errors return `400`, missing resources `404`, unique-constraint violations
 `409` — see `org.aventyrs.api.common.GlobalExceptionHandler`.
