@@ -102,6 +102,20 @@ public class SceneService {
         return toParticipantResponse(entry);
     }
 
+    public void removeParticipant(String id, String characterSheetId) {
+        SceneDocument document = findOrThrow(id);
+
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        boolean removed = participants.removeIf(entry -> entry.characterSheetId().equals(characterSheetId));
+        if (!removed) {
+            throw new NotFoundException("Participant not found in scene: " + characterSheetId);
+        }
+
+        document.setParticipants(participants);
+        document.setCurrentIndex(Math.min(document.getCurrentIndex(), participants.size() - 1));
+        repository.save(document);
+    }
+
     private GridPosition firstFreePosition(List<SceneParticipantEntry> participants) {
         Set<GridPosition> occupied = participants.stream()
                 .map(SceneParticipantEntry::position)

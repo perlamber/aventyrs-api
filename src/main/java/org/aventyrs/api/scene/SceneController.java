@@ -62,6 +62,12 @@ public class SceneController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.addParticipant(id, request));
     }
 
+    @DeleteMapping("/{id}/participants/{characterSheetId}")
+    public ResponseEntity<Void> removeParticipant(@PathVariable String id, @PathVariable String characterSheetId) {
+        service.removeParticipant(id, characterSheetId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{id}")
     public SceneResponse update(@PathVariable String id, @Valid @RequestBody SceneUpdateRequest request) {
         return service.update(id, request);

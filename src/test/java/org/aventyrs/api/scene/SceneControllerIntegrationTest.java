@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -166,6 +166,38 @@ class SceneControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(
                                 new AddParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID()))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void removeParticipantDeletesThemFromTheScene() throws Exception {
+        String id = createEmptyScene();
+
+        mockMvc.perform(post("/api/scenes/{id}/participants", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/scenes/{id}/participants", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId2, 8, UUID.randomUUID()))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(delete("/api/scenes/{id}/participants/{characterSheetId}", id, characterSheetId1))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/scenes/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.participants", hasSize(1)))
+                .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId2));
+    }
+
+    @Test
+    void removeParticipantRejectsUnknownCharacterSheetReference() throws Exception {
+        String id = createEmptyScene();
+
+        mockMvc.perform(delete("/api/scenes/{id}/participants/{characterSheetId}", id, characterSheetId1))
+                .andExpect(status().isNotFound());
     }
 
     @Test
