@@ -13,12 +13,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import org.aventyrs.api.player.dto.PlayerRequest;
+import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
+import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,7 +68,8 @@ class SceneControllerIntegrationTest {
 
     private String createCharacterSheet(String playerId) throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5, null, null, null, null), playerId);
+                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
+                playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -95,8 +98,8 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Ambush at the bridge",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(10, 10)),
-                        new SceneParticipantRequest(characterSheetId2, 8, "enemies", new GridPositionDto(11, 10))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10)),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10))),
                 0,
                 0);
 
@@ -126,14 +129,55 @@ class SceneControllerIntegrationTest {
     }
 
     @Test
+    void addParticipantJoinsWithFirstFreeGridPosition() throws Exception {
+        String id = createEmptyScene();
+        UUID party = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/scenes/{id}/participants", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId1, 15, party))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.characterSheetId").value(characterSheetId1))
+                .andExpect(jsonPath("$.initiativeValue").value(15))
+                .andExpect(jsonPath("$.group").value(party.toString()))
+                .andExpect(jsonPath("$.position.x").value(0))
+                .andExpect(jsonPath("$.position.y").value(0));
+
+        mockMvc.perform(post("/api/scenes/{id}/participants", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId2, 8, UUID.randomUUID()))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.position.x").value(1))
+                .andExpect(jsonPath("$.position.y").value(0));
+
+        mockMvc.perform(get("/api/scenes/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.participants", hasSize(2)));
+    }
+
+    @Test
+    void addParticipantRejectsUnknownCharacterSheetReference() throws Exception {
+        String id = createEmptyScene();
+
+        mockMvc.perform(post("/api/scenes/{id}/participants", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void listGroupsPartitionsParticipantsByGroup() throws Exception {
         String id = createEmptyScene();
+        UUID party = UUID.randomUUID();
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(0, 0)),
-                        new SceneParticipantRequest(characterSheetId2, 8, "party", new GridPositionDto(1, 0))),
+                        new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0)),
+                        new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0))),
                 0,
                 0);
 
@@ -145,7 +189,7 @@ class SceneControllerIntegrationTest {
         mockMvc.perform(get("/api/scenes/{id}/groups", id))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].group").value("party"))
+                .andExpect(jsonPath("$[0].group").value(party.toString()))
                 .andExpect(jsonPath("$[0].participants", hasSize(2)))
                 .andExpect(jsonPath("$[0].participants[0].characterSheetId").value(characterSheetId1))
                 .andExpect(jsonPath("$[0].participants[1].characterSheetId").value(characterSheetId2));
@@ -168,7 +212,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, "party", new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0))),
                 0,
                 0);
 
@@ -185,8 +229,8 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(5, 5)),
-                        new SceneParticipantRequest(characterSheetId2, 8, "enemies", new GridPositionDto(5, 5))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5)),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5))),
                 0,
                 0);
 
@@ -202,7 +246,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0))),
                 0,
                 5);
 
@@ -223,7 +267,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, "party", new GridPositionDto(100, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0))),
                 0,
                 0);
 

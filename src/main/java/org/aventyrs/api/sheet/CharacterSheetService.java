@@ -127,6 +127,7 @@ public class CharacterSheetService {
                 character.sexo(),
                 tendencia,
                 sizeCategory,
+                character.actionProfile(),
                 normalizeAttributes(character.attributes()),
                 normalizeEgos(character.egos()),
                 normalizeSkills(character.skills()));
@@ -216,6 +217,7 @@ public class CharacterSheetService {
                 character.sexo(),
                 character.tendencia(),
                 sizeCategory,
+                character.actionProfile(),
                 attributesResponse,
                 egosResponse,
                 skillsResponse);

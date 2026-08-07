@@ -1,12 +1,15 @@
 package org.aventyrs.api.scene;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.aventyrs.api.common.NotFoundException;
+import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
@@ -51,7 +54,7 @@ public class SceneService {
 
     public List<SceneGroupResponse> listGroups(String id) {
         SceneDocument document = findOrThrow(id);
-        Map<String, List<SceneParticipantResponse>> participantsByGroup = document.getParticipants().stream()
+        Map<UUID, List<SceneParticipantResponse>> participantsByGroup = document.getParticipants().stream()
                 .collect(Collectors.groupingBy(
                         SceneParticipantEntry::group,
                         LinkedHashMap::new,
@@ -77,6 +80,41 @@ public class SceneService {
         document.setCurrentIndex(request.currentIndex());
 
         return toResponse(repository.save(document));
+    }
+
+    public SceneParticipantResponse addParticipant(String id, AddParticipantRequest request) {
+        SceneDocument document = findOrThrow(id);
+        if (!characterSheetRepository.existsById(request.characterSheetId())) {
+            throw new IllegalArgumentException("CharacterSheet not found: " + request.characterSheetId());
+        }
+
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        SceneParticipantEntry entry = new SceneParticipantEntry(
+                request.characterSheetId(),
+                request.initiativeValue(),
+                request.group(),
+                firstFreePosition(participants));
+        participants.add(entry);
+
+        document.setParticipants(participants);
+        repository.save(document);
+
+        return toParticipantResponse(entry);
+    }
+
+    private GridPosition firstFreePosition(List<SceneParticipantEntry> participants) {
+        Set<GridPosition> occupied = participants.stream()
+                .map(SceneParticipantEntry::position)
+                .collect(Collectors.toSet());
+        for (int y = 0; y < GridPosition.GRID_SIZE; y++) {
+            for (int x = 0; x < GridPosition.GRID_SIZE; x++) {
+                GridPosition candidate = new GridPosition(x, y);
+                if (!occupied.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Scene grid is full");
     }
 
     public void delete(String id) {

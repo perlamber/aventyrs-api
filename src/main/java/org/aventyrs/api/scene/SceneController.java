@@ -3,8 +3,10 @@ package org.aventyrs.api.scene;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
+import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,12 @@ public class SceneController {
     @GetMapping
     public List<SceneResponse> list() {
         return service.list();
+    }
+
+    @PostMapping("/{id}/participants")
+    public ResponseEntity<SceneParticipantResponse> addParticipant(
+            @PathVariable String id, @Valid @RequestBody AddParticipantRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.addParticipant(id, request));
     }
 
     @PutMapping("/{id}")
