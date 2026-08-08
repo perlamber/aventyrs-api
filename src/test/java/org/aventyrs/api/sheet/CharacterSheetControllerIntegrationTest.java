@@ -175,7 +175,7 @@ class CharacterSheetControllerIntegrationTest {
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
                 Map.of(EgoDomain.SORTE, new EgoValueDto(3, 2)),
-                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), 2)));
+                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), List.of("DOM_BARDICO"), 2)));
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -196,6 +196,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.base").value(2))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.total").value(2))
                 .andExpect(jsonPath("$.character.skills.ARTES.specializations[0]").value("PINTURA"))
+                .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[0]").value("DOM_BARDICO"))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
                 .andExpect(jsonPath("$.character.skills.ATLETISMO").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
@@ -235,8 +236,8 @@ class CharacterSheetControllerIntegrationTest {
 
         CharacterDto firstUpdatedCharacter = new CharacterDto(
                 "Boromir Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
-                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, 3),
-                        SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), 5)));
+                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 3),
+                        SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), List.of("ESCONDER_OUTROS"), 5)));
         CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
                 firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
 
@@ -246,7 +247,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(3))
                 .andExpect(jsonPath("$.character.skills.FURTIVIDADE.graduationValue").value(5))
-                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.specializations[0]").value("MAESTRIA_DA_OCULTACAO"));
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.specializations[0]").value("MAESTRIA_DA_OCULTACAO"))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.competencyAbilities[0]").value("ESCONDER_OUTROS"));
 
         mockMvc.perform(get("/api/character-sheets/{id}", id))
                 .andExpect(status().isOk())
@@ -255,8 +257,8 @@ class CharacterSheetControllerIntegrationTest {
 
         CharacterDto secondUpdatedCharacter = new CharacterDto(
                 "Boromir Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
-                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, 4),
-                        SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, 6)));
+                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 4),
+                        SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, null, 6)));
         CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
                 secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
 

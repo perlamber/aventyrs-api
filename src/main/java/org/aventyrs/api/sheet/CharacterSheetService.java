@@ -168,6 +168,7 @@ public class CharacterSheetService {
         provided.forEach((type, dto) -> skills.put(
                 type, new CharacterSkillEntry(
                         dto.specializations() == null ? List.of() : dto.specializations(),
+                        dto.competencyAbilities() == null ? List.of() : dto.competencyAbilities(),
                         dto.graduationValue() == null ? 0 : dto.graduationValue())));
         return skills;
     }
@@ -210,7 +211,7 @@ public class CharacterSheetService {
 
         Map<SkillType, CharacterSkillResponse> skillsResponse = new EnumMap<>(SkillType.class);
         skills.forEach((type, skill) -> skillsResponse.put(
-                type, new CharacterSkillResponse(skill.specializations(), skill.graduationValue())));
+                type, new CharacterSkillResponse(skill.specializations(), skill.competencyAbilities(), skill.graduationValue())));
 
         return new CharacterResponse(
                 character.characterId(),
