@@ -175,7 +175,7 @@ class CharacterSheetControllerIntegrationTest {
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
                 Map.of(EgoDomain.SORTE, new EgoValueDto(3, 2)),
-                Map.of(SkillType.ARTES, new CharacterSkillDto("Pintura", 2)));
+                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), 2)));
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -195,7 +195,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.egos.SORTE.total").value(5))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.base").value(2))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.total").value(2))
-                .andExpect(jsonPath("$.character.skills.ARTES.specialization").value("Pintura"))
+                .andExpect(jsonPath("$.character.skills.ARTES.specializations[0]").value("PINTURA"))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
                 .andExpect(jsonPath("$.character.skills.ATLETISMO").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
@@ -208,6 +208,71 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.attributes.VIGOR.total").value(4))
                 .andExpect(jsonPath("$.character.egos.SORTE.total").value(5))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2));
+    }
+
+    /**
+     * The real client flow: the creation wizard always POSTs a character with empty skills (no
+     * Perícias step there yet), then the hub screen's first "Salvar" PUTs a populated skills map,
+     * and a later "Salvar" PUTs a different one again. {@link #performsFullCrudLifecycle} exercises
+     * PUT with {@code null} skills, and {@link #persistsSizeCategoryAttributesEgosAndSkills} only
+     * exercises POST-with-skills→GET — neither chains a populated-skills PUT after a real create,
+     * nor a second PUT that changes the skills map again, which is exactly the sequence a bug that
+     * only shows up after more than one write would hide in.
+     */
+    @Test
+    void skillsPopulatedByUpdateSurviveAndCanBeChangedAgain() throws Exception {
+        CharacterDto character = new CharacterDto(
+                "Boromir Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null, Map.of());
+        CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
+
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.character.skills").isEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        CharacterDto firstUpdatedCharacter = new CharacterDto(
+                "Boromir Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
+                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, 3),
+                        SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), 5)));
+        CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
+                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstUpdateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(3))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.graduationValue").value(5))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.specializations[0]").value("MAESTRIA_DA_OCULTACAO"));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(3))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE.graduationValue").value(5));
+
+        CharacterDto secondUpdatedCharacter = new CharacterDto(
+                "Boromir Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
+                Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, 4),
+                        SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, 6)));
+        CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
+                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(secondUpdateRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(4))
+                .andExpect(jsonPath("$.character.skills.DOMINIO_DO_MANA.graduationValue").value(6))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE").doesNotExist());
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(4))
+                .andExpect(jsonPath("$.character.skills.DOMINIO_DO_MANA.graduationValue").value(6))
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE").doesNotExist());
     }
 
     @Test

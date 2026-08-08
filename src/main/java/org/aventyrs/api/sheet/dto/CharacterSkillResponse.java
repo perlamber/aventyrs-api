@@ -1,4 +1,6 @@
 package org.aventyrs.api.sheet.dto;
 
-public record CharacterSkillResponse(String specialization, int graduationValue) {
+import java.util.List;
+
+public record CharacterSkillResponse(List<String> specializations, int graduationValue) {
 }
