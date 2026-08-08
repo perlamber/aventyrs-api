@@ -116,6 +116,34 @@ public class SceneService {
         repository.save(document);
     }
 
+    public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition) {
+        SceneDocument document = findOrThrow(id);
+
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        int index = indexOfParticipant(participants, characterSheetId);
+        SceneParticipantEntry moved = new SceneParticipantEntry(
+                characterSheetId,
+                participants.get(index).initiativeValue(),
+                participants.get(index).group(),
+                newPosition);
+        participants.set(index, moved);
+        requireDistinctPositions(participants);
+
+        document.setParticipants(participants);
+        repository.save(document);
+
+        return moved;
+    }
+
+    private int indexOfParticipant(List<SceneParticipantEntry> participants, String characterSheetId) {
+        for (int i = 0; i < participants.size(); i++) {
+            if (participants.get(i).characterSheetId().equals(characterSheetId)) {
+                return i;
+            }
+        }
+        throw new NotFoundException("Participant not found in scene: " + characterSheetId);
+    }
+
     private GridPosition firstFreePosition(List<SceneParticipantEntry> participants) {
         Set<GridPosition> occupied = participants.stream()
                 .map(SceneParticipantEntry::position)
