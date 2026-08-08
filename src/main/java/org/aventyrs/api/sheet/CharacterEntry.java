@@ -12,9 +12,8 @@ import org.aventyrs.core.skill.SkillType;
  * Persisted mirror of a core {@code Character}'s identity and build fields, nested directly
  * inside {@code CharacterSheetDocument} rather than referenced by id: Mongo's document model
  * makes denormalizing this natural, and nothing in this API modifies a Character independently
- * of the CharacterSheet wrapping it. {@code race} is a plain identifier (e.g. {@code "HUMAN"})
- * since core's {@code Race} is a stateless interface with one implementation ({@code Human}) so
- * far, not an enum this layer can reference directly. {@code skills} only contains entries for
+ * of the CharacterSheet wrapping it. See {@link RaceEntry} for how {@code race} mirrors core's
+ * polymorphic {@code Race} interface. {@code skills} only contains entries for
  * Perícias actually trained — an absent {@link SkillType} key means untrained, same convention
  * as core's own {@code Character#skills}, unlike {@code attributes}/{@code egos}, which always
  * have every {@link AttributeDomain}/{@link EgoDomain} key (core defaults every attribute to
@@ -33,7 +32,7 @@ import org.aventyrs.core.skill.SkillType;
 public record CharacterEntry(
         String characterId,
         String name,
-        String race,
+        RaceEntry race,
         Sexo sexo,
         int tendencia,
         SizeCategory sizeCategory,

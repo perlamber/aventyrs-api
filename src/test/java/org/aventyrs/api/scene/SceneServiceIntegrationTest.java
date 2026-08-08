@@ -13,6 +13,7 @@ import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
+import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.scene.grid.GridPosition;
@@ -56,7 +57,8 @@ class SceneServiceIntegrationTest {
 
     private String createCharacterSheet(String playerId) {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
+                        Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
                 playerId);
         return characterSheetService.create(request).id();
     }

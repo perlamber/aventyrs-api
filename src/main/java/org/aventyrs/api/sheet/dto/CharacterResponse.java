@@ -11,7 +11,7 @@ import org.aventyrs.core.skill.SkillType;
 public record CharacterResponse(
         String id,
         String name,
-        String race,
+        RaceResponse race,
         Sexo sexo,
         int tendencia,
         SizeCategory sizeCategory,

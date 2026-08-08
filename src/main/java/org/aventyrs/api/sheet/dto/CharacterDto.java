@@ -25,7 +25,7 @@ import org.aventyrs.core.skill.SkillType;
  */
 public record CharacterDto(
         @NotBlank String name,
-        @NotBlank String race,
+        @NotNull @Valid RaceDto race,
         Sexo sexo,
         Integer tendencia,
         SizeCategory sizeCategory,

@@ -20,6 +20,7 @@ import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
+import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +69,8 @@ class SceneControllerIntegrationTest {
 
     private String createCharacterSheet(String playerId) throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Scene Character", "HUMAN", Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
+                        Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
                 playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)

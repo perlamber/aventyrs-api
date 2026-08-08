@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerRepository;
@@ -18,6 +19,8 @@ import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.EgoValueResponse;
+import org.aventyrs.api.sheet.dto.RaceDto;
+import org.aventyrs.api.sheet.dto.RaceResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.EgoDomain;
@@ -117,13 +120,23 @@ public class CharacterSheetService {
     /** core's own {@code EgoValue#base} default. */
     private static final int DEFAULT_EGO_BASE = 2;
 
+    /** The 12 core {@code Race} implementations with no constructor state. */
+    private static final Set<String> STATELESS_RACE_TYPES = Set.of(
+            "HUMAN", "ELFO", "ANAO", "BESTIAL", "GIGANTES", "FADA", "FURIA",
+            "GNOMO", "GORGONA", "PEQUENINO", "ORC", "SATIRO");
+
+    /** The 7 {@code AbstractMesticoRace} subclasses plus {@code MeioElfo} — all require a parentRaceType. */
+    private static final Set<String> STATEFUL_RACE_TYPES = Set.of(
+            "AGASTIAS", "AQUAN", "COLOSSO", "DOLOS", "FLAMINIDEO", "INVERNAL",
+            "NASCIDO_DA_FLORESTA", "MEIO_ELFO");
+
     private static CharacterEntry toEntry(String characterId, CharacterDto character) {
         int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
         return new CharacterEntry(
                 characterId,
                 character.name(),
-                character.race(),
+                toRaceEntry(character.race()),
                 character.sexo(),
                 tendencia,
                 sizeCategory,
@@ -131,6 +144,42 @@ public class CharacterSheetService {
                 normalizeAttributes(character.attributes()),
                 normalizeEgos(character.egos()),
                 normalizeSkills(character.skills()));
+    }
+
+    /**
+     * The 8 stateful race types (see {@link #STATEFUL_RACE_TYPES}) require a {@code
+     * parentRaceType} — everything else about them ({@code linhagem}, {@code
+     * chosenInheritedAttribute}, the ability lists) is passed through as-is, since core's own
+     * constructors are the ones that actually validate that state, and this API layer never
+     * constructs a core {@code Race} instance (see {@link RaceEntry}'s javadoc).
+     */
+    private static RaceEntry toRaceEntry(RaceDto race) {
+        if (STATEFUL_RACE_TYPES.contains(race.type())
+                && (race.parentRaceType() == null || race.parentRaceType().isBlank())) {
+            throw new IllegalArgumentException(race.type() + " requires a parentRaceType");
+        }
+        return new RaceEntry(
+                race.type(),
+                race.parentRaceType(),
+                race.linhagem(),
+                race.chosenInheritedAttribute(),
+                race.inheritedRacialAbilities() == null ? List.of() : race.inheritedRacialAbilities(),
+                race.inheritedAttributeAbilities() == null ? List.of() : race.inheritedAttributeAbilities());
+    }
+
+    /**
+     * Null-guards the ability lists: legacy documents migrated from the old plain-string {@code
+     * race} field (see the {@code 006-character-race-restructure} changelog) have those keys
+     * absent entirely, which Spring Data binds to {@code null}, not an empty list.
+     */
+    private static RaceResponse toRaceResponse(RaceEntry race) {
+        return new RaceResponse(
+                race.type(),
+                race.parentRaceType(),
+                race.linhagem(),
+                race.chosenInheritedAttribute(),
+                race.inheritedRacialAbilities() == null ? List.of() : race.inheritedRacialAbilities(),
+                race.inheritedAttributeAbilities() == null ? List.of() : race.inheritedAttributeAbilities());
     }
 
     /** Every {@link AttributeDomain} always has an entry, same as core's {@code CharacterAttributes}. */
@@ -216,7 +265,7 @@ public class CharacterSheetService {
         return new CharacterResponse(
                 character.characterId(),
                 character.name(),
-                character.race(),
+                toRaceResponse(character.race()),
                 character.sexo(),
                 character.tendencia(),
                 sizeCategory,
