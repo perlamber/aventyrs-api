@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
@@ -17,8 +18,9 @@ import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
-import org.aventyrs.core.scene.grid.GridPosition;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
+import org.aventyrs.core.scene.TerrainType;
+import org.aventyrs.core.scene.grid.GridPosition;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -34,7 +36,7 @@ public class SceneService {
 
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
-                UUID.randomUUID().toString(), request.name(), List.of(), 0, -1, Instant.now());
+                UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1, Instant.now());
         return toResponse(repository.save(document));
     }
 
@@ -208,6 +210,7 @@ public class SceneService {
         return new SceneResponse(
                 document.getId(),
                 document.getName(),
+                document.getTerrain(),
                 participants,
                 document.getCurrentRound(),
                 document.getCurrentIndex());
