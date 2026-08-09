@@ -1,0 +1,27 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: aventyrs-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: aventyrs-seaweedfs
+    command: server -dir=/data -master -volume -filer -s3
+    environment:
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=secret
+    ports:
+      - "9333:9333" # master
+      - "8080:8080" # volume
+      - "8888:8888" # filer (HTTP API used to serve uploaded images back)
+      - "8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
+    volumes:
+      - seaweedfs-data:/data
+
+volumes:
+  mongo-data:
+  seaweedfs-data:

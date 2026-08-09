@@ -1,0 +1,19 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-restructure-character-race-to-object
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "characterSheets",
+                updates: [
+                  {
+                    q: { "character.race": { $type: "string" } },
+                    u: [
+                      { $set: { "character.race": { type: "$character.race" } } }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

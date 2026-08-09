@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-players-collection
+      author: aventyrs-api
+      changes:
+        - createCollection:
+            collectionName: players
+  - changeSet:
+      id: 002-create-players-login-unique-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: players
+            keys: '{ "login": 1 }'
+            options: '{ "unique": true, "name": "ux_players_login" }'

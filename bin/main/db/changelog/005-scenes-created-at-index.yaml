@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-scenes-created-at-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: scenes
+            keys: '{ "createdAt": -1 }'
+            options: '{ "name": "ix_scenes_created_at" }'
