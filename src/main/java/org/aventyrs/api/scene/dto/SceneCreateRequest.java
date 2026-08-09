@@ -7,5 +7,5 @@ import jakarta.validation.constraints.NotBlank;
  * only needs a name; participants join afterward via update, same as core's {@code
  * addParticipant}.
  */
-public record SceneCreateRequest(@NotBlank String name) {
+public record SceneCreateRequest(@NotBlank String name, @NotBlank String terrain) {
 }

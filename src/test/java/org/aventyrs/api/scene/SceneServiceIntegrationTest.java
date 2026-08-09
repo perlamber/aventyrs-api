@@ -1,9 +1,7 @@
 package org.aventyrs.api.scene;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import java.util.UUID;
+
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -17,6 +15,8 @@ import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.scene.grid.GridPosition;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +65,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantPersistsTheNewPosition() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
 
@@ -79,7 +79,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantRejectsAnAlreadyOccupiedCell() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         SceneParticipantResponse second =
@@ -92,7 +92,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantRejectsAnUnknownParticipant() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
 
         assertThrows(NotFoundException.class,
                 () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(0, 0)));

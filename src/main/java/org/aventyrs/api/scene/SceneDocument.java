@@ -2,12 +2,15 @@ package org.aventyrs.api.scene;
 
 import java.time.Instant;
 import java.util.List;
+
+import org.aventyrs.core.scene.TerrainType;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
  * Persisted state backing an {@code org.aventyrs.core.scene.Scene}. Participants reference a
@@ -31,6 +34,8 @@ public class SceneDocument {
     private String id;
 
     private String name;
+
+    private TerrainType terrain;
 
     private List<SceneParticipantEntry> participants;
 

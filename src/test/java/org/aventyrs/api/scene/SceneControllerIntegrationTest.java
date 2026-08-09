@@ -1,17 +1,8 @@
 package org.aventyrs.api.scene;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
+
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
@@ -23,6 +14,8 @@ import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +24,17 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
+
+import tools.jackson.databind.ObjectMapper;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -82,7 +83,7 @@ class SceneControllerIntegrationTest {
 
     @Test
     void performsFullCrudLifecycle() throws Exception {
-        SceneCreateRequest createRequest = new SceneCreateRequest("Ambush at the bridge");
+        SceneCreateRequest createRequest = new SceneCreateRequest("Ambush at the bridge", "URBAN");
 
         String createResponse = mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,6 +91,7 @@ class SceneControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Ambush at the bridge"))
+                .andExpect(jsonPath("$.terrain").value("URBAN"))
                 .andExpect(jsonPath("$.participants", hasSize(0)))
                 .andExpect(jsonPath("$.currentRound").value(0))
                 .andExpect(jsonPath("$.currentIndex").value(-1))
@@ -292,7 +294,7 @@ class SceneControllerIntegrationTest {
 
     @Test
     void rejectsOutOfBoundsGridPosition() throws Exception {
-        String requestJson = objectMapper.writeValueAsString(new SceneCreateRequest("Scene"));
+        String requestJson = objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN"));
         String id = objectMapper.readTree(mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
@@ -314,7 +316,7 @@ class SceneControllerIntegrationTest {
     private String createEmptyScene() throws Exception {
         String response = mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene"))))
+                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).get("id").asText();
