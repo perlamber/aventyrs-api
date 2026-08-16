@@ -10,6 +10,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerRepository;
 import org.aventyrs.api.sheet.dto.AttributeValueDto;
 import org.aventyrs.api.sheet.dto.AttributeValueResponse;
+import org.aventyrs.api.sheet.dto.BleedingDto;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterResponse;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
@@ -19,9 +20,12 @@ import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.EgoValueResponse;
+import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.RaceResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
@@ -55,6 +59,10 @@ public class CharacterSheetService {
                 0,
                 0,
                 defaultTemporaryEgoPoints(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
                 List.of());
         return toResponse(repository.save(document));
     }
@@ -88,6 +96,18 @@ public class CharacterSheetService {
         document.setTemporaryEgoPoints(normalizeTemporaryEgoPoints(request.temporaryEgoPoints()));
         document.setTemporaryBonuses(request.temporaryBonuses() == null ? List.of() : request.temporaryBonuses().stream()
                 .map(bonus -> new TemporaryBonusEntry(bonus.type(), bonus.value(), bonus.remainingRounds()))
+                .toList());
+        document.setBleedingEffects(request.bleedingEffects() == null ? List.of() : request.bleedingEffects().stream()
+                .map(bleeding -> new BleedingEntry(bleeding.valuePerRound(), bleeding.remainingRounds()))
+                .toList());
+        document.setManaDrains(request.manaDrains() == null ? List.of() : request.manaDrains().stream()
+                .map(manaDrain -> new ManaDrainEntry(manaDrain.valuePerRound(), manaDrain.remainingRounds()))
+                .toList());
+        document.setWitheringEffects(request.witheringEffects() == null ? List.of() : request.witheringEffects().stream()
+                .map(withering -> new WitheringEntry(withering.valuePerRound(), withering.remainingRounds()))
+                .toList());
+        document.setPendingEgoRecoveries(request.pendingEgoRecoveries() == null ? List.of() : request.pendingEgoRecoveries().stream()
+                .map(recovery -> new PendingEgoRecoveryEntry(recovery.domain(), recovery.value(), recovery.minimumRestType()))
                 .toList());
 
         return toResponse(repository.save(document));
@@ -275,9 +295,26 @@ public class CharacterSheetService {
                 skillsResponse);
     }
 
+    /**
+     * {@code bleedingEffects}/{@code manaDrains}/{@code witheringEffects}/{@code
+     * pendingEgoRecoveries} fall back to an empty list for documents persisted before those
+     * fields existed, same reasoning as {@link #normalizeAttributes}.
+     */
     private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
         List<TemporaryBonusDto> bonuses = document.getTemporaryBonuses().stream()
                 .map(bonus -> new TemporaryBonusDto(bonus.type(), bonus.value(), bonus.remainingRounds()))
+                .toList();
+        List<BleedingDto> bleedingEffects = document.getBleedingEffects() == null ? List.of() : document.getBleedingEffects().stream()
+                .map(bleeding -> new BleedingDto(bleeding.valuePerRound(), bleeding.remainingRounds()))
+                .toList();
+        List<ManaDrainDto> manaDrains = document.getManaDrains() == null ? List.of() : document.getManaDrains().stream()
+                .map(manaDrain -> new ManaDrainDto(manaDrain.valuePerRound(), manaDrain.remainingRounds()))
+                .toList();
+        List<WitheringDto> witheringEffects = document.getWitheringEffects() == null ? List.of() : document.getWitheringEffects().stream()
+                .map(withering -> new WitheringDto(withering.valuePerRound(), withering.remainingRounds()))
+                .toList();
+        List<PendingEgoRecoveryDto> pendingEgoRecoveries = document.getPendingEgoRecoveries() == null ? List.of() : document.getPendingEgoRecoveries().stream()
+                .map(recovery -> new PendingEgoRecoveryDto(recovery.domain(), recovery.value(), recovery.minimumRestType()))
                 .toList();
         CharacterResponse characterResponse = toCharacterResponse(document.getCharacter());
         return new CharacterSheetResponse(
@@ -293,6 +330,10 @@ public class CharacterSheetService {
                 document.getFamaPositiva(),
                 document.getFamaNegativa(),
                 document.getTemporaryEgoPoints(),
-                bonuses);
+                bonuses,
+                bleedingEffects,
+                manaDrains,
+                witheringEffects,
+                pendingEgoRecoveries);
     }
 }

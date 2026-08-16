@@ -16,19 +16,24 @@ import java.util.Map;
 import java.util.UUID;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.sheet.dto.AttributeValueDto;
+import org.aventyrs.api.sheet.dto.BleedingDto;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
+import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.modifier.ModifierType;
+import org.aventyrs.core.rest.RestType;
 import org.aventyrs.core.skill.SkillType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -108,6 +113,10 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(0))
                 .andExpect(jsonPath("$.temporaryEgoPoints.INICIATIVA").value(0))
                 .andExpect(jsonPath("$.temporaryBonuses", hasSize(0)))
+                .andExpect(jsonPath("$.bleedingEffects", hasSize(0)))
+                .andExpect(jsonPath("$.manaDrains", hasSize(0)))
+                .andExpect(jsonPath("$.witheringEffects", hasSize(0)))
+                .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(0)))
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -135,7 +144,11 @@ class CharacterSheetControllerIntegrationTest {
                 2,
                 1,
                 Map.of(EgoDomain.SORTE, 2),
-                List.of(new TemporaryBonusDto(ModifierType.SKILL_ROLL_BONUS, 2, 3)));
+                List.of(new TemporaryBonusDto(ModifierType.SKILL_ROLL_BONUS, 2, 3)),
+                List.of(new BleedingDto(2, 3)),
+                List.of(new ManaDrainDto(1, null)),
+                List.of(new WitheringDto(1, 2)),
+                List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)));
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -158,7 +171,20 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.temporaryBonuses", hasSize(1)))
                 .andExpect(jsonPath("$.temporaryBonuses[0].type").value("SKILL_ROLL_BONUS"))
                 .andExpect(jsonPath("$.temporaryBonuses[0].value").value(2))
-                .andExpect(jsonPath("$.temporaryBonuses[0].remainingRounds").value(3));
+                .andExpect(jsonPath("$.temporaryBonuses[0].remainingRounds").value(3))
+                .andExpect(jsonPath("$.bleedingEffects", hasSize(1)))
+                .andExpect(jsonPath("$.bleedingEffects[0].valuePerRound").value(2))
+                .andExpect(jsonPath("$.bleedingEffects[0].remainingRounds").value(3))
+                .andExpect(jsonPath("$.manaDrains", hasSize(1)))
+                .andExpect(jsonPath("$.manaDrains[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.manaDrains[0].remainingRounds").doesNotExist())
+                .andExpect(jsonPath("$.witheringEffects", hasSize(1)))
+                .andExpect(jsonPath("$.witheringEffects[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.witheringEffects[0].remainingRounds").value(2))
+                .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(1)))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].domain").value("SORTE"))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].value").value(1))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].minimumRestType").value("LONGO"));
 
         mockMvc.perform(delete("/api/character-sheets/{id}", id))
                 .andExpect(status().isNoContent());
@@ -242,7 +268,7 @@ class CharacterSheetControllerIntegrationTest {
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 3),
                         SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), List.of("ESCONDER_OUTROS"), 5)));
         CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
-                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of());
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -263,7 +289,7 @@ class CharacterSheetControllerIntegrationTest {
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 4),
                         SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, null, 6)));
         CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
-                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of());
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)

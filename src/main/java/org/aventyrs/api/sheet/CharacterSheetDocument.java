@@ -51,4 +51,12 @@ public class CharacterSheetDocument {
     private Map<EgoDomain, Integer> temporaryEgoPoints;
 
     private List<TemporaryBonusEntry> temporaryBonuses;
+
+    private List<BleedingEntry> bleedingEffects;
+
+    private List<ManaDrainEntry> manaDrains;
+
+    private List<WitheringEntry> witheringEffects;
+
+    private List<PendingEgoRecoveryEntry> pendingEgoRecoveries;
 }

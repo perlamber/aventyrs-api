@@ -21,7 +21,9 @@ import lombok.Setter;
  * here replays {@code Scene#next()}'s active/pending-entry merge logic yet — that's action-time
  * behavior, not a CRUD concern. {@code createdAt} exists purely to resolve "latest" (see
  * {@code SceneRepository#findTopByOrderByCreatedAtDesc}) — ids are random UUIDs, not ObjectIds,
- * so there's no implicit chronological ordering to fall back on.
+ * so there's no implicit chronological ordering to fall back on. {@code combatScene} mirrors
+ * core's own {@code Scene#isCombatScene()} — {@code false} until a caller flips it once combat
+ * actually breaks out, same as core.
  */
 @Document(collection = "scenes")
 @Getter
@@ -43,6 +45,8 @@ public class SceneDocument {
 
     /** -1 before the first {@code next()}-equivalent action, same convention as core's {@code Scene}. */
     private int currentIndex;
+
+    private boolean combatScene;
 
     private Instant createdAt;
 }

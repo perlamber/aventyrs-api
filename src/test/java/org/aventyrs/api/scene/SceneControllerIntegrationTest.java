@@ -95,6 +95,7 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants", hasSize(0)))
                 .andExpect(jsonPath("$.currentRound").value(0))
                 .andExpect(jsonPath("$.currentIndex").value(-1))
+                .andExpect(jsonPath("$.combatScene").value(false))
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -105,7 +106,8 @@ class SceneControllerIntegrationTest {
                         new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10)),
                         new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10))),
                 0,
-                0);
+                0,
+                true);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -115,7 +117,8 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId1))
                 .andExpect(jsonPath("$.participants[0].position.x").value(10))
                 .andExpect(jsonPath("$.participants[0].position.y").value(10))
-                .andExpect(jsonPath("$.currentIndex").value(0));
+                .andExpect(jsonPath("$.currentIndex").value(0))
+                .andExpect(jsonPath("$.combatScene").value(true));
 
         mockMvc.perform(get("/api/scenes/{id}", id))
                 .andExpect(status().isOk())
@@ -215,7 +218,8 @@ class SceneControllerIntegrationTest {
                         new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0)),
                         new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0))),
                 0,
-                0);
+                0,
+                false);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -250,7 +254,8 @@ class SceneControllerIntegrationTest {
                 "Scene",
                 List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0))),
                 0,
-                0);
+                0,
+                false);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -268,7 +273,8 @@ class SceneControllerIntegrationTest {
                         new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5)),
                         new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5))),
                 0,
-                0);
+                0,
+                false);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -284,7 +290,8 @@ class SceneControllerIntegrationTest {
                 "Scene",
                 List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0))),
                 0,
-                5);
+                5,
+                false);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -305,7 +312,8 @@ class SceneControllerIntegrationTest {
                 "Scene",
                 List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0))),
                 0,
-                0);
+                0,
+                false);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
