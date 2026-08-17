@@ -26,9 +26,14 @@ import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.RaceResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.api.sheet.dto.WitheringDto;
+import org.aventyrs.core.action.ActionPointsService;
 import org.aventyrs.core.character.AttributeDomain;
+import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
+import org.aventyrs.core.character.services.FreeActionsService;
+import org.aventyrs.core.character.services.MagicPointsService;
+import org.aventyrs.core.character.services.ReactionsService;
 import org.aventyrs.core.skill.SkillType;
 import org.springframework.stereotype.Service;
 
@@ -153,6 +158,12 @@ public class CharacterSheetService {
     private static CharacterEntry toEntry(String characterId, CharacterDto character) {
         int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
+        CharacterStatus status = character.status() == null ? CharacterStatus.CLEAN : character.status();
+        int actionPoints = character.actionPoints() == null ? ActionPointsService.DEFAULT_ACTION_POINTS : character.actionPoints();
+        int temporaryActionPointsBonus = character.temporaryActionPointsBonus() == null ? 0 : character.temporaryActionPointsBonus();
+        int reactions = character.reactions() == null ? ReactionsService.DEFAULT_REACTIONS : character.reactions();
+        int freeActions = character.freeActions() == null ? FreeActionsService.DEFAULT_FREE_ACTIONS : character.freeActions();
+        int manaMultiplier = character.manaMultiplier() == null ? MagicPointsService.DEFAULT_MANA_MULTIPLIER : character.manaMultiplier();
         return new CharacterEntry(
                 characterId,
                 character.name(),
@@ -165,7 +176,15 @@ public class CharacterSheetService {
                 normalizeAttributes(character.attributes()),
                 normalizeEgos(character.egos()),
                 normalizeSkills(character.skills()),
-                character.attributeAbilities() == null ? List.of() : character.attributeAbilities());
+                character.attributeAbilities() == null ? List.of() : character.attributeAbilities(),
+                normalizeEgoAdvantages(character.egoAdvantages()),
+                character.activeAbilities() == null ? List.of() : character.activeAbilities(),
+                actionPoints,
+                temporaryActionPointsBonus,
+                status,
+                reactions,
+                freeActions,
+                manaMultiplier);
     }
 
     /**
@@ -244,6 +263,17 @@ public class CharacterSheetService {
         return skills;
     }
 
+    /**
+     * Unlike attributes/egos, an absent {@link EgoDomain} key means no Vantagem chosen —
+     * nothing to default here, same reasoning as {@link #normalizeSkills}.
+     */
+    private static Map<EgoDomain, String> normalizeEgoAdvantages(Map<EgoDomain, String> provided) {
+        if (provided == null || provided.isEmpty()) {
+            return Map.of();
+        }
+        return new EnumMap<>(provided);
+    }
+
     private static Map<EgoDomain, Integer> defaultTemporaryEgoPoints() {
         Map<EgoDomain, Integer> pools = new EnumMap<>(EgoDomain.class);
         for (EgoDomain domain : EgoDomain.values()) {
@@ -262,7 +292,9 @@ public class CharacterSheetService {
 
     /**
      * {@code sizeCategory}/{@code attributes}/{@code egos}/{@code skills}/{@code
-     * attributeAbilities} fall back to defaults for documents persisted before those fields
+     * attributeAbilities}/{@code egoAdvantages}/{@code activeAbilities}/{@code status}/{@code
+     * actionPoints}/{@code temporaryActionPointsBonus}/{@code reactions}/{@code freeActions}/
+     * {@code manaMultiplier} fall back to defaults for documents persisted before those fields
      * existed, same reasoning as {@link #normalizeAttributes}.
      */
     private CharacterResponse toCharacterResponse(CharacterEntry character) {
@@ -271,6 +303,12 @@ public class CharacterSheetService {
                 character.attributes() == null ? normalizeAttributes(null) : character.attributes();
         Map<EgoDomain, EgoValueEntry> egos = character.egos() == null ? normalizeEgos(null) : character.egos();
         Map<SkillType, CharacterSkillEntry> skills = character.skills() == null ? Map.of() : character.skills();
+        CharacterStatus status = character.status() == null ? CharacterStatus.CLEAN : character.status();
+        int actionPoints = character.actionPoints() == null ? ActionPointsService.DEFAULT_ACTION_POINTS : character.actionPoints();
+        int temporaryActionPointsBonus = character.temporaryActionPointsBonus() == null ? 0 : character.temporaryActionPointsBonus();
+        int reactions = character.reactions() == null ? ReactionsService.DEFAULT_REACTIONS : character.reactions();
+        int freeActions = character.freeActions() == null ? FreeActionsService.DEFAULT_FREE_ACTIONS : character.freeActions();
+        int manaMultiplier = character.manaMultiplier() == null ? MagicPointsService.DEFAULT_MANA_MULTIPLIER : character.manaMultiplier();
 
         Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
         attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(
@@ -296,7 +334,15 @@ public class CharacterSheetService {
                 attributesResponse,
                 egosResponse,
                 skillsResponse,
-                character.attributeAbilities() == null ? List.of() : character.attributeAbilities());
+                character.attributeAbilities() == null ? List.of() : character.attributeAbilities(),
+                character.egoAdvantages() == null ? Map.of() : character.egoAdvantages(),
+                character.activeAbilities() == null ? List.of() : character.activeAbilities(),
+                actionPoints,
+                temporaryActionPointsBonus,
+                status,
+                reactions,
+                freeActions,
+                manaMultiplier);
     }
 
     /**
