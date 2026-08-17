@@ -158,12 +158,14 @@ public class CharacterSheetService {
                 character.name(),
                 toRaceEntry(character.race()),
                 character.sexo(),
+                character.deity(),
                 tendencia,
                 sizeCategory,
                 character.actionProfile(),
                 normalizeAttributes(character.attributes()),
                 normalizeEgos(character.egos()),
-                normalizeSkills(character.skills()));
+                normalizeSkills(character.skills()),
+                character.attributeAbilities() == null ? List.of() : character.attributeAbilities());
     }
 
     /**
@@ -259,9 +261,9 @@ public class CharacterSheetService {
     }
 
     /**
-     * {@code sizeCategory}/{@code attributes}/{@code egos}/{@code skills} fall back to defaults
-     * for documents persisted before those fields existed, same reasoning as
-     * {@link #normalizeAttributes}.
+     * {@code sizeCategory}/{@code attributes}/{@code egos}/{@code skills}/{@code
+     * attributeAbilities} fall back to defaults for documents persisted before those fields
+     * existed, same reasoning as {@link #normalizeAttributes}.
      */
     private CharacterResponse toCharacterResponse(CharacterEntry character) {
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
@@ -287,12 +289,14 @@ public class CharacterSheetService {
                 character.name(),
                 toRaceResponse(character.race()),
                 character.sexo(),
+                character.deity(),
                 character.tendencia(),
                 sizeCategory,
                 character.actionProfile(),
                 attributesResponse,
                 egosResponse,
-                skillsResponse);
+                skillsResponse,
+                character.attributeAbilities() == null ? List.of() : character.attributeAbilities());
     }
 
     /**

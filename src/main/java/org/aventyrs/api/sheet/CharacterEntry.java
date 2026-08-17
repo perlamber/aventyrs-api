@@ -1,9 +1,11 @@
 package org.aventyrs.api.sheet;
 
+import java.util.List;
 import java.util.Map;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
+import org.aventyrs.core.character.Deity;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.skill.SkillType;
@@ -28,17 +30,26 @@ import org.aventyrs.core.skill.SkillType;
  * <p>{@code actionProfile} is nullable here (unlike {@code CharacterDto}'s required field) only
  * so documents persisted before this field existed still deserialize; every document written
  * through {@code CharacterSheetService} from now on always has one.
+ *
+ * <p>{@code attributeAbilities} stores core's {@code Character#attributeAbilities} as the enum
+ * constants' own {@code name()}s, the same "names rather than polymorphic core types" shape {@link
+ * RaceEntry#inheritedAttributeAbilities} and {@link CharacterSkillEntry} already use — core's
+ * {@code AttributeAbility} is an interface with eight implementing enums, which no single Mongo
+ * type mapping could round-trip. Documents written before this field existed deserialize it as
+ * {@code null}, which {@code CharacterSheetService} normalizes to an empty list.
  */
 public record CharacterEntry(
         String characterId,
         String name,
         RaceEntry race,
         Sexo sexo,
+        Deity deity,
         int tendencia,
         SizeCategory sizeCategory,
         ActionProfile actionProfile,
         Map<AttributeDomain, AttributeValueEntry> attributes,
         Map<EgoDomain, EgoValueEntry> egos,
-        Map<SkillType, CharacterSkillEntry> skills
+        Map<SkillType, CharacterSkillEntry> skills,
+        List<String> attributeAbilities
 ) {
 }
