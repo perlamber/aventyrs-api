@@ -22,6 +22,8 @@ public record CharacterSheetResponse(
         List<BleedingDto> bleedingEffects,
         List<ManaDrainDto> manaDrains,
         List<WitheringDto> witheringEffects,
-        List<PendingEgoRecoveryDto> pendingEgoRecoveries
+        List<PendingEgoRecoveryDto> pendingEgoRecoveries,
+        List<LifeStealDto> lifeSteals,
+        List<String> inventory
 ) {
 }

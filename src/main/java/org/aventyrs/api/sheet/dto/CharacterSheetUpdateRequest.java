@@ -26,6 +26,8 @@ public record CharacterSheetUpdateRequest(
         List<@Valid BleedingDto> bleedingEffects,
         List<@Valid ManaDrainDto> manaDrains,
         List<@Valid WitheringDto> witheringEffects,
-        List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries
+        List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
+        List<@Valid LifeStealDto> lifeSteals,
+        List<String> inventory
 ) {
 }

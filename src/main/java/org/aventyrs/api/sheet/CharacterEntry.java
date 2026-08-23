@@ -53,14 +53,26 @@ import org.aventyrs.core.skill.SkillType;
  * choices").
  *
  * <p>{@code status}, {@code actionPoints}, {@code temporaryActionPointsBonus}, {@code
- * reactions}, {@code freeActions}, and {@code manaMultiplier} are all nullable, unlike {@code
+ * reactions}, {@code freeActions}, {@code manaMultiplier}, {@code lifeMultiplier}, {@code
+ * determinationMultiplier}, and {@code centelhaSuperiorSelected} are all nullable, unlike {@code
  * tendencia} — this schema already has real documents predating these fields, so (same reasoning
  * as {@code sizeCategory}) they need a null-safe fallback at read time, not just a
  * default-when-omitted at write time: {@code status} to {@code CharacterStatus.CLEAN}; {@code
- * actionPoints}/{@code reactions}/{@code freeActions}/{@code manaMultiplier} to their respective
- * {@code <Stat>Service.DEFAULT_*} constants; {@code temporaryActionPointsBonus} to 0. Every
- * document written through {@code CharacterSheetService} from now on always has a resolved,
- * non-null value for each.
+ * actionPoints}/{@code reactions}/{@code freeActions}/{@code manaMultiplier}/{@code
+ * lifeMultiplier}/{@code determinationMultiplier} to their respective {@code
+ * <Stat>Service.DEFAULT_*} constants; {@code temporaryActionPointsBonus} to 0; {@code
+ * centelhaSuperiorSelected} to {@code false}. Every document written through {@code
+ * CharacterSheetService} from now on always has a resolved, non-null value for each.
+ *
+ * <p>{@code feats}/{@code equipment} store core's {@code Character#feats}/{@code
+ * Character#equipment} the same "constant's own {@code name()}" way {@code attributeAbilities}/
+ * {@code activeAbilities} already do — {@code Feat} and {@code Item} are both interfaces backed
+ * by catalog enums ({@code ArtesMarciaisFeat}, {@code ArmorItem}). Empty, not {@code null}, when
+ * nothing is held/equipped.
+ *
+ * <p>{@code primaryTitle}/{@code secondaryTitle}/{@code tertiaryTitle} mirror core's three
+ * Título slots; {@code null} for an empty slot. See {@link TitleEntry} for how a held Título is
+ * shaped.
  */
 public record CharacterEntry(
         String characterId,
@@ -82,6 +94,14 @@ public record CharacterEntry(
         CharacterStatus status,
         Integer reactions,
         Integer freeActions,
-        Integer manaMultiplier
+        Integer manaMultiplier,
+        Integer lifeMultiplier,
+        Integer determinationMultiplier,
+        Boolean centelhaSuperiorSelected,
+        List<String> feats,
+        List<String> equipment,
+        TitleEntry primaryTitle,
+        TitleEntry secondaryTitle,
+        TitleEntry tertiaryTitle
 ) {
 }

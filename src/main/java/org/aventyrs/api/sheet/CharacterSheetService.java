@@ -20,18 +20,23 @@ import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.EgoValueResponse;
+import org.aventyrs.api.sheet.dto.LifeStealDto;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.RaceResponse;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.api.sheet.dto.TitleDto;
+import org.aventyrs.api.sheet.dto.TitleResponse;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionPointsService;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
+import org.aventyrs.core.character.services.DeterminationPointsService;
 import org.aventyrs.core.character.services.FreeActionsService;
+import org.aventyrs.core.character.services.HitPointsService;
 import org.aventyrs.core.character.services.MagicPointsService;
 import org.aventyrs.core.character.services.ReactionsService;
 import org.aventyrs.core.skill.SkillType;
@@ -64,6 +69,8 @@ public class CharacterSheetService {
                 0,
                 0,
                 defaultTemporaryEgoPoints(),
+                List.of(),
+                List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
@@ -114,8 +121,65 @@ public class CharacterSheetService {
         document.setPendingEgoRecoveries(request.pendingEgoRecoveries() == null ? List.of() : request.pendingEgoRecoveries().stream()
                 .map(recovery -> new PendingEgoRecoveryEntry(recovery.domain(), recovery.value(), recovery.minimumRestType()))
                 .toList());
+        document.setLifeSteals(request.lifeSteals() == null ? List.of() : request.lifeSteals().stream()
+                .map(lifeSteal -> new LifeStealEntry(lifeSteal.value(), lifeSteal.remainingRounds()))
+                .toList());
+        document.setInventory(request.inventory() == null ? List.of() : request.inventory());
 
         return toResponse(repository.save(document));
+    }
+
+    /**
+     * Writes just the two combat-state fields a live Cena changes — the damage taken and the
+     * {@link CharacterStatus} tier it resolves to — leaving every other field on the sheet
+     * exactly as stored.
+     *
+     * <p>Deliberately not routed through {@link #update}: that endpoint is a full overwrite, so a
+     * caller holding a partially-populated {@code CharacterSheetUpdateRequest} would silently
+     * reset everything it didn't resend (the same trap {@code RestCharacterRosterService}
+     * documents on the client side). A token going from HIGH_LIFE to LOW_LIFE mid-scene must not
+     * be able to wipe a character's inventory or títulos, so this reaches into the document
+     * directly instead.
+     *
+     * <p>The rest of {@code character} is rebuilt from the stored entry rather than re-derived,
+     * since {@link CharacterEntry} is a record — only {@code status} differs in the copy.
+     */
+    public void updateCombatStatus(String id, int hitPointsSpent, CharacterStatus status) {
+        CharacterSheetDocument document = findOrThrow(id);
+        CharacterEntry stored = document.getCharacter();
+
+        document.setHitPointsSpent(hitPointsSpent);
+        document.setCharacter(new CharacterEntry(
+                stored.characterId(),
+                stored.name(),
+                stored.race(),
+                stored.sexo(),
+                stored.deity(),
+                stored.tendencia(),
+                stored.sizeCategory(),
+                stored.actionProfile(),
+                stored.attributes(),
+                stored.egos(),
+                stored.skills(),
+                stored.attributeAbilities(),
+                stored.egoAdvantages(),
+                stored.activeAbilities(),
+                stored.actionPoints(),
+                stored.temporaryActionPointsBonus(),
+                status,
+                stored.reactions(),
+                stored.freeActions(),
+                stored.manaMultiplier(),
+                stored.lifeMultiplier(),
+                stored.determinationMultiplier(),
+                stored.centelhaSuperiorSelected(),
+                stored.feats(),
+                stored.equipment(),
+                stored.primaryTitle(),
+                stored.secondaryTitle(),
+                stored.tertiaryTitle()));
+
+        repository.save(document);
     }
 
     public void delete(String id) {
@@ -164,6 +228,10 @@ public class CharacterSheetService {
         int reactions = character.reactions() == null ? ReactionsService.DEFAULT_REACTIONS : character.reactions();
         int freeActions = character.freeActions() == null ? FreeActionsService.DEFAULT_FREE_ACTIONS : character.freeActions();
         int manaMultiplier = character.manaMultiplier() == null ? MagicPointsService.DEFAULT_MANA_MULTIPLIER : character.manaMultiplier();
+        int lifeMultiplier = character.lifeMultiplier() == null ? HitPointsService.DEFAULT_LIFE_MULTIPLIER : character.lifeMultiplier();
+        int determinationMultiplier = character.determinationMultiplier() == null
+                ? DeterminationPointsService.DEFAULT_DETERMINATION_MULTIPLIER : character.determinationMultiplier();
+        boolean centelhaSuperiorSelected = character.centelhaSuperiorSelected() != null && character.centelhaSuperiorSelected();
         return new CharacterEntry(
                 characterId,
                 character.name(),
@@ -184,7 +252,35 @@ public class CharacterSheetService {
                 status,
                 reactions,
                 freeActions,
-                manaMultiplier);
+                manaMultiplier,
+                lifeMultiplier,
+                determinationMultiplier,
+                centelhaSuperiorSelected,
+                character.feats() == null ? List.of() : character.feats(),
+                character.equipment() == null ? List.of() : character.equipment(),
+                toTitleEntry(character.primaryTitle()),
+                toTitleEntry(character.secondaryTitle()),
+                toTitleEntry(character.tertiaryTitle()));
+    }
+
+    private static TitleEntry toTitleEntry(TitleDto title) {
+        if (title == null) {
+            return null;
+        }
+        return new TitleEntry(
+                title.type(),
+                title.specializations() == null ? List.of() : title.specializations(),
+                title.abilities() == null ? List.of() : title.abilities());
+    }
+
+    private static TitleResponse toTitleResponse(TitleEntry title) {
+        if (title == null) {
+            return null;
+        }
+        return new TitleResponse(
+                title.type(),
+                title.specializations() == null ? List.of() : title.specializations(),
+                title.abilities() == null ? List.of() : title.abilities());
     }
 
     /**
@@ -309,6 +405,10 @@ public class CharacterSheetService {
         int reactions = character.reactions() == null ? ReactionsService.DEFAULT_REACTIONS : character.reactions();
         int freeActions = character.freeActions() == null ? FreeActionsService.DEFAULT_FREE_ACTIONS : character.freeActions();
         int manaMultiplier = character.manaMultiplier() == null ? MagicPointsService.DEFAULT_MANA_MULTIPLIER : character.manaMultiplier();
+        int lifeMultiplier = character.lifeMultiplier() == null ? HitPointsService.DEFAULT_LIFE_MULTIPLIER : character.lifeMultiplier();
+        int determinationMultiplier = character.determinationMultiplier() == null
+                ? DeterminationPointsService.DEFAULT_DETERMINATION_MULTIPLIER : character.determinationMultiplier();
+        boolean centelhaSuperiorSelected = character.centelhaSuperiorSelected() != null && character.centelhaSuperiorSelected();
 
         Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
         attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(
@@ -342,7 +442,15 @@ public class CharacterSheetService {
                 status,
                 reactions,
                 freeActions,
-                manaMultiplier);
+                manaMultiplier,
+                lifeMultiplier,
+                determinationMultiplier,
+                centelhaSuperiorSelected,
+                character.feats() == null ? List.of() : character.feats(),
+                character.equipment() == null ? List.of() : character.equipment(),
+                toTitleResponse(character.primaryTitle()),
+                toTitleResponse(character.secondaryTitle()),
+                toTitleResponse(character.tertiaryTitle()));
     }
 
     /**
@@ -366,6 +474,10 @@ public class CharacterSheetService {
         List<PendingEgoRecoveryDto> pendingEgoRecoveries = document.getPendingEgoRecoveries() == null ? List.of() : document.getPendingEgoRecoveries().stream()
                 .map(recovery -> new PendingEgoRecoveryDto(recovery.domain(), recovery.value(), recovery.minimumRestType()))
                 .toList();
+        List<LifeStealDto> lifeSteals = document.getLifeSteals() == null ? List.of() : document.getLifeSteals().stream()
+                .map(lifeSteal -> new LifeStealDto(lifeSteal.value(), lifeSteal.remainingRounds()))
+                .toList();
+        List<String> inventory = document.getInventory() == null ? List.of() : document.getInventory();
         CharacterResponse characterResponse = toCharacterResponse(document.getCharacter());
         return new CharacterSheetResponse(
                 document.getId(),
@@ -384,6 +496,8 @@ public class CharacterSheetService {
                 bleedingEffects,
                 manaDrains,
                 witheringEffects,
-                pendingEgoRecoveries);
+                pendingEgoRecoveries,
+                lifeSteals,
+                inventory);
     }
 }

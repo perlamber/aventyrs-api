@@ -31,6 +31,14 @@ public record CharacterResponse(
         CharacterStatus status,
         int reactions,
         int freeActions,
-        int manaMultiplier
+        int manaMultiplier,
+        int lifeMultiplier,
+        int determinationMultiplier,
+        boolean centelhaSuperiorSelected,
+        List<String> feats,
+        List<String> equipment,
+        TitleResponse primaryTitle,
+        TitleResponse secondaryTitle,
+        TitleResponse tertiaryTitle
 ) {
 }

@@ -13,7 +13,9 @@ import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
+import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import org.aventyrs.core.character.Character.Sexo;
+import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.scene.grid.GridPosition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -59,7 +61,7 @@ class SceneServiceIntegrationTest {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
                         Sexo.MASCULINO, null, 5, null, ActionProfile.IMPULSIVO, null, null, null, null,
-                        null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         return characterSheetService.create(request).id();
     }
@@ -97,5 +99,49 @@ class SceneServiceIntegrationTest {
 
         assertThrows(NotFoundException.class,
                 () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(0, 0)));
+    }
+
+    @Test
+    void requireParticipantAcceptsAParticipantAndRejectsAnOutsider() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        sceneService.requireParticipant(sceneId, characterSheetId1);
+
+        assertThrows(NotFoundException.class,
+                () -> sceneService.requireParticipant(sceneId, characterSheetId2));
+    }
+
+    /** The status topic's write path: only the two combat-state fields move, so a token going
+     * from CLEAN to LOW_LIFE mid-scene can never take the rest of the sheet with it. */
+    @Test
+    void updateCombatStatusPersistsOnlyTheDamageAndTheStatusTier() {
+        CharacterSheetResponse before = characterSheetService.get(characterSheetId1);
+        assertEquals(CharacterStatus.CLEAN, before.character().status());
+        assertEquals(0, before.damageTaken());
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 13, CharacterStatus.LOW_LIFE);
+
+        CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
+        assertEquals(CharacterStatus.LOW_LIFE, after.character().status());
+        assertEquals(13, after.damageTaken());
+
+        // Everything else is byte-for-byte what it was: the identity/build fields the scene has
+        // no business touching, and the play-time values it didn't send.
+        assertEquals(before.character().name(), after.character().name());
+        assertEquals(before.character().sexo(), after.character().sexo());
+        assertEquals(before.character().actionProfile(), after.character().actionProfile());
+        assertEquals(before.character().attributes(), after.character().attributes());
+        assertEquals(before.character().actionPoints(), after.character().actionPoints());
+        assertEquals(before.character().reactions(), after.character().reactions());
+        assertEquals(before.playerId(), after.playerId());
+        assertEquals(before.manaSpent(), after.manaSpent());
+        assertEquals(before.inventory(), after.inventory());
+    }
+
+    @Test
+    void updateCombatStatusRejectsAnUnknownCharacterSheet() {
+        assertThrows(NotFoundException.class,
+                () -> characterSheetService.updateCombatStatus("no-such-sheet", 5, CharacterStatus.FALLEN));
     }
 }

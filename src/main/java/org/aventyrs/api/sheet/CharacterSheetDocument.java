@@ -59,4 +59,9 @@ public class CharacterSheetDocument {
     private List<WitheringEntry> witheringEffects;
 
     private List<PendingEgoRecoveryEntry> pendingEgoRecoveries;
+
+    private List<LifeStealEntry> lifeSteals;
+
+    /** Item catalog constant names (e.g. {@code "ROUPA_PESADA"}) — see {@link CharacterEntry}'s equipment javadoc. */
+    private List<String> inventory;
 }

@@ -72,7 +72,7 @@ class SceneControllerIntegrationTest {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
                         Sexo.MASCULINO, null, 5, null, ActionProfile.IMPULSIVO, null, null, null, null,
-                        null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)

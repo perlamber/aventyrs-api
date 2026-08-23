@@ -27,10 +27,11 @@ import org.aventyrs.core.skill.SkillType;
  * EgoDomain} key means untrained/unchosen, so it's left as-is rather than defaulted. {@code
  * actionProfile} is required, unlike those: core's own {@code Character#actionProfile} is
  * {@code @NonNull} with no default, since it's the Perfil de Ação chosen once at character
- * creation. {@code attributeAbilities}/{@code activeAbilities} are nullable and carry each
- * ability as its implementing type's {@code name()} (or, for a non-enum implementer, its class's
- * simple name); {@code egoAdvantages} does the same per domain — see {@code CharacterEntry} for
- * why these are stored as names.
+ * creation. {@code attributeAbilities}/{@code activeAbilities}/{@code feats}/{@code equipment}
+ * are nullable and carry each entry as its implementing type's {@code name()} (or, for a
+ * non-enum implementer, its class's simple name); {@code egoAdvantages} does the same per
+ * domain — see {@code CharacterEntry} for why these are stored as names. {@code primaryTitle}/
+ * {@code secondaryTitle}/{@code tertiaryTitle} are nullable, one per Título slot.
  */
 public record CharacterDto(
         @NotBlank String name,
@@ -51,6 +52,14 @@ public record CharacterDto(
         CharacterStatus status,
         Integer reactions,
         Integer freeActions,
-        Integer manaMultiplier
+        Integer manaMultiplier,
+        Integer lifeMultiplier,
+        Integer determinationMultiplier,
+        Boolean centelhaSuperiorSelected,
+        List<String> feats,
+        List<String> equipment,
+        @Valid TitleDto primaryTitle,
+        @Valid TitleDto secondaryTitle,
+        @Valid TitleDto tertiaryTitle
 ) {
 }

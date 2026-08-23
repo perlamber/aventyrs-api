@@ -138,6 +138,16 @@ public class SceneService {
         return moved;
     }
 
+    /**
+     * Throws unless {@code characterSheetId} is actually in this scene. There's no auth on this
+     * API yet, so it's the only thing standing between a scene's status topic and a client
+     * broadcasting combat state for a sheet that has nothing to do with that scene — {@link
+     * #moveParticipant} gets the same guarantee for free from {@link #indexOfParticipant}.
+     */
+    public void requireParticipant(String id, String characterSheetId) {
+        indexOfParticipant(findOrThrow(id).getParticipants(), characterSheetId);
+    }
+
     private int indexOfParticipant(List<SceneParticipantEntry> participants, String characterSheetId) {
         for (int i = 0; i < participants.size(); i++) {
             if (participants.get(i).characterSheetId().equals(characterSheetId)) {
