@@ -8,6 +8,8 @@ import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
+import org.aventyrs.api.scene.dto.SceneResponse;
+import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
@@ -143,5 +145,127 @@ class SceneServiceIntegrationTest {
     void updateCombatStatusRejectsAnUnknownCharacterSheet() {
         assertThrows(NotFoundException.class,
                 () -> characterSheetService.updateCombatStatus("no-such-sheet", 5, CharacterStatus.FALLEN));
+    }
+
+    private String createThirdCharacterSheet() {
+        String playerId = playerService
+                .create(new PlayerRequest("Scene Player", "scene-player-" + UUID.randomUUID()))
+                .id();
+        return createCharacterSheet(playerId);
+    }
+
+    @Test
+    void addParticipantPlacesTheFirstArrivalsInInitiativeOrder() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+
+        SceneResponse scene = sceneService.get(sceneId);
+        assertEquals(characterSheetId2, scene.participants().get(0).characterSheetId());
+        assertEquals(characterSheetId1, scene.participants().get(1).characterSheetId());
+        assertEquals(0, scene.participants().get(0).joinedAtRound());
+    }
+
+    @Test
+    void advanceTurnThrowsWhenTheSceneHasNoParticipants() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+
+        assertThrows(IllegalArgumentException.class, () -> sceneService.advanceTurn(sceneId));
+    }
+
+    @Test
+    void advanceTurnWalksInitiativeOrderThenWrapsIntoTheNextRound() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+
+        TurnAdvancedEvent first = sceneService.advanceTurn(sceneId);
+        assertEquals(characterSheetId2, first.characterSheetId());
+        assertEquals(0, first.currentRound());
+        assertEquals(0, first.currentIndex());
+
+        TurnAdvancedEvent second = sceneService.advanceTurn(sceneId);
+        assertEquals(characterSheetId1, second.characterSheetId());
+        assertEquals(0, second.currentRound());
+        assertEquals(1, second.currentIndex());
+
+        TurnAdvancedEvent wrapped = sceneService.advanceTurn(sceneId);
+        assertEquals(characterSheetId2, wrapped.characterSheetId());
+        assertEquals(1, wrapped.currentRound());
+        assertEquals(0, wrapped.currentIndex());
+    }
+
+    @Test
+    void advanceTurnPersistsTheCursorItMovedTo() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+
+        sceneService.advanceTurn(sceneId);
+
+        SceneResponse persisted = sceneService.get(sceneId);
+        assertEquals(0, persisted.currentRound());
+        assertEquals(0, persisted.currentIndex());
+    }
+
+    @Test
+    void aParticipantJoiningMidRoundWaitsForTheNextRoundBoundary() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
+        sceneService.advanceTurn(sceneId);
+
+        String latecomerId = createThirdCharacterSheet();
+        SceneParticipantResponse latecomer =
+                sceneService.addParticipant(sceneId, new AddParticipantRequest(latecomerId, 12, group));
+
+        // Held back: joinedAtRound is the round after the one in progress, and it sits in the
+        // list's tail rather than at its sorted position.
+        assertEquals(1, latecomer.joinedAtRound());
+        assertEquals(latecomerId, sceneService.get(sceneId).participants().get(2).characterSheetId());
+
+        // Second turn of round 0 still belongs to the original pair.
+        assertEquals(characterSheetId2, sceneService.advanceTurn(sceneId).characterSheetId());
+
+        // The wrap merges the latecomer in at its sorted position, between 15 and 8.
+        TurnAdvancedEvent wrapped = sceneService.advanceTurn(sceneId);
+        assertEquals(1, wrapped.currentRound());
+        assertEquals(characterSheetId1, wrapped.characterSheetId());
+        SceneResponse merged = sceneService.get(sceneId);
+        assertEquals(characterSheetId1, merged.participants().get(0).characterSheetId());
+        assertEquals(latecomerId, merged.participants().get(1).characterSheetId());
+        assertEquals(characterSheetId2, merged.participants().get(2).characterSheetId());
+        assertEquals(latecomerId, sceneService.advanceTurn(sceneId).characterSheetId());
+    }
+
+    @Test
+    void removingSomeoneBeforeTheCursorKeepsTheSameParticipantActive() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
+        sceneService.advanceTurn(sceneId);
+        sceneService.advanceTurn(sceneId);
+
+        sceneService.removeParticipant(sceneId, characterSheetId1);
+
+        SceneResponse scene = sceneService.get(sceneId);
+        assertEquals(0, scene.currentIndex());
+        assertEquals(characterSheetId2, scene.participants().get(0).characterSheetId());
+    }
+
+    @Test
+    void removingTheLastParticipantResetsTheCursor() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+        sceneService.advanceTurn(sceneId);
+
+        sceneService.removeParticipant(sceneId, characterSheetId1);
+
+        assertEquals(-1, sceneService.get(sceneId).currentIndex());
     }
 }

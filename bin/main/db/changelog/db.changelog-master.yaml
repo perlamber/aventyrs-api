@@ -17,3 +17,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/006-character-race-restructure.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/007-scene-participant-joined-at-round.yaml
+      relativeToChangelogFile: false

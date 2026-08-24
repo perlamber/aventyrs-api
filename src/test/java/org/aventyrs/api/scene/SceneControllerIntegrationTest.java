@@ -104,8 +104,8 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Ambush at the bridge",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10)),
-                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10), 0)),
                 0,
                 0,
                 true);
@@ -216,8 +216,8 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0)),
-                        new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0))),
+                        new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0), 0)),
                 0,
                 0,
                 false);
@@ -253,7 +253,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0), 0)),
                 0,
                 0,
                 false);
@@ -271,8 +271,8 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5)),
-                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5), 0)),
                 0,
                 0,
                 false);
@@ -289,7 +289,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0), 0)),
                 0,
                 5,
                 false);
@@ -311,7 +311,7 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0), 0)),
                 0,
                 0,
                 false);

@@ -8,6 +8,7 @@ import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
 import org.aventyrs.api.scene.dto.TokenMovedEvent;
+import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.aventyrs.core.scene.grid.GridPosition;
 import org.slf4j.Logger;
@@ -22,9 +23,11 @@ import org.springframework.stereotype.Controller;
  * Live Scene events over STOMP: a participant move ({@code /app/scenes/{sceneId}/move}, persisted
  * via {@link SceneService#moveParticipant}), a combat-state change ({@code
  * /app/scenes/{sceneId}/status}, persisted via {@link CharacterSheetService#updateCombatStatus}),
- * and a transient, unpersisted "sonar" ping ({@code /app/scenes/{sceneId}/ping}) — all
- * re-broadcast to every client subscribed to the scene's {@code /topic/scenes/{sceneId}/moves} /
- * {@code .../status} / {@code .../pings} destinations.
+ * a turn advance ({@code /app/scenes/{sceneId}/turn}, persisted via {@link
+ * SceneService#advanceTurn}), and a transient, unpersisted "sonar" ping ({@code
+ * /app/scenes/{sceneId}/ping}) — all re-broadcast to every client subscribed to the scene's
+ * {@code /topic/scenes/{sceneId}/moves} / {@code .../status} / {@code .../turn} / {@code
+ * .../pings} destinations.
  *
  * <p>There's no auth in this API yet, so a rejected move (unknown participant, target cell already
  * occupied) has no client to report back to individually — it's logged and simply not broadcast,
@@ -84,6 +87,26 @@ public class SceneRealtimeController {
         } catch (RuntimeException ex) {
             log.warn("Rejected status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The Turn passed to whoever is next in Iniciativa order. The cursor is advanced and persisted
+     * here so every client agrees on it (see {@link SceneService#advanceTurn}); each client then
+     * runs its own {@code Scene#next()} off this broadcast, which is where the per-participant
+     * turn lifecycle actually fires — this server holds no {@code CombatantSheet}s to fire it on.
+     *
+     * <p>Takes no payload: "next" is the whole request, and who is next is not the caller's to
+     * assert. Rejected the same silent way {@link #move} is (an empty scene is the only way to get
+     * here without a rotation to advance), leaving every client's panel on the turn it last saw.
+     */
+    @MessageMapping("/scenes/{sceneId}/turn")
+    public void advanceTurn(@DestinationVariable String sceneId) {
+        try {
+            TurnAdvancedEvent event = sceneService.advanceTurn(sceneId);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected turn advance in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 
