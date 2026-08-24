@@ -11,6 +11,7 @@ public record SceneUpdateRequest(
         @NotNull List<@Valid SceneParticipantRequest> participants,
         @Min(0) int currentRound,
         int currentIndex,
-        boolean combatScene
+        boolean combatScene,
+        String imageUrl
 ) {
 }

@@ -53,7 +53,8 @@ public class SceneService {
 
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
-                UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1, false, Instant.now());
+                UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
+                false, null, request.width(), request.height(), Instant.now());
         return toResponse(repository.save(document));
     }
 
@@ -98,6 +99,7 @@ public class SceneService {
         document.setCurrentRound(request.currentRound());
         document.setCurrentIndex(request.currentIndex());
         document.setCombatScene(request.combatScene());
+        document.setImageUrl(request.imageUrl());
 
         return toResponse(repository.save(document));
     }
@@ -344,7 +346,10 @@ public class SceneService {
                 participants,
                 document.getCurrentRound(),
                 document.getCurrentIndex(),
-                document.isCombatScene());
+                document.isCombatScene(),
+                document.getImageUrl(),
+                document.getWidth(),
+                document.getHeight());
     }
 
     private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {

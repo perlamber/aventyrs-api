@@ -11,6 +11,9 @@ public record SceneResponse(
         List<SceneParticipantResponse> participants,
         int currentRound,
         int currentIndex,
-        boolean combatScene
+        boolean combatScene,
+        String imageUrl,
+        int width,
+        int height
 ) {
 }

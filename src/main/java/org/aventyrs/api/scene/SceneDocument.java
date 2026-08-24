@@ -23,7 +23,13 @@ import lombok.Setter;
  * {@code SceneRepository#findTopByOrderByCreatedAtDesc}) — ids are random UUIDs, not ObjectIds,
  * so there's no implicit chronological ordering to fall back on. {@code combatScene} mirrors
  * core's own {@code Scene#isCombatScene()} — {@code false} until a caller flips it once combat
- * actually breaks out, same as core.
+ * actually breaks out, same as core. {@code imageUrl} is null until a caller sets one via update;
+ * the image itself is uploaded separately through {@code /api/images}, so this only ever stores
+ * the URL that upload handed back. {@code width}/{@code height} size the playable grid within
+ * {@code GridPosition}'s fixed {@value org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE}x{@value
+ * org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE} ceiling; unlike {@code combatScene} and
+ * {@code imageUrl}, they're fixed at creation like {@code terrain} — resizing after participants
+ * have been placed could strand them outside the new bounds, so there's no update path for it.
  */
 @Document(collection = "scenes")
 @Getter
@@ -47,6 +53,12 @@ public class SceneDocument {
     private int currentIndex;
 
     private boolean combatScene;
+
+    private String imageUrl;
+
+    private int width;
+
+    private int height;
 
     private Instant createdAt;
 }

@@ -70,7 +70,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantPersistsTheNewPosition() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
 
@@ -84,7 +84,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantRejectsAnAlreadyOccupiedCell() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         SceneParticipantResponse second =
@@ -97,7 +97,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void moveParticipantRejectsAnUnknownParticipant() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
 
         assertThrows(NotFoundException.class,
                 () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(0, 0)));
@@ -105,7 +105,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void requireParticipantAcceptsAParticipantAndRejectsAnOutsider() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
 
         sceneService.requireParticipant(sceneId, characterSheetId1);
@@ -156,7 +156,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void addParticipantPlacesTheFirstArrivalsInInitiativeOrder() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
@@ -169,14 +169,14 @@ class SceneServiceIntegrationTest {
 
     @Test
     void advanceTurnThrowsWhenTheSceneHasNoParticipants() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
 
         assertThrows(IllegalArgumentException.class, () -> sceneService.advanceTurn(sceneId));
     }
 
     @Test
     void advanceTurnWalksInitiativeOrderThenWrapsIntoTheNextRound() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
@@ -199,7 +199,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void advanceTurnPersistsTheCursorItMovedTo() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
 
@@ -212,7 +212,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void aParticipantJoiningMidRoundWaitsForTheNextRoundBoundary() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
@@ -243,7 +243,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void removingSomeoneBeforeTheCursorKeepsTheSameParticipantActive() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
@@ -259,7 +259,7 @@ class SceneServiceIntegrationTest {
 
     @Test
     void removingTheLastParticipantResetsTheCursor() {
-        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN")).id();
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         sceneService.advanceTurn(sceneId);
