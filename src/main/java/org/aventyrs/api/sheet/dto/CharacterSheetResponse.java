@@ -24,6 +24,7 @@ public record CharacterSheetResponse(
         List<WitheringDto> witheringEffects,
         List<PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<LifeStealDto> lifeSteals,
-        List<String> inventory
+        List<String> inventory,
+        String tokenImageUrl
 ) {
 }

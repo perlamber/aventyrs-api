@@ -20,4 +20,12 @@ public class PlayerDocument {
     private String name;
 
     private String login;
+
+    /**
+     * Which client experience this player gets. Null on documents written before the field
+     * existed and on any request that omits it; both are read as {@link PlayerRole#PLAYER} rather
+     * than left null, so callers never have to branch on absence. See {@link PlayerRole} for why
+     * this isn't a permission.
+     */
+    private PlayerRole role;
 }

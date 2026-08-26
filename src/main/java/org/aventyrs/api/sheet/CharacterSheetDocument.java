@@ -64,4 +64,8 @@ public class CharacterSheetDocument {
 
     /** Item catalog constant names (e.g. {@code "ROUPA_PESADA"}) — see {@link CharacterEntry}'s equipment javadoc. */
     private List<String> inventory;
+
+    /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
+     * same convention as {@code SceneDocument#getImageUrl()}. */
+    private String tokenImageUrl;
 }

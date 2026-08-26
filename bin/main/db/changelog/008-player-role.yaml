@@ -1,0 +1,47 @@
+# Backfills role onto players persisted before the field existed, and gives the dev seed a GM.
+#
+# PLAYER is the correct reading for every one of them: the field was introduced precisely because
+# there was no way to say "this one runs the table", so nobody had been marked as one.
+#
+# Unlike changelog 007 this backfill isn't strictly required to read the documents — PlayerDocument
+# is a Lombok class, not a record, so a missing field arrives as null rather than failing the
+# canonical constructor. PlayerService defaults null to PLAYER anyway. It runs regardless so the
+# collection says what it means rather than relying on a read-time default.
+#
+# The dev-context changeset promotes Kestrel Voss so `./gradlew bootRun` has a GM to log in as
+# without hand-editing Mongo. It's separated from the backfill so it stays out of any real
+# environment, matching 004-dev-seed-data.yaml.
+databaseChangeLog:
+  - changeSet:
+      id: 001-backfill-player-role
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "players",
+                updates: [
+                  {
+                    q: { "role": { $exists: false } },
+                    u: { $set: { "role": "PLAYER" } },
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-dev-seed-gm
+      author: aventyrs-api
+      context: dev
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "players",
+                updates: [
+                  {
+                    q: { "_id": "33333333-3333-3333-3333-333333333333" },
+                    u: { $set: { "role": "GM" } },
+                    multi: false
+                  }
+                ]
+              }

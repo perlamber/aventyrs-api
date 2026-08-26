@@ -20,6 +20,7 @@ import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
+import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
 import org.aventyrs.core.scene.TerrainType;
 import org.aventyrs.core.scene.grid.GridPosition;
@@ -45,8 +46,11 @@ public class SceneService {
 
     private final SceneRepository repository;
     private final CharacterSheetRepository characterSheetRepository;
+    private final MonsterSheetRepository monsterSheetRepository;
 
-    public SceneService(SceneRepository repository, CharacterSheetRepository characterSheetRepository) {
+    public SceneService(SceneRepository repository, CharacterSheetRepository characterSheetRepository,
+            MonsterSheetRepository monsterSheetRepository) {
+        this.monsterSheetRepository = monsterSheetRepository;
         this.repository = repository;
         this.characterSheetRepository = characterSheetRepository;
     }
@@ -106,9 +110,7 @@ public class SceneService {
 
     public SceneParticipantResponse addParticipant(String id, AddParticipantRequest request) {
         SceneDocument document = findOrThrow(id);
-        if (!characterSheetRepository.existsById(request.characterSheetId())) {
-            throw new IllegalArgumentException("CharacterSheet not found: " + request.characterSheetId());
-        }
+        requireCombatantExists(request.characterSheetId());
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         // Before anyone has acted the newcomer joins the rotation immediately, at its sorted spot;
@@ -298,10 +300,29 @@ public class SceneService {
 
     private void requireParticipantsExist(List<SceneParticipantEntry> participants) {
         for (SceneParticipantEntry participant : participants) {
-            if (!characterSheetRepository.existsById(participant.characterSheetId())) {
-                throw new IllegalArgumentException("CharacterSheet not found: " + participant.characterSheetId());
-            }
+            requireCombatantExists(participant.characterSheetId());
         }
+    }
+
+    /**
+     * A participant is whatever the id resolves to — a CharacterSheet or a MonsterSheet.
+     *
+     * <p>{@code SceneParticipantEntry} carries no discriminator, and deliberately so: core's own
+     * {@code Scene#addParticipant} is typed {@code CombatantSheet} and has no monster-specific
+     * entry point either, so a Scene has never needed to know which kind of combatant is standing
+     * in it. Ids are random UUIDs across both collections, so "exists in either" is unambiguous.
+     *
+     * <p>The cost is one extra existence check per participant on the miss path, and a client
+     * resolving a participant for display has to ask both endpoints. That is a smaller price than
+     * a stored kind — which would need a discriminator on the entry, a backfill for every Scene
+     * already persisted, and a decision at every call site that currently just holds an id.
+     */
+    private void requireCombatantExists(String combatantSheetId) {
+        if (characterSheetRepository.existsById(combatantSheetId)
+                || monsterSheetRepository.existsById(combatantSheetId)) {
+            return;
+        }
+        throw new IllegalArgumentException("No CharacterSheet or MonsterSheet found: " + combatantSheetId);
     }
 
     private void requireDistinctPositions(List<SceneParticipantEntry> participants) {

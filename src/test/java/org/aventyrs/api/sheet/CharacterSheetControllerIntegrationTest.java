@@ -124,6 +124,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(0)))
                 .andExpect(jsonPath("$.lifeSteals", hasSize(0)))
                 .andExpect(jsonPath("$.inventory", hasSize(0)))
+                .andExpect(jsonPath("$.tokenImageUrl").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -158,7 +159,8 @@ class CharacterSheetControllerIntegrationTest {
                 List.of(new WitheringDto(1, 2)),
                 List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)),
                 List.of(new LifeStealDto(2, null)),
-                List.of("ROUPA_PESADA"));
+                List.of("ROUPA_PESADA"),
+                "https://images.aventyrs.test/tokens/strider.png");
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -200,7 +202,12 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.lifeSteals[0].value").value(2))
                 .andExpect(jsonPath("$.lifeSteals[0].remainingRounds").doesNotExist())
                 .andExpect(jsonPath("$.inventory", hasSize(1)))
-                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"));
+                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/strider.png"));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/strider.png"));
 
         mockMvc.perform(delete("/api/character-sheets/{id}", id))
                 .andExpect(status().isNoContent());
@@ -364,7 +371,7 @@ class CharacterSheetControllerIntegrationTest {
                 List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
-                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -387,7 +394,7 @@ class CharacterSheetControllerIntegrationTest {
                 null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
-                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
