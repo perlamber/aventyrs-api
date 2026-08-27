@@ -1,144 +1,142 @@
 # Aventyrs API
 
 Light API exposing the [Aventyrs](https://github.com/perlamber/aventyrs-core) tabletop RPG rules
-engine over HTTP and WebSocket. It currently provides CRUD persistence for `Player`,
-`CharacterSheet` and `Scene`; real-time gameplay actions (skill rolls, movement) are planned on
-top of the WebSocket transport already wired in.
+engine over HTTP and WebSocket. It provides CRUD persistence for `Player`, `CharacterSheet`,
+`MonsterSheet`, and `Scene`, plus real-time gameplay events (token movement, turn order, combat
+status, grid resize) broadcast over STOMP. There is currently **no authentication** — `PlayerRole`
+(`PLAYER`/`GM`) is a client-side hint only, not an enforced permission.
 
-## Tech stack
+## 1. Tech stack
 
-- Java 17, Spring Boot 4.1 (Web MVC, WebSocket/STOMP, Validation)
+- Java 21, Spring Boot 4.1 (Web MVC, WebSocket/STOMP, Validation)
 - MongoDB via Spring Data, schema/index changes managed with Liquibase (`liquibase-mongodb`
   extension)
+- SeaweedFS (S3 gateway) for image storage
 - [`aventyrs-core`](../aventyrs-core) — the framework-free rules engine library, consumed as a
   Maven dependency
 - springdoc-openapi — OpenAPI 3 spec + Swagger UI, generated from the controllers/DTOs
 - Testcontainers (`MongoDBContainer`) for integration tests
 - Gradle
 
-## Prerequisites
+## 2. Prerequisites
 
-- JDK 17
-- Docker — required both to run a local MongoDB instance for `bootRun` and to run the test
-  suite (every test class boots the full Spring context against a Testcontainers-managed
-  MongoDB; there is currently no test that runs without Docker)
+- JDK 21
+- Docker — runs local MongoDB/SeaweedFS for `bootRun` and backs every integration test (every
+  test class boots the full Spring context against a Testcontainers-managed MongoDB)
 - The [`aventyrs-core`](../aventyrs-core) sibling repository, checked out alongside this one and
-  **published to your local Maven repository** — this project resolves it as
-  `org.aventyrs.core:aventyrs-core:<version>` from `mavenLocal()`, not Maven Central:
+  **published to your local Maven repository**:
 
   ```bash
   cd ../aventyrs-core
   ./gradlew publishToMavenLocal
   ```
 
-  Check `build.gradle` here for the exact version this project currently depends on, and make
-  sure that version has been published before building.
+  Check `build.gradle` here for the exact version this project depends on.
 
-## Running locally
-
-Start a MongoDB instance matching `spring.data.mongodb.uri` in
-`src/main/resources/application.properties` (defaults to `mongodb://localhost:27017/aventyrs`):
+## 3. Running locally
 
 ```bash
-docker run --rm -p 27017:27017 mongo:7.0
-```
-
-Then run the app:
-
-```bash
-./gradlew bootRun
+docker compose up -d   # Mongo (27017) + SeaweedFS (master/volume/filer/S3 gateway)
+./gradlew bootRun       # app listens on :27018
 ```
 
 On startup, `MongoLiquibaseRunner` applies every changelog under
 `src/main/resources/db/changelog/` directly against MongoDB — Spring Boot's built-in Liquibase
 autoconfiguration only drives a JDBC `DataSource`, so this project runs Liquibase's Mongo
-extension programmatically instead (see that class for details).
+extension programmatically instead.
 
-## Testing
+## 4. Configuration
+
+Key properties in `src/main/resources/application.properties`:
+
+- `server.port` — `27018`
+- `spring.mongodb.uri` — defaults to `mongodb://localhost:27017/aventyrs`
+- `seaweedfs.filer-url` / `seaweedfs.s3.*` — SeaweedFS endpoints; S3 credentials fall back to
+  `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`S3_BUCKET` env vars
+
+## 5. Testing
 
 ```bash
 ./gradlew test
 ```
 
 Every test spins up a real MongoDB via Testcontainers (`@ServiceConnection` + `MongoDBContainer`),
-so **Docker must be running**. The one exception during development was `HexGridTest` /
-`RangeBandTest`, which were pure-logic and needed no Docker — they now live in `aventyrs-core`
-alongside the grid/range code they test, since that's a plain `java-library` with no
-Spring/Mongo dependency at all.
+so **Docker must be running**. Pure-logic tests (grid/range math) live in `aventyrs-core` instead,
+since that module has no Spring/Mongo dependency to spin up.
 
-## API documentation
+## 6. API documentation
 
 With the app running:
 
-- Interactive Swagger UI: `http://localhost:8080/swagger-ui/index.html`
-- Raw OpenAPI 3 spec (JSON): `http://localhost:8080/v3/api-docs`
+- Interactive Swagger UI: `http://localhost:27018/swagger-ui/index.html`
+- Raw OpenAPI 3 spec (JSON): `http://localhost:27018/v3/api-docs`
 
-Docs are generated from the controllers and DTOs (including Bean Validation constraints like
-`@NotBlank`/`@Min`/`@Max`), so they stay in sync with the code without hand-maintained
-annotations beyond the `@Tag` grouping on each controller.
+Docs are generated from the controllers and DTOs (including Bean Validation constraints), so they
+stay in sync with the code.
 
-## REST endpoints
+## 7. REST endpoints
 
 All CRUD resources follow the same shape: `POST` (create), `GET /{id}`, `GET` (list),
 `PUT /{id}` (full replace), `DELETE /{id}`.
 
 | Resource | Base path | Notes |
 |---|---|---|
-| Player | `/api/players` | `name` + `login`; `login` is unique (violations return `409`) |
-| CharacterSheet | `/api/character-sheets` | `character` (name, race, sexo, tendencia) is embedded directly rather than referenced by id — Mongo's document model makes that natural, and nothing modifies a Character independently of its sheet. `playerId` is still a reference, validated against `/api/players`. Create only takes the character + player; everything else (experience, resource pools, fama, temporary bonuses) starts at zero, mirroring `CharacterSheet.of(character, player)` in core. Supports `?playerId=` filtering |
-| Scene | `/api/scenes` | Participants reference a `characterSheetId` (validated to exist), an initiative value, an ally sub-group (`group`, a `UUID` — participants sharing one are allies, mirroring core's `InitiativeEntry#group`), and a grid position. Positions must be unique within a Scene and within the fixed 100×100 grid. Also exposes `GET /{id}/groups` (participants partitioned by `group`) |
-| Image | `POST /api/images` | Multipart upload (`file` field), stored in SeaweedFS and returned as a public URL (`201`). Only **PNG, JPEG, GIF, and BMP** are accepted — the format is verified from the file's own bytes, not the client-supplied Content-Type or filename, so a mislabeled or disguised file is rejected (`400`) |
-
-Adding participants to a Scene: `PUT /api/scenes/{id}` replaces the full participant list in one
-call (name, participants, round/turn cursor together) and requires each participant's grid
-`position` explicitly — use it when repositioning or reordering. `POST
-/api/scenes/{id}/participants` instead joins a single participant to an already-existing Scene:
-just `characterSheetId`, `initiativeValue`, and `group`, no `position` — the server assigns the
-first free grid cell automatically and returns the created participant (`201`).
+| Player | `/api/players` | `login` is unique (`409` on conflict); also `GET /by-login/{login}`. `role` (`PLAYER`/`GM`) is a UI hint only |
+| CharacterSheet | `/api/character-sheets` | Embeds its `character` (name, race, sexo, tendencia); references a `playerId`. New sheets start with zeroed stats, mirroring `CharacterSheet.of(...)` in core. Supports `?playerId=` filtering |
+| MonsterSheet | `/api/monster-sheets` | GM-authored stat blocks, same pattern as CharacterSheet. Supports `?playerId=` filtering |
+| Scene | `/api/scenes` | Participants reference a `characterSheetId`, an initiative value, an ally `group` (`UUID`), and a grid position, unique within the Scene's `width`×`height` grid (each ≤ 100, set at creation, later changed only via the live grid-resize event). Also exposes `GET /{id}/groups` |
+| Image | `POST /api/images` | Multipart upload, stored in SeaweedFS and returned as a public URL (`201`). Only PNG/JPEG/GIF/BMP are accepted, verified from the file's own bytes, not the client-supplied Content-Type |
+| Skill | `GET /api/skills` | Lists all `SkillType` values from core |
 
 Validation/reference errors return `400`, missing resources `404`, unique-constraint violations
 `409` — see `org.aventyrs.api.common.GlobalExceptionHandler`.
 
-## Grid mechanics
+## 8. Real-time Scene events (WebSocket/STOMP)
 
-`Scene` participants are placed on a fixed 100×100 hex grid — flat-top hexagons, "even-q" offset
-coordinates (`x`/`y`, both non-negative). The coordinate system, hex-distance calculation, and
-the mapping from hex distance to core's `Range` bands (`RangeBand`, assuming 1 hex step = 1
-Unidade de Distância) live in `aventyrs-core`, under `org.aventyrs.core.scene.grid` — not in
-this repo — since it's rules-adjacent logic the Android client will need too, not API/web
-plumbing.
+Configured in `org.aventyrs.api.config.WebSocketConfig`: handshake at `/ws` (no SockJS), broker
+destinations `/topic/**`, application prefix `/app/**`. `SceneRealtimeController` handles, per
+Scene, all persisted then broadcast to every subscribed client:
 
-## WebSocket
+| Action | Destination (send) | Broadcast (subscribe) |
+|---|---|---|
+| Move a token | `/app/scenes/{id}/move` | `/topic/scenes/{id}/moves` |
+| Change combat status | `/app/scenes/{id}/status` | `/topic/scenes/{id}/status` |
+| Advance the turn | `/app/scenes/{id}/turn` | `/topic/scenes/{id}/turn` |
+| Resize the grid | `/app/scenes/{id}/grid` | `/topic/scenes/{id}/grid` |
+| Sonar ping (unpersisted) | `/app/scenes/{id}/ping` | `/topic/scenes/{id}/pings` |
 
-STOMP over WebSocket is configured (`org.aventyrs.api.config.WebSocketConfig`) but not yet
-carrying any application messages:
+Rejected actions (unknown participant, occupied cell, a resize that would strand a token) are
+logged and silently dropped rather than reported back — there's no auth yet to address a
+rejection to a single caller. REST gives clients the full Scene/CharacterSheet snapshot on
+load/reconnect; WebSocket carries only small, typed per-action deltas.
 
-- Handshake endpoint: `/ws` (no SockJS fallback)
-- Broker destinations: `/topic/**` (server → client broadcasts)
-- Application prefix: `/app/**` (client → server, once handlers exist)
+## 9. Grid mechanics
 
-The intended shape once actions land: REST gives clients the full CharacterSheet/Scene snapshot
-(on load or reconnect); WebSocket carries small, typed per-action events (e.g. a resolved skill
-roll, a participant's new grid position) rather than re-broadcasting whole objects. See commit
-history / prior design discussion for the reasoning — embedding a full `Character` graph in
-every broadcast was measured at roughly 100–200x more data than an event-based message.
+`Scene` participants are placed on a flat-top hex grid — "even-q" offset coordinates (`x`/`y`,
+both non-negative), sized per-Scene (`width`×`height`, each ≤ 100). The coordinate system,
+hex-distance calculation, and mapping from hex distance to core's `RangeBand` live in
+`aventyrs-core`, under `org.aventyrs.core.scene.grid` — not in this repo — since it's
+rules-adjacent logic the Android client will need too.
 
-## Project structure
+## 10. Project structure
 
 ```
 org.aventyrs.api
 ├── common       — NotFoundException, ApiError, GlobalExceptionHandler
 ├── config       — MongoLiquibaseRunner, WebSocketConfig, OpenApiConfig
-├── player       — Player CRUD (document, repository, service, controller, DTOs)
+├── player       — Player CRUD
 ├── sheet        — CharacterSheet CRUD
-└── scene        — Scene CRUD (participants reference CharacterSheet + grid position)
+├── monster      — MonsterSheet CRUD
+├── scene        — Scene CRUD + SceneRealtimeController (WebSocket)
+├── skill        — read-only SkillType listing
+└── image        — image upload to SeaweedFS
 ```
 
 Persistence documents (`*Document`) are separate from the core domain model on purpose — core
 (`aventyrs-core`) stays a framework-free rules engine library with no Mongo/Spring/Jackson
 coupling; this API owns the mapping between the two.
 
-## Related repositories
+## 11. Related repositories
 
 - [`aventyrs-core`](../aventyrs-core) — the rules engine (Character, CharacterSheet, Scene,
   skills, abilities, grid/range math). Required build dependency, published to `mavenLocal()`.

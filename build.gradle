@@ -20,7 +20,7 @@ description = 'Light API exposing the Aventyrs core rules engine'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
