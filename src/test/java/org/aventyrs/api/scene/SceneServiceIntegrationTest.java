@@ -6,6 +6,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
@@ -101,6 +102,39 @@ class SceneServiceIntegrationTest {
 
         assertThrows(NotFoundException.class,
                 () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(0, 0)));
+    }
+
+    @Test
+    void resizeGridPersistsTheNewExtent() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+
+        assertEquals(new GridResizedEvent(24, 18), sceneService.resizeGrid(sceneId, 24, 18));
+
+        SceneResponse persisted = sceneService.get(sceneId);
+        assertEquals(24, persisted.width());
+        assertEquals(18, persisted.height());
+    }
+
+    @Test
+    void resizeGridRejectsAShrinkThatWouldStrandAParticipant() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(30, 4));
+
+        assertThrows(IllegalArgumentException.class, () -> sceneService.resizeGrid(sceneId, 20, 20));
+
+        SceneResponse untouched = sceneService.get(sceneId);
+        assertEquals(100, untouched.width());
+        assertEquals(100, untouched.height());
+    }
+
+    @Test
+    void resizeGridRejectsAnExtentOutsideTheGridCeiling() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+
+        assertThrows(IllegalArgumentException.class, () -> sceneService.resizeGrid(sceneId, 0, 20));
+        assertThrows(IllegalArgumentException.class,
+                () -> sceneService.resizeGrid(sceneId, 20, GridPosition.GRID_SIZE + 1));
     }
 
     @Test

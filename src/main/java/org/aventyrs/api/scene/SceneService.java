@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
+import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
@@ -176,6 +177,52 @@ public class SceneService {
         repository.save(document);
 
         return moved;
+    }
+
+    /**
+     * Redraws this scene's board at a new extent, in hex cells — the GM's grid-size control (see
+     * {@link SceneRealtimeController#resizeGrid}). Unlike {@code terrain}, this is not fixed at
+     * creation: the GM sizes the board to whatever the encounter needs, and every client draws the
+     * extent stored here.
+     *
+     * <p>Shrinking is refused while a token would be left outside the new bounds rather than
+     * silently dragging it inward. A participant's {@code position} is where the table agreed that
+     * combatant is standing; a resize is a presentation decision, and letting one rewrite
+     * positions would move tokens nobody moved. The GM shifts the strays in first, then resizes.
+     *
+     * @throws IllegalArgumentException if either dimension is outside {@code [1,
+     *         GridPosition#GRID_SIZE]}, or a participant stands outside the requested extent
+     */
+    public GridResizedEvent resizeGrid(String id, int width, int height) {
+        requireGridExtent(width, "width");
+        requireGridExtent(height, "height");
+
+        SceneDocument document = findOrThrow(id);
+        requireParticipantsWithin(document.getParticipants(), width, height);
+
+        document.setWidth(width);
+        document.setHeight(height);
+        repository.save(document);
+
+        return new GridResizedEvent(width, height);
+    }
+
+    private static void requireGridExtent(int dimension, String name) {
+        if (dimension < 1 || dimension > GridPosition.GRID_SIZE) {
+            throw new IllegalArgumentException(
+                    "Grid " + name + " out of bounds [1," + GridPosition.GRID_SIZE + "]: " + dimension);
+        }
+    }
+
+    private static void requireParticipantsWithin(List<SceneParticipantEntry> participants, int width, int height) {
+        List<String> stranded = participants.stream()
+                .filter(entry -> entry.position().x() >= width || entry.position().y() >= height)
+                .map(SceneParticipantEntry::characterSheetId)
+                .toList();
+        if (!stranded.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Participants would fall outside a " + width + "x" + height + " grid: " + stranded);
+        }
     }
 
     /**

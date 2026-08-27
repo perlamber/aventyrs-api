@@ -4,6 +4,8 @@ import java.time.Instant;
 import org.aventyrs.api.scene.dto.CharacterStatusChangedEvent;
 import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
+import org.aventyrs.api.scene.dto.GridResizeMessage;
+import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -24,10 +26,11 @@ import org.springframework.stereotype.Controller;
  * via {@link SceneService#moveParticipant}), a combat-state change ({@code
  * /app/scenes/{sceneId}/status}, persisted via {@link CharacterSheetService#updateCombatStatus}),
  * a turn advance ({@code /app/scenes/{sceneId}/turn}, persisted via {@link
- * SceneService#advanceTurn}), and a transient, unpersisted "sonar" ping ({@code
+ * SceneService#advanceTurn}), a board resize ({@code /app/scenes/{sceneId}/grid}, persisted via
+ * {@link SceneService#resizeGrid}), and a transient, unpersisted "sonar" ping ({@code
  * /app/scenes/{sceneId}/ping}) — all re-broadcast to every client subscribed to the scene's
  * {@code /topic/scenes/{sceneId}/moves} / {@code .../status} / {@code .../turn} / {@code
- * .../pings} destinations.
+ * .../grid} / {@code .../pings} destinations.
  *
  * <p>There's no auth in this API yet, so a rejected move (unknown participant, target cell already
  * occupied) has no client to report back to individually — it's logged and simply not broadcast,
@@ -107,6 +110,27 @@ public class SceneRealtimeController {
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", event);
         } catch (RuntimeException ex) {
             log.warn("Rejected turn advance in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
+     * The board was resized — persisted onto the scene ({@link SceneService#resizeGrid}), then
+     * broadcast so every client redraws at the same extent instead of each holding its own idea of
+     * how big the map is.
+     *
+     * <p>Only the GM's client offers the control, but with no auth in this API that's a client-side
+     * restriction, not one this endpoint can enforce; it's noted here so the gap is visible when
+     * auth does arrive. Rejected the same silent way {@link #move} is — a shrink that would strand
+     * a token is refused, and every client keeps drawing the extent it already had.
+     */
+    @MessageMapping("/scenes/{sceneId}/grid")
+    public void resizeGrid(@DestinationVariable String sceneId, @Payload GridResizeMessage message) {
+        try {
+            GridResizedEvent event = sceneService.resizeGrid(sceneId, message.width(), message.height());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/grid", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected grid resize in scene {} to {}x{}: {}",
+                    sceneId, message.width(), message.height(), ex.getMessage());
         }
     }
 

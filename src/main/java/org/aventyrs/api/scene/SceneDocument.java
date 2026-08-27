@@ -27,9 +27,12 @@ import lombok.Setter;
  * the image itself is uploaded separately through {@code /api/images}, so this only ever stores
  * the URL that upload handed back. {@code width}/{@code height} size the playable grid within
  * {@code GridPosition}'s fixed {@value org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE}x{@value
- * org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE} ceiling; unlike {@code combatScene} and
- * {@code imageUrl}, they're fixed at creation like {@code terrain} — resizing after participants
- * have been placed could strand them outside the new bounds, so there's no update path for it.
+ * org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE} ceiling. They're set at creation, sized to
+ * the background map, and thereafter changed only through {@code SceneService#resizeGrid} — the
+ * GM's live grid control, which refuses a shrink that would strand a participant outside the new
+ * bounds rather than moving anyone's token for them. {@code PUT /scenes/{id}} deliberately leaves
+ * both alone: it's a full replace driven by the scene editor, and a resize is not part of the
+ * shape that editor edits.
  */
 @Document(collection = "scenes")
 @Getter
