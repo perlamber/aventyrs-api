@@ -16,19 +16,28 @@ import java.util.Map;
 import java.util.UUID;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.sheet.dto.AttributeValueDto;
+import org.aventyrs.api.sheet.dto.BleedingDto;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
+import org.aventyrs.api.sheet.dto.LifeStealDto;
+import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
+import org.aventyrs.api.sheet.dto.TitleDto;
+import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
+import org.aventyrs.core.character.CharacterStatus;
+import org.aventyrs.core.character.Deity;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.modifier.ModifierType;
+import org.aventyrs.core.rest.RestType;
 import org.aventyrs.core.skill.SkillType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,7 +84,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void performsFullCrudLifecycle() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Aragorn Character", HUMAN_RACE, Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null);
+                "Aragorn Character", HUMAN_RACE, Sexo.MASCULINO, Deity.EPONA, 5, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -87,6 +96,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.name").value("Aragorn Character"))
                 .andExpect(jsonPath("$.character.race.type").value("HUMAN"))
                 .andExpect(jsonPath("$.character.sexo").value("MASCULINO"))
+                .andExpect(jsonPath("$.character.deity").value("EPONA"))
                 .andExpect(jsonPath("$.character.tendencia").value(5))
                 .andExpect(jsonPath("$.character.actionProfile").value("IMPULSIVO"))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.base").value(2))
@@ -108,6 +118,13 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(0))
                 .andExpect(jsonPath("$.temporaryEgoPoints.INICIATIVA").value(0))
                 .andExpect(jsonPath("$.temporaryBonuses", hasSize(0)))
+                .andExpect(jsonPath("$.bleedingEffects", hasSize(0)))
+                .andExpect(jsonPath("$.manaDrains", hasSize(0)))
+                .andExpect(jsonPath("$.witheringEffects", hasSize(0)))
+                .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(0)))
+                .andExpect(jsonPath("$.lifeSteals", hasSize(0)))
+                .andExpect(jsonPath("$.inventory", hasSize(0)))
+                .andExpect(jsonPath("$.tokenImageUrl").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -122,7 +139,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
 
         CharacterDto updatedCharacter = new CharacterDto(
-                "Strider", HUMAN_RACE, Sexo.MASCULINO, 7, null, ActionProfile.CALCULISTA, null, null, null);
+                "Strider", HUMAN_RACE, Sexo.MASCULINO, Deity.TYKHE, 7, null, ActionProfile.CALCULISTA, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest updateRequest = new CharacterSheetUpdateRequest(
                 updatedCharacter,
                 playerId,
@@ -135,7 +153,14 @@ class CharacterSheetControllerIntegrationTest {
                 2,
                 1,
                 Map.of(EgoDomain.SORTE, 2),
-                List.of(new TemporaryBonusDto(ModifierType.SKILL_ROLL_BONUS, 2, 3)));
+                List.of(new TemporaryBonusDto(ModifierType.SKILL_ROLL_BONUS, 2, 3)),
+                List.of(new BleedingDto(2, 3)),
+                List.of(new ManaDrainDto(1, null)),
+                List.of(new WitheringDto(1, 2)),
+                List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)),
+                List.of(new LifeStealDto(2, null)),
+                List.of("ROUPA_PESADA"),
+                "https://images.aventyrs.test/tokens/strider.png");
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -143,6 +168,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.character.id").value(characterId))
                 .andExpect(jsonPath("$.character.name").value("Strider"))
+                .andExpect(jsonPath("$.character.deity").value("TYKHE"))
                 .andExpect(jsonPath("$.character.tendencia").value(7))
                 .andExpect(jsonPath("$.character.actionProfile").value("CALCULISTA"))
                 .andExpect(jsonPath("$.totalExperience").value(15))
@@ -158,7 +184,30 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.temporaryBonuses", hasSize(1)))
                 .andExpect(jsonPath("$.temporaryBonuses[0].type").value("SKILL_ROLL_BONUS"))
                 .andExpect(jsonPath("$.temporaryBonuses[0].value").value(2))
-                .andExpect(jsonPath("$.temporaryBonuses[0].remainingRounds").value(3));
+                .andExpect(jsonPath("$.temporaryBonuses[0].remainingRounds").value(3))
+                .andExpect(jsonPath("$.bleedingEffects", hasSize(1)))
+                .andExpect(jsonPath("$.bleedingEffects[0].valuePerRound").value(2))
+                .andExpect(jsonPath("$.bleedingEffects[0].remainingRounds").value(3))
+                .andExpect(jsonPath("$.manaDrains", hasSize(1)))
+                .andExpect(jsonPath("$.manaDrains[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.manaDrains[0].remainingRounds").doesNotExist())
+                .andExpect(jsonPath("$.witheringEffects", hasSize(1)))
+                .andExpect(jsonPath("$.witheringEffects[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.witheringEffects[0].remainingRounds").value(2))
+                .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(1)))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].domain").value("SORTE"))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].value").value(1))
+                .andExpect(jsonPath("$.pendingEgoRecoveries[0].minimumRestType").value("LONGO"))
+                .andExpect(jsonPath("$.lifeSteals", hasSize(1)))
+                .andExpect(jsonPath("$.lifeSteals[0].value").value(2))
+                .andExpect(jsonPath("$.lifeSteals[0].remainingRounds").doesNotExist())
+                .andExpect(jsonPath("$.inventory", hasSize(1)))
+                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/strider.png"));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/strider.png"));
 
         mockMvc.perform(delete("/api/character-sheets/{id}", id))
                 .andExpect(status().isNoContent());
@@ -173,12 +222,30 @@ class CharacterSheetControllerIntegrationTest {
                 "Boromir Character",
                 HUMAN_RACE,
                 Sexo.MASCULINO,
+                Deity.EPONA,
                 5,
                 SizeCategory.PLUS_ONE,
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
                 Map.of(EgoDomain.SORTE, new EgoValueDto(3, 2)),
-                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), List.of("DOM_BARDICO"), 2)));
+                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), List.of("DOM_BARDICO"), 2)),
+                List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
+                Map.of(EgoDomain.SORTE, "IMPETO", EgoDomain.RECURSOS, "MORAL_HERDADA"),
+                List.of("CONCENTRACAO_PROFUNDA"),
+                4,
+                1,
+                CharacterStatus.HIGH_LIFE,
+                2,
+                2,
+                4,
+                5,
+                2,
+                true,
+                List.of("ARTISTA_MARCIAL"),
+                List.of("ROUPA_PESADA"),
+                new TitleDto("SANTO", List.of("ABENCOADO_PELA_LUZ"), List.of("GRITO_DE_GUERRA_VULCANO")),
+                null,
+                null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -202,6 +269,27 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[0]").value("DOM_BARDICO"))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
                 .andExpect(jsonPath("$.character.skills.ATLETISMO").doesNotExist())
+                .andExpect(jsonPath("$.character.attributeAbilities[0]").value("SOBRE_HUMANO"))
+                .andExpect(jsonPath("$.character.attributeAbilities[1]").value("PASSOS_LONGOS"))
+                .andExpect(jsonPath("$.character.egoAdvantages.SORTE").value("IMPETO"))
+                .andExpect(jsonPath("$.character.egoAdvantages.RECURSOS").value("MORAL_HERDADA"))
+                .andExpect(jsonPath("$.character.egoAdvantages.AUTOCONTROLE").doesNotExist())
+                .andExpect(jsonPath("$.character.activeAbilities[0]").value("CONCENTRACAO_PROFUNDA"))
+                .andExpect(jsonPath("$.character.actionPoints").value(4))
+                .andExpect(jsonPath("$.character.temporaryActionPointsBonus").value(1))
+                .andExpect(jsonPath("$.character.status").value("HIGH_LIFE"))
+                .andExpect(jsonPath("$.character.reactions").value(2))
+                .andExpect(jsonPath("$.character.freeActions").value(2))
+                .andExpect(jsonPath("$.character.manaMultiplier").value(4))
+                .andExpect(jsonPath("$.character.lifeMultiplier").value(5))
+                .andExpect(jsonPath("$.character.determinationMultiplier").value(2))
+                .andExpect(jsonPath("$.character.centelhaSuperiorSelected").value(true))
+                .andExpect(jsonPath("$.character.feats[0]").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.equipment[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"))
+                .andExpect(jsonPath("$.character.primaryTitle.specializations[0]").value("ABENCOADO_PELA_LUZ"))
+                .andExpect(jsonPath("$.character.primaryTitle.abilities[0]").value("GRITO_DE_GUERRA_VULCANO"))
+                .andExpect(jsonPath("$.character.secondaryTitle").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -211,7 +299,45 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.sizeCategory").value("PLUS_ONE"))
                 .andExpect(jsonPath("$.character.attributes.VIGOR.total").value(4))
                 .andExpect(jsonPath("$.character.egos.SORTE.total").value(5))
-                .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2));
+                .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
+                .andExpect(jsonPath("$.character.attributeAbilities[0]").value("SOBRE_HUMANO"))
+                .andExpect(jsonPath("$.character.egoAdvantages.SORTE").value("IMPETO"))
+                .andExpect(jsonPath("$.character.activeAbilities[0]").value("CONCENTRACAO_PROFUNDA"))
+                .andExpect(jsonPath("$.character.actionPoints").value(4))
+                .andExpect(jsonPath("$.character.status").value("HIGH_LIFE"))
+                .andExpect(jsonPath("$.character.lifeMultiplier").value(5))
+                .andExpect(jsonPath("$.character.determinationMultiplier").value(2))
+                .andExpect(jsonPath("$.character.centelhaSuperiorSelected").value(true))
+                .andExpect(jsonPath("$.character.feats[0]").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.equipment[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"));
+    }
+
+    @Test
+    void defaultsCharacterStatFieldsWhenOmitted() throws Exception {
+        CharacterDto character = new CharacterDto(
+                "Faramir", HUMAN_RACE, Sexo.MASCULINO, null, 5, null, ActionProfile.ESTRATEGISTA,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
+
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.character.egoAdvantages").isEmpty())
+                .andExpect(jsonPath("$.character.activeAbilities").isEmpty())
+                .andExpect(jsonPath("$.character.actionPoints").value(3))
+                .andExpect(jsonPath("$.character.temporaryActionPointsBonus").value(0))
+                .andExpect(jsonPath("$.character.status").value("CLEAN"))
+                .andExpect(jsonPath("$.character.reactions").value(1))
+                .andExpect(jsonPath("$.character.freeActions").value(1))
+                .andExpect(jsonPath("$.character.manaMultiplier").value(3))
+                .andExpect(jsonPath("$.character.lifeMultiplier").value(4))
+                .andExpect(jsonPath("$.character.determinationMultiplier").value(3))
+                .andExpect(jsonPath("$.character.centelhaSuperiorSelected").value(false))
+                .andExpect(jsonPath("$.character.feats").isEmpty())
+                .andExpect(jsonPath("$.character.equipment").isEmpty())
+                .andExpect(jsonPath("$.character.primaryTitle").doesNotExist());
     }
 
     /**
@@ -226,7 +352,8 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void skillsPopulatedByUpdateSurviveAndCanBeChangedAgain() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null, Map.of());
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 5, null, ActionProfile.ESTRATEGISTA, null, null, Map.of(), null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -238,11 +365,13 @@ class CharacterSheetControllerIntegrationTest {
         String id = objectMapper.readTree(createResponse).get("id").asText();
 
         CharacterDto firstUpdatedCharacter = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 5, null, ActionProfile.ESTRATEGISTA, null, null,
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 3),
-                        SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), List.of("ESCONDER_OUTROS"), 5)));
+                        SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), List.of("ESCONDER_OUTROS"), 5)),
+                List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
-                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -259,11 +388,13 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.skills.FURTIVIDADE.graduationValue").value(5));
 
         CharacterDto secondUpdatedCharacter = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, 5, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 5, null, ActionProfile.ESTRATEGISTA, null, null,
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 4),
-                        SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, null, 6)));
+                        SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, null, 6)),
+                null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
-                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of());
+                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -277,13 +408,17 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.character.skills.ATTENTION.graduationValue").value(4))
                 .andExpect(jsonPath("$.character.skills.DOMINIO_DO_MANA.graduationValue").value(6))
-                .andExpect(jsonPath("$.character.skills.FURTIVIDADE").doesNotExist());
+                .andExpect(jsonPath("$.character.skills.FURTIVIDADE").doesNotExist())
+                // An update carries the whole build state, so omitting attributeAbilities clears
+                // them, exactly like the Perícia dropped above.
+                .andExpect(jsonPath("$.character.attributeAbilities").isEmpty());
     }
 
     @Test
     void defaultsTendenciaWhenOmitted() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Gimli", HUMAN_RACE, null, null, null, ActionProfile.CONSCIENCIA_DEFENSIVA, null, null, null);
+                "Gimli", HUMAN_RACE, null, null, null, null, ActionProfile.CONSCIENCIA_DEFENSIVA, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         mockMvc.perform(post("/api/character-sheets")
@@ -291,6 +426,7 @@ class CharacterSheetControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.character.sexo").doesNotExist())
+                .andExpect(jsonPath("$.character.deity").doesNotExist())
                 .andExpect(jsonPath("$.character.tendencia").value(1))
                 .andExpect(jsonPath("$.character.sizeCategory").value("ZERO"))
                 .andExpect(jsonPath("$.character.attributes.VIGOR.base").value(1))
@@ -309,7 +445,7 @@ class CharacterSheetControllerIntegrationTest {
         String otherPlayerId = objectMapper.readTree(otherPlayerResponse).get("id").asText();
 
         CharacterSheetCreateRequest ownSheetRequest = new CharacterSheetCreateRequest(
-                new CharacterDto("Legolas Character", HUMAN_RACE, Sexo.MASCULINO, 3, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Legolas Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         String ownSheetResponse = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -319,7 +455,7 @@ class CharacterSheetControllerIntegrationTest {
         String ownSheetId = objectMapper.readTree(ownSheetResponse).get("id").asText();
 
         CharacterSheetCreateRequest otherSheetRequest = new CharacterSheetCreateRequest(
-                new CharacterDto("Gimli Character", HUMAN_RACE, Sexo.MASCULINO, 3, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Gimli Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 otherPlayerId);
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -336,7 +472,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Boromir Character", HUMAN_RACE, Sexo.MASCULINO, 3, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 UUID.randomUUID().toString());
 
         mockMvc.perform(post("/api/character-sheets")
@@ -348,7 +484,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationWithBlankCharacterName() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("", HUMAN_RACE, Sexo.MASCULINO, 3, null, ActionProfile.IMPULSIVO, null, null, null), playerId);
+                new CharacterDto("", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), playerId);
 
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -361,7 +497,7 @@ class CharacterSheetControllerIntegrationTest {
         RaceDto agastias = new RaceDto(
                 "AGASTIAS", "HUMAN", "VULCANO", null, List.of("DOM_BARDICO"), List.of("SOBRE_HUMANO"));
         CharacterDto character = new CharacterDto(
-                "Vulcan Character", agastias, Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null);
+                "Vulcan Character", agastias, Sexo.MASCULINO, null, 5, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -390,7 +526,7 @@ class CharacterSheetControllerIntegrationTest {
     void rejectsAMesticoRaceWithoutAParentRaceType() throws Exception {
         RaceDto agastias = new RaceDto("AGASTIAS", null, "VULCANO", null, null, null);
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Vulcan Character", agastias, Sexo.MASCULINO, 3, null, ActionProfile.IMPULSIVO, null, null, null),
+                new CharacterDto("Vulcan Character", agastias, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
 
         mockMvc.perform(post("/api/character-sheets")

@@ -17,7 +17,8 @@ public class PlayerService {
     }
 
     public PlayerResponse create(PlayerRequest request) {
-        PlayerDocument document = new PlayerDocument(UUID.randomUUID().toString(), request.name(), request.login());
+        PlayerDocument document = new PlayerDocument(
+                UUID.randomUUID().toString(), request.name(), request.login(), roleOf(request.role()));
         return toResponse(repository.save(document));
     }
 
@@ -39,6 +40,7 @@ public class PlayerService {
         PlayerDocument document = findOrThrow(id);
         document.setName(request.name());
         document.setLogin(request.login());
+        document.setRole(roleOf(request.role()));
         return toResponse(repository.save(document));
     }
 
@@ -55,6 +57,16 @@ public class PlayerService {
     }
 
     private PlayerResponse toResponse(PlayerDocument document) {
-        return new PlayerResponse(document.getId(), document.getName(), document.getLogin());
+        return new PlayerResponse(document.getId(), document.getName(), document.getLogin(),
+                roleOf(document.getRole()));
+    }
+
+    /**
+     * Absent role reads as {@link PlayerRole#PLAYER}, in both directions. Documents written
+     * before the field existed are backfilled by changelog 008, but a request may still legally
+     * omit it, so the default lives here rather than only in the migration.
+     */
+    private static PlayerRole roleOf(PlayerRole role) {
+        return role == null ? PlayerRole.PLAYER : role;
     }
 }

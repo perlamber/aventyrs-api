@@ -10,6 +10,10 @@ public record SceneResponse(
         TerrainType terrain,
         List<SceneParticipantResponse> participants,
         int currentRound,
-        int currentIndex
+        int currentIndex,
+        boolean combatScene,
+        String imageUrl,
+        int width,
+        int height
 ) {
 }

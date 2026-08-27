@@ -10,6 +10,8 @@ public record SceneUpdateRequest(
         @NotBlank String name,
         @NotNull List<@Valid SceneParticipantRequest> participants,
         @Min(0) int currentRound,
-        int currentIndex
+        int currentIndex,
+        boolean combatScene,
+        String imageUrl
 ) {
 }

@@ -22,6 +22,13 @@ public record CharacterSheetUpdateRequest(
         @Min(0) int famaPositiva,
         @Min(0) int famaNegativa,
         Map<EgoDomain, @Min(0) Integer> temporaryEgoPoints,
-        List<@Valid TemporaryBonusDto> temporaryBonuses
+        List<@Valid TemporaryBonusDto> temporaryBonuses,
+        List<@Valid BleedingDto> bleedingEffects,
+        List<@Valid ManaDrainDto> manaDrains,
+        List<@Valid WitheringDto> witheringEffects,
+        List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
+        List<@Valid LifeStealDto> lifeSteals,
+        List<String> inventory,
+        String tokenImageUrl
 ) {
 }

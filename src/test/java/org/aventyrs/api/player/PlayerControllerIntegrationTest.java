@@ -48,6 +48,7 @@ class PlayerControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Gandalf Player"))
                 .andExpect(jsonPath("$.login").value("gandalf"))
+                .andExpect(jsonPath("$.role").value("PLAYER"))
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -119,5 +120,50 @@ class PlayerControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalid)))
                 .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A request that names no role is an ordinary PLAYER, and a GM survives both a create and the
+     * by-login lookup the client actually logs in through — that lookup is the only place the role
+     * is ever read, so it's the one that has to carry it.
+     */
+    @Test
+    void roleDefaultsToPlayerAndRoundTripsForAGm() throws Exception {
+        PlayerRequest gmRequest = new PlayerRequest("Kestrel Narrador", "kestrel-gm", PlayerRole.GM);
+
+        mockMvc.perform(post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(gmRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("GM"));
+
+        mockMvc.perform(get("/api/players/by-login/{login}", "kestrel-gm"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("GM"));
+
+        PlayerRequest plainRequest = new PlayerRequest("Rowan Jogador", "rowan-plain");
+        mockMvc.perform(post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(plainRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("PLAYER"));
+    }
+
+    /** An update that omits the role demotes to PLAYER — {@code PUT} here is a full replace. */
+    @Test
+    void updateWithoutARoleResetsItToPlayer() throws Exception {
+        String created = mockMvc.perform(post("/api/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new PlayerRequest("Voss", "voss-gm", PlayerRole.GM))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(created).get("id").asText();
+
+        mockMvc.perform(put("/api/players/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new PlayerRequest("Voss", "voss-gm"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("PLAYER"));
     }
 }

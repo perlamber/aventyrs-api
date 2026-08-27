@@ -71,7 +71,8 @@ class SceneControllerIntegrationTest {
     private String createCharacterSheet(String playerId) throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, 5, null, ActionProfile.IMPULSIVO, null, null, null),
+                        Sexo.MASCULINO, null, 5, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -83,7 +84,7 @@ class SceneControllerIntegrationTest {
 
     @Test
     void performsFullCrudLifecycle() throws Exception {
-        SceneCreateRequest createRequest = new SceneCreateRequest("Ambush at the bridge", "URBAN");
+        SceneCreateRequest createRequest = new SceneCreateRequest("Ambush at the bridge", "URBAN", 20, 15);
 
         String createResponse = mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -95,6 +96,10 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants", hasSize(0)))
                 .andExpect(jsonPath("$.currentRound").value(0))
                 .andExpect(jsonPath("$.currentIndex").value(-1))
+                .andExpect(jsonPath("$.combatScene").value(false))
+                .andExpect(jsonPath("$.imageUrl").doesNotExist())
+                .andExpect(jsonPath("$.width").value(20))
+                .andExpect(jsonPath("$.height").value(15))
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -102,10 +107,12 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Ambush at the bridge",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10)),
-                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(10, 10), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(11, 10), 0)),
                 0,
-                0);
+                0,
+                true,
+                "https://images.example.com/scenes/bridge.png");
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -115,7 +122,9 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId1))
                 .andExpect(jsonPath("$.participants[0].position.x").value(10))
                 .andExpect(jsonPath("$.participants[0].position.y").value(10))
-                .andExpect(jsonPath("$.currentIndex").value(0));
+                .andExpect(jsonPath("$.currentIndex").value(0))
+                .andExpect(jsonPath("$.combatScene").value(true))
+                .andExpect(jsonPath("$.imageUrl").value("https://images.example.com/scenes/bridge.png"));
 
         mockMvc.perform(get("/api/scenes/{id}", id))
                 .andExpect(status().isOk())
@@ -212,10 +221,12 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0)),
-                        new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0))),
+                        new SceneParticipantRequest(characterSheetId1, 15, party, new GridPositionDto(0, 0), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, party, new GridPositionDto(1, 0), 0)),
                 0,
-                0);
+                0,
+                false,
+                null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -248,9 +259,11 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(UUID.randomUUID().toString(), 10, UUID.randomUUID(), new GridPositionDto(0, 0), 0)),
                 0,
-                0);
+                0,
+                false,
+                null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -265,10 +278,12 @@ class SceneControllerIntegrationTest {
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
                 List.of(
-                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5)),
-                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5))),
+                        new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(5, 5), 0),
+                        new SceneParticipantRequest(characterSheetId2, 8, UUID.randomUUID(), new GridPositionDto(5, 5), 0)),
                 0,
-                0);
+                0,
+                false,
+                null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -282,9 +297,11 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(0, 0), 0)),
                 0,
-                5);
+                5,
+                false,
+                null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -294,7 +311,7 @@ class SceneControllerIntegrationTest {
 
     @Test
     void rejectsOutOfBoundsGridPosition() throws Exception {
-        String requestJson = objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN"));
+        String requestJson = objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN", 100, 100));
         String id = objectMapper.readTree(mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
@@ -303,9 +320,11 @@ class SceneControllerIntegrationTest {
 
         SceneUpdateRequest updateRequest = new SceneUpdateRequest(
                 "Scene",
-                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0))),
+                List.of(new SceneParticipantRequest(characterSheetId1, 15, UUID.randomUUID(), new GridPositionDto(100, 0), 0)),
                 0,
-                0);
+                0,
+                false,
+                null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -313,10 +332,23 @@ class SceneControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void rejectsGridDimensionsOverTheHundredCeiling() throws Exception {
+        mockMvc.perform(post("/api/scenes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN", 101, 100))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/scenes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN", 100, 0))))
+                .andExpect(status().isBadRequest());
+    }
+
     private String createEmptyScene() throws Exception {
         String response = mockMvc.perform(post("/api/scenes")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN"))))
+                        .content(objectMapper.writeValueAsString(new SceneCreateRequest("Scene", "URBAN", 100, 100))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).get("id").asText();

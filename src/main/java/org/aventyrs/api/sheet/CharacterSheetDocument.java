@@ -51,4 +51,21 @@ public class CharacterSheetDocument {
     private Map<EgoDomain, Integer> temporaryEgoPoints;
 
     private List<TemporaryBonusEntry> temporaryBonuses;
+
+    private List<BleedingEntry> bleedingEffects;
+
+    private List<ManaDrainEntry> manaDrains;
+
+    private List<WitheringEntry> witheringEffects;
+
+    private List<PendingEgoRecoveryEntry> pendingEgoRecoveries;
+
+    private List<LifeStealEntry> lifeSteals;
+
+    /** Item catalog constant names (e.g. {@code "ROUPA_PESADA"}) — see {@link CharacterEntry}'s equipment javadoc. */
+    private List<String> inventory;
+
+    /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
+     * same convention as {@code SceneDocument#getImageUrl()}. */
+    private String tokenImageUrl;
 }

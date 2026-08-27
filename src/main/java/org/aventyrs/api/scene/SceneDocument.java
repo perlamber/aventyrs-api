@@ -21,7 +21,18 @@ import lombok.Setter;
  * here replays {@code Scene#next()}'s active/pending-entry merge logic yet — that's action-time
  * behavior, not a CRUD concern. {@code createdAt} exists purely to resolve "latest" (see
  * {@code SceneRepository#findTopByOrderByCreatedAtDesc}) — ids are random UUIDs, not ObjectIds,
- * so there's no implicit chronological ordering to fall back on.
+ * so there's no implicit chronological ordering to fall back on. {@code combatScene} mirrors
+ * core's own {@code Scene#isCombatScene()} — {@code false} until a caller flips it once combat
+ * actually breaks out, same as core. {@code imageUrl} is null until a caller sets one via update;
+ * the image itself is uploaded separately through {@code /api/images}, so this only ever stores
+ * the URL that upload handed back. {@code width}/{@code height} size the playable grid within
+ * {@code GridPosition}'s fixed {@value org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE}x{@value
+ * org.aventyrs.core.scene.grid.GridPosition#GRID_SIZE} ceiling. They're set at creation, sized to
+ * the background map, and thereafter changed only through {@code SceneService#resizeGrid} — the
+ * GM's live grid control, which refuses a shrink that would strand a participant outside the new
+ * bounds rather than moving anyone's token for them. {@code PUT /scenes/{id}} deliberately leaves
+ * both alone: it's a full replace driven by the scene editor, and a resize is not part of the
+ * shape that editor edits.
  */
 @Document(collection = "scenes")
 @Getter
@@ -43,6 +54,14 @@ public class SceneDocument {
 
     /** -1 before the first {@code next()}-equivalent action, same convention as core's {@code Scene}. */
     private int currentIndex;
+
+    private boolean combatScene;
+
+    private String imageUrl;
+
+    private int width;
+
+    private int height;
 
     private Instant createdAt;
 }

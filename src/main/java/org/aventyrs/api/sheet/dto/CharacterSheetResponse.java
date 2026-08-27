@@ -18,6 +18,13 @@ public record CharacterSheetResponse(
         int famaPositiva,
         int famaNegativa,
         Map<EgoDomain, Integer> temporaryEgoPoints,
-        List<TemporaryBonusDto> temporaryBonuses
+        List<TemporaryBonusDto> temporaryBonuses,
+        List<BleedingDto> bleedingEffects,
+        List<ManaDrainDto> manaDrains,
+        List<WitheringDto> witheringEffects,
+        List<PendingEgoRecoveryDto> pendingEgoRecoveries,
+        List<LifeStealDto> lifeSteals,
+        List<String> inventory,
+        String tokenImageUrl
 ) {
 }
