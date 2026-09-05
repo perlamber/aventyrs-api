@@ -1,5 +1,18 @@
 package org.aventyrs.api.scene;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.aventyrs.api.scene.dto.RollRequestMessage;
+import org.aventyrs.api.scene.dto.RollRequestedEvent;
+import org.aventyrs.api.scene.dto.RollResponseMessage;
+import org.aventyrs.api.scene.dto.RollRespondedEvent;
+import org.aventyrs.core.skill.DifficultyLevel;
+import org.aventyrs.core.skill.SkillType;
 import java.util.UUID;
 
 import org.aventyrs.api.common.NotFoundException;
@@ -21,6 +34,8 @@ import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.scene.grid.GridPosition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,6 +96,121 @@ class SceneServiceIntegrationTest {
         SceneParticipantResponse persisted = sceneService.get(sceneId).participants().get(0);
         assertEquals(10, persisted.position().x());
         assertEquals(12, persisted.position().y());
+    }
+
+    @Test
+    void aRollRequestIsStampedWithAnIdAndReplayedToLateJoiners() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        RollRequestedEvent event = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.CHECK, SkillType.ATTENTION, DifficultyLevel.MEDIUM, 0, null,
+                List.of(), "Algo se aproxima"));
+
+        assertNotNull(event.requestId(), "the server stamps the id so responses have a stable anchor");
+        assertNotNull(event.requestedAt());
+        assertEquals(List.of(), event.targetCharacterSheetIds(), "empty targets means the whole table");
+
+        // A client joining now still sees it — the same replay actionHistory already gets.
+        SceneResponse replayed = sceneService.get(sceneId);
+        assertEquals(1, replayed.rollRequests().size());
+        assertEquals(event.requestId(), replayed.rollRequests().get(0).requestId());
+        assertEquals("Algo se aproxima", replayed.rollRequests().get(0).prompt());
+    }
+
+    @Test
+    void anAttackRequestCarriesItsGrauDeDificuldadeAndFlatBonus() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        RollRequestedEvent event = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.ATTACK, SkillType.ESQUIVA_E_APARAR, DifficultyLevel.HARD, 2,
+                "goblin-batedor", List.of(characterSheetId1), null));
+
+        assertEquals(RollRequestKind.ATTACK, event.kind());
+        assertEquals(DifficultyLevel.HARD, event.difficultyLevel());
+        assertEquals(2, event.attackBonus());
+        assertEquals("goblin-batedor", event.attackerCharacterSheetId());
+        assertEquals(List.of(characterSheetId1), event.targetCharacterSheetIds());
+    }
+
+    @Test
+    void aRollRequestNamingAStrangerIsRejected() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+
+        assertThrows(NotFoundException.class, () -> sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.CHECK, SkillType.ATTENTION, DifficultyLevel.EASY, 0, null,
+                List.of("not-in-this-scene"), null)));
+    }
+
+    /** The verdict is carried, not computed — this server runs no rules engine — and it stays
+     * tri-state on the way through: {@code null} means no GD was stated, never a failure. */
+    @Test
+    void aResponseCarriesTheClientResolvedVerdictIncludingItsNullState() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        String requestId = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.CHECK, SkillType.ATTENTION, DifficultyLevel.MEDIUM, 0, null,
+                List.of(), null)).requestId();
+
+        RollRespondedEvent rolled = sceneService.respondToRoll(sceneId, new RollResponseMessage(
+                requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(4, 5, 3),
+                Boolean.TRUE, 3, 21, 18, null));
+        assertEquals(Boolean.TRUE, rolled.succeeded());
+        assertEquals(3, rolled.margin());
+        assertEquals(List.of(4, 5, 3), rolled.dice());
+
+        RollRespondedEvent reacted = sceneService.respondToRoll(sceneId, new RollResponseMessage(
+                requestId, characterSheetId1, RollResponseKind.REACTED, null,
+                null, null, null, null, "Conjurando Escudo Arcano"));
+        assertNull(reacted.succeeded(), "a declared reaction states no verdict");
+        assertEquals(List.of(), reacted.dice());
+        assertEquals("Conjurando Escudo Arcano", reacted.note());
+
+        assertEquals(2, sceneService.get(sceneId).rollResponses().size());
+    }
+
+    /**
+     * The reason responses are appended with an atomic {@code $push} rather than the
+     * read-modify-write save every other mutation here uses.
+     *
+     * <p>No document in this codebase carries a {@code @Version}, so concurrent full-document saves
+     * silently drop one another's writes. Elsewhere that races rarely; here it is the ordinary case
+     * — the Narrador asks the whole table to roll and everyone answers at once, on the broker's
+     * inbound thread pool. This test fails under {@code repository.save}.
+     */
+    @Test
+    void everyConcurrentResponseSurvives() throws Exception {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        String requestId = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.CHECK, SkillType.ATTENTION, DifficultyLevel.MEDIUM, 0, null,
+                List.of(), null)).requestId();
+
+        int answers = 24;
+        ExecutorService pool = Executors.newFixedThreadPool(8);
+        CountDownLatch startTogether = new CountDownLatch(1);
+        try {
+            List<Future<?>> submitted = new ArrayList<>();
+            for (int i = 0; i < answers; i++) {
+                int roll = i;
+                submitted.add(pool.submit(() -> {
+                    startTogether.await();
+                    return sceneService.respondToRoll(sceneId, new RollResponseMessage(
+                            requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(1, 2, 3),
+                            Boolean.TRUE, roll, roll, 0, null));
+                }));
+            }
+            startTogether.countDown();
+            for (Future<?> future : submitted) {
+                future.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals(answers, sceneService.get(sceneId).rollResponses().size(),
+                "every answer must survive: a lost one is a player whose roll silently vanished");
     }
 
     @Test

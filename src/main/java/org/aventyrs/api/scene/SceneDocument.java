@@ -69,4 +69,18 @@ public class SceneDocument {
     private Instant createdAt;
 
     private List<SceneActionEntry> actionHistory;
+
+    /**
+     * Rolls the Narrador has asked the table for, and the answers to them — two flat lists rather
+     * than responses nested inside their request, so both append with a plain {@code $push} and no
+     * positional operator. That matters: several players answering at once is the ordinary case,
+     * and this collection has no {@code @Version}, so a read-modify-write save would lose answers.
+     * See {@code SceneService#respondToRoll}.
+     *
+     * <p>{@code null} on any document persisted before they existed, normalised at read time the
+     * same way {@code actionHistory} is.
+     */
+    private List<SceneRollRequestEntry> rollRequests;
+
+    private List<SceneRollResponseEntry> rollResponses;
 }

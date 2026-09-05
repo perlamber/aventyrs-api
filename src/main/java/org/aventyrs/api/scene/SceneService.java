@@ -15,6 +15,10 @@ import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.RecordActionMessage;
+import org.aventyrs.api.scene.dto.RollRequestMessage;
+import org.aventyrs.api.scene.dto.RollRequestedEvent;
+import org.aventyrs.api.scene.dto.RollResponseMessage;
+import org.aventyrs.api.scene.dto.RollRespondedEvent;
 import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
@@ -29,6 +33,10 @@ import org.aventyrs.core.scene.TerrainType;
 import org.aventyrs.core.scene.grid.GridPosition;
 import org.aventyrs.core.sheet.ActionCost;
 import org.aventyrs.core.sheet.ActionOutcome;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 /**
@@ -52,18 +60,23 @@ public class SceneService {
     private final SceneRepository repository;
     private final CharacterSheetRepository characterSheetRepository;
     private final MonsterSheetRepository monsterSheetRepository;
+    /** Used <b>only</b> by the two roll-request appends — see {@link #respondToRoll} for why those
+     * cannot go through {@code repository.save} like every other mutation here. */
+    private final MongoTemplate mongoTemplate;
 
     public SceneService(SceneRepository repository, CharacterSheetRepository characterSheetRepository,
-            MonsterSheetRepository monsterSheetRepository) {
+            MonsterSheetRepository monsterSheetRepository, MongoTemplate mongoTemplate) {
         this.monsterSheetRepository = monsterSheetRepository;
         this.repository = repository;
         this.characterSheetRepository = characterSheetRepository;
+        this.mongoTemplate = mongoTemplate;
     }
 
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
-                false, null, request.width(), request.height(), Instant.now(), List.of());
+                false, null, request.width(), request.height(), Instant.now(), List.of(),
+                List.of(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -335,6 +348,106 @@ public class SceneService {
         return document.getActionHistory() == null ? List.of() : document.getActionHistory();
     }
 
+    /**
+     * Records a roll the Narrador is asking the table for, and hands back the event to broadcast.
+     *
+     * <p>The {@code requestId} is stamped here rather than accepted from the client, so responses
+     * have something stable to point at that two clients could not collide on — the same reason
+     * {@code ping} stamps its own {@code Instant}.
+     *
+     * <p>Nothing validates that the sender is the Narrador, because nothing could: this API has no
+     * authentication and {@code PlayerRole} is documented as not being an authorization boundary.
+     * The named targets <em>are</em> checked for membership of this scene, which is the same guard
+     * {@link #moveParticipant} applies — it asserts the id belongs here, never that the sender owns
+     * it.
+     *
+     * @throws NotFoundException if a named target is not a participant of this scene
+     */
+    public RollRequestedEvent requestRoll(String id, RollRequestMessage message) {
+        SceneDocument document = findOrThrow(id);
+        List<String> targets = message.targetCharacterSheetIds() == null
+                ? List.of() : List.copyOf(message.targetCharacterSheetIds());
+        for (String target : targets) {
+            indexOfParticipant(document.getParticipants(), target);
+        }
+
+        SceneRollRequestEntry entry = new SceneRollRequestEntry(
+                UUID.randomUUID().toString(),
+                message.kind(),
+                message.skill(),
+                message.difficultyLevel(),
+                message.attackBonus(),
+                message.attackerCharacterSheetId(),
+                targets,
+                message.prompt(),
+                Instant.now());
+
+        appendTo(id, "rollRequests", entry);
+        return toRollRequestedEvent(entry);
+    }
+
+    /**
+     * Records one player's answer and hands back the event to broadcast.
+     *
+     * <p><b>Appended with an atomic {@code $push}, not a read-modify-write save.</b> Every other
+     * mutation in this class loads the document, mutates it and calls {@code repository.save},
+     * which replaces the whole thing — and no document in this codebase carries a {@code @Version},
+     * so two concurrent saves silently lose one of the writes. Everywhere else that races rarely.
+     * Here it is the <em>normal</em> case: the Narrador asks the whole table for an Atenção roll and
+     * several players answer within the same second, on the broker's inbound thread pool. A
+     * targeted {@code $push} lets the database serialise the appends instead.
+     *
+     * @throws NotFoundException if characterSheetId is not a participant of this scene
+     */
+    public RollRespondedEvent respondToRoll(String id, RollResponseMessage message) {
+        SceneDocument document = findOrThrow(id);
+        indexOfParticipant(document.getParticipants(), message.characterSheetId());
+
+        SceneRollResponseEntry entry = new SceneRollResponseEntry(
+                message.requestId(),
+                message.characterSheetId(),
+                message.kind(),
+                message.dice() == null ? List.of() : List.copyOf(message.dice()),
+                message.succeeded(),
+                message.margin(),
+                message.total(),
+                message.requiredTotal(),
+                message.note(),
+                Instant.now());
+
+        appendTo(id, "rollResponses", entry);
+        return toRollRespondedEvent(entry);
+    }
+
+    /** One atomic array append — see {@link #respondToRoll} for why this exists at all. */
+    private void appendTo(String sceneId, String field, Object entry) {
+        mongoTemplate.updateFirst(
+                Query.query(Criteria.where("_id").is(sceneId)),
+                new Update().push(field, entry),
+                SceneDocument.class);
+    }
+
+    /** {@code null} on any document persisted before roll requests existed. */
+    private static List<SceneRollRequestEntry> rollRequestsOf(SceneDocument document) {
+        return document.getRollRequests() == null ? List.of() : document.getRollRequests();
+    }
+
+    private static List<SceneRollResponseEntry> rollResponsesOf(SceneDocument document) {
+        return document.getRollResponses() == null ? List.of() : document.getRollResponses();
+    }
+
+    private RollRequestedEvent toRollRequestedEvent(SceneRollRequestEntry entry) {
+        return new RollRequestedEvent(entry.requestId(), entry.kind(), entry.skill(),
+                entry.difficultyLevel(), entry.attackBonus(), entry.attackerCharacterSheetId(),
+                entry.targetCharacterSheetIds(), entry.prompt(), entry.requestedAt());
+    }
+
+    private RollRespondedEvent toRollRespondedEvent(SceneRollResponseEntry entry) {
+        return new RollRespondedEvent(entry.requestId(), entry.characterSheetId(), entry.kind(),
+                entry.dice(), entry.succeeded(), entry.margin(), entry.total(), entry.requiredTotal(),
+                entry.note(), entry.respondedAt());
+    }
+
     private SceneActionEvent toActionEvent(SceneActionEntry entry) {
         ActionOutcome outcome = entry.outcome();
         return new SceneActionEvent(
@@ -478,6 +591,14 @@ public class SceneService {
         List<SceneActionEvent> actionHistory = actionHistoryOf(document).stream()
                 .map(this::toActionEvent)
                 .toList();
+        // Replayed on every read so a client joining late — or reconnecting mid-request — still
+        // sees what the table was asked for, the same reason actionHistory is carried.
+        List<RollRequestedEvent> rollRequests = rollRequestsOf(document).stream()
+                .map(this::toRollRequestedEvent)
+                .toList();
+        List<RollRespondedEvent> rollResponses = rollResponsesOf(document).stream()
+                .map(this::toRollRespondedEvent)
+                .toList();
         return new SceneResponse(
                 document.getId(),
                 document.getName(),
@@ -489,7 +610,9 @@ public class SceneService {
                 document.getImageUrl(),
                 document.getWidth(),
                 document.getHeight(),
-                actionHistory);
+                actionHistory,
+                rollRequests,
+                rollResponses);
     }
 
     private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {

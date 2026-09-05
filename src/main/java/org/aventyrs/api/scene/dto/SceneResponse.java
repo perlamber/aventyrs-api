@@ -15,6 +15,8 @@ public record SceneResponse(
         String imageUrl,
         int width,
         int height,
-        List<SceneActionEvent> actionHistory
+        List<SceneActionEvent> actionHistory,
+        List<RollRequestedEvent> rollRequests,
+        List<RollRespondedEvent> rollResponses
 ) {
 }

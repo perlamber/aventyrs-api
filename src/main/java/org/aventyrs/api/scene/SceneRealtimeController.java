@@ -6,6 +6,10 @@ import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizeMessage;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.RollRequestMessage;
+import org.aventyrs.api.scene.dto.RollRequestedEvent;
+import org.aventyrs.api.scene.dto.RollResponseMessage;
+import org.aventyrs.api.scene.dto.RollRespondedEvent;
 import org.aventyrs.api.scene.dto.RecordActionMessage;
 import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
@@ -152,6 +156,43 @@ public class SceneRealtimeController {
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/actions", event);
         } catch (RuntimeException ex) {
             log.warn("Rejected action in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The Narrador asks the table to roll — persisted and then broadcast to <b>everyone</b> in the
+     * scene, not only to whoever must answer. That breadth is the point rather than a convenience:
+     * a player whose character isn't the target may still want to react to an attack aimed at
+     * somebody else's, and can only do so if they saw it.
+     *
+     * <p>Rejected the same silent way {@link #move} is — an unknown target leaves every client's
+     * panel as it was. Nothing checks that the sender is the Narrador; see {@link
+     * org.aventyrs.api.scene.dto.RollRequestMessage} for why that is not enforceable here.
+     */
+    @MessageMapping("/scenes/{sceneId}/roll-requests")
+    public void requestRoll(@DestinationVariable String sceneId, @Payload RollRequestMessage message) {
+        try {
+            RollRequestedEvent event = sceneService.requestRoll(sceneId, message);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/roll-requests", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected roll request in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
+     * One player's answer, persisted and broadcast so the whole table sees who answered and how.
+     *
+     * <p>Every client settles its own "already answered" state off this broadcast rather than
+     * optimistically, so two clients cannot disagree about whether a request is still open.
+     */
+    @MessageMapping("/scenes/{sceneId}/roll-responses")
+    public void respondToRoll(@DestinationVariable String sceneId, @Payload RollResponseMessage message) {
+        try {
+            RollRespondedEvent event = sceneService.respondToRoll(sceneId, message);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/roll-responses", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected roll response in scene {} from participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
         }
     }
