@@ -6,6 +6,8 @@ import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizeMessage;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.RecordActionMessage;
+import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -27,10 +29,12 @@ import org.springframework.stereotype.Controller;
  * /app/scenes/{sceneId}/status}, persisted via {@link CharacterSheetService#updateCombatStatus}),
  * a turn advance ({@code /app/scenes/{sceneId}/turn}, persisted via {@link
  * SceneService#advanceTurn}), a board resize ({@code /app/scenes/{sceneId}/grid}, persisted via
- * {@link SceneService#resizeGrid}), and a transient, unpersisted "sonar" ping ({@code
- * /app/scenes/{sceneId}/ping}) — all re-broadcast to every client subscribed to the scene's
- * {@code /topic/scenes/{sceneId}/moves} / {@code .../status} / {@code .../turn} / {@code
- * .../grid} / {@code .../pings} destinations.
+ * {@link SceneService#resizeGrid}), a recorded combat action ({@code
+ * /app/scenes/{sceneId}/actions}, persisted via {@link SceneService#recordAction}), and a
+ * transient, unpersisted "sonar" ping ({@code /app/scenes/{sceneId}/ping}) — all re-broadcast to
+ * every client subscribed to the scene's {@code /topic/scenes/{sceneId}/moves} / {@code
+ * .../status} / {@code .../turn} / {@code .../grid} / {@code .../actions} / {@code .../pings}
+ * destinations.
  *
  * <p>There's no auth in this API yet, so a rejected move (unknown participant, target cell already
  * occupied) has no client to report back to individually — it's logged and simply not broadcast,
@@ -131,6 +135,24 @@ public class SceneRealtimeController {
         } catch (RuntimeException ex) {
             log.warn("Rejected grid resize in scene {} to {}x{}: {}",
                     sceneId, message.width(), message.height(), ex.getMessage());
+        }
+    }
+
+    /**
+     * One resolved {@code CombatantAction} the sending client already rolled — persisted onto this
+     * scene's permanent combat log ({@link SceneService#recordAction}), then broadcast so every
+     * client's log fills in the same entry rather than only the one that rolled it. Rejected the
+     * same silent way {@link #move} is: an unknown participant, or an internally inconsistent
+     * {@code ActionCost} (see {@link RecordActionMessage}), leaves every client's log as it was.
+     */
+    @MessageMapping("/scenes/{sceneId}/actions")
+    public void recordAction(@DestinationVariable String sceneId, @Payload RecordActionMessage message) {
+        try {
+            SceneActionEvent event = sceneService.recordAction(sceneId, message);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/actions", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected action in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
         }
     }
 

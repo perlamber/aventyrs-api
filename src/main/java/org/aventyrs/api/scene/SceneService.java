@@ -14,6 +14,8 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.RecordActionMessage;
+import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
@@ -25,6 +27,8 @@ import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
 import org.aventyrs.core.scene.TerrainType;
 import org.aventyrs.core.scene.grid.GridPosition;
+import org.aventyrs.core.sheet.ActionCost;
+import org.aventyrs.core.sheet.ActionOutcome;
 import org.springframework.stereotype.Service;
 
 /**
@@ -59,7 +63,7 @@ public class SceneService {
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
-                false, null, request.width(), request.height(), Instant.now());
+                false, null, request.width(), request.height(), Instant.now(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -283,6 +287,70 @@ public class SceneService {
         return merged;
     }
 
+    /**
+     * Appends one resolved {@code CombatantAction} to this scene's permanent combat log, mirroring
+     * core's {@code Scene#recordAction(CombatantSheet, CombatantAction)} — never cleared, unlike
+     * the per-Rodada/per-Cena logs a live {@code CombatantSheet} keeps client-side. This server
+     * never runs the rules engine itself (see this class's own javadoc), so message is taken as
+     * whatever the sending client already resolved, the same trust {@link #moveParticipant} places
+     * in a reported grid position.
+     * @throws org.aventyrs.core.sheet.IllegalOperationException if the {@code ActionCost} message
+     *         describes is internally inconsistent (e.g. {@code ACTION_POINTS} with 0 points)
+     * @throws NotFoundException if characterSheetId is not a participant of this scene
+     */
+    public SceneActionEvent recordAction(String id, RecordActionMessage message) {
+        SceneDocument document = findOrThrow(id);
+        indexOfParticipant(document.getParticipants(), message.characterSheetId());
+
+        SceneActionEntry entry = new SceneActionEntry(
+                message.characterSheetId(),
+                message.skill(),
+                message.governingDomain(),
+                message.attackSourceKind(),
+                new ActionCost(message.costKind(), message.actionPoints()),
+                message.turnNumber(),
+                toOutcome(message));
+
+        List<SceneActionEntry> history = new ArrayList<>(actionHistoryOf(document));
+        history.add(entry);
+        document.setActionHistory(history);
+        repository.save(document);
+
+        return toActionEvent(entry);
+    }
+
+    /** {@code null} when none of the outcome fields were stated, same tri-state {@code
+     * ActionOutcome} itself preserves for {@code succeeded}/{@code margin} alone. */
+    private static ActionOutcome toOutcome(RecordActionMessage message) {
+        if (message.succeeded() == null && message.margin() == null
+                && message.criticalResult() == null && message.reachedDifficultyLevel() == null) {
+            return null;
+        }
+        return new ActionOutcome(message.succeeded(), message.margin(),
+                message.criticalResult(), message.reachedDifficultyLevel());
+    }
+
+    /** {@code null} on any document persisted before {@code actionHistory} existed. */
+    private static List<SceneActionEntry> actionHistoryOf(SceneDocument document) {
+        return document.getActionHistory() == null ? List.of() : document.getActionHistory();
+    }
+
+    private SceneActionEvent toActionEvent(SceneActionEntry entry) {
+        ActionOutcome outcome = entry.outcome();
+        return new SceneActionEvent(
+                entry.characterSheetId(),
+                entry.skill(),
+                entry.governingDomain(),
+                entry.attackSourceKind(),
+                entry.cost().kind(),
+                entry.cost().actionPoints(),
+                entry.turnNumber(),
+                outcome == null ? null : outcome.succeeded(),
+                outcome == null ? null : outcome.margin(),
+                outcome == null ? null : outcome.criticalResult(),
+                outcome == null ? null : outcome.reachedDifficultyLevel());
+    }
+
     /** How many of participants are in the turn rotation at round — the length of the list's prefix. */
     private int rotationSize(List<SceneParticipantEntry> participants, int round) {
         return (int) participants.stream().filter(entry -> entry.joinedAtRound() <= round).count();
@@ -407,6 +475,9 @@ public class SceneService {
         List<SceneParticipantResponse> participants = document.getParticipants().stream()
                 .map(this::toParticipantResponse)
                 .toList();
+        List<SceneActionEvent> actionHistory = actionHistoryOf(document).stream()
+                .map(this::toActionEvent)
+                .toList();
         return new SceneResponse(
                 document.getId(),
                 document.getName(),
@@ -417,7 +488,8 @@ public class SceneService {
                 document.isCombatScene(),
                 document.getImageUrl(),
                 document.getWidth(),
-                document.getHeight());
+                document.getHeight(),
+                actionHistory);
     }
 
     private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {

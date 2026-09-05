@@ -64,10 +64,15 @@ import org.aventyrs.core.skill.SkillType;
  * centelhaSuperiorSelected} to {@code false}. Every document written through {@code
  * CharacterSheetService} from now on always has a resolved, non-null value for each.
  *
- * <p>{@code feats}/{@code equipment} store core's {@code Character#feats}/{@code
- * Character#equipment} the same "constant's own {@code name()}" way {@code attributeAbilities}/
- * {@code activeAbilities} already do — {@code Feat} and {@code Item} are both interfaces backed
- * by catalog enums ({@code ArtesMarciaisFeat}, {@code ArmorItem}). Empty, not {@code null}, when
+ * <p>{@code feats} stores core's {@code Character#feats} the same "constant's own {@code
+ * name()}" way {@code attributeAbilities}/{@code activeAbilities} already do — {@code Feat} is an
+ * interface backed by catalog enums ({@code ArtesMarciaisFeat}). {@code equipment} mirrors core's
+ * {@code Character#equipment} differently: since the core 0.0.24 {@code Item}/{@code ItemTemplate}
+ * split, a genuine owned {@code Item} is a stateful {@code AbstractItem} copy (damage taken, a
+ * fitted Obra-Prima/Aprimoramentos, a socketed Pedra do Poder) rather than a shared, stateless
+ * catalog constant — so a name string can no longer round-trip it. Each entry here is instead the
+ * id of an {@code org.aventyrs.api.item.ItemDocument}, persisted separately in its own {@code
+ * items} collection; see that class for the full mirrored shape. Empty, not {@code null}, when
  * nothing is held/equipped.
  *
  * <p>{@code primaryTitle}/{@code secondaryTitle}/{@code tertiaryTitle} mirror core's three

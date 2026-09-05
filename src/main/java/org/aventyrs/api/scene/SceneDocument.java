@@ -32,7 +32,10 @@ import lombok.Setter;
  * GM's live grid control, which refuses a shrink that would strand a participant outside the new
  * bounds rather than moving anyone's token for them. {@code PUT /scenes/{id}} deliberately leaves
  * both alone: it's a full replace driven by the scene editor, and a resize is not part of the
- * shape that editor edits.
+ * shape that editor edits. {@code actionHistory} mirrors core's {@code Scene#getActionHistory()}
+ * — appended to, never cleared, by {@code SceneService#recordAction} — and is {@code null} on any
+ * document persisted before it existed, which {@code SceneService} normalizes to an empty list at
+ * read time; same "no changeset needed" reasoning as {@code SceneParticipantEntry#joinedAtRound}.
  */
 @Document(collection = "scenes")
 @Getter
@@ -64,4 +67,6 @@ public class SceneDocument {
     private int height;
 
     private Instant createdAt;
+
+    private List<SceneActionEntry> actionHistory;
 }

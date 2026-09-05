@@ -14,6 +14,7 @@ public record SceneResponse(
         boolean combatScene,
         String imageUrl,
         int width,
-        int height
+        int height,
+        List<SceneActionEvent> actionHistory
 ) {
 }
