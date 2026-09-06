@@ -3,6 +3,7 @@ package org.aventyrs.api.scene;
 import java.time.Instant;
 import java.util.List;
 
+import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.scene.TerrainType;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -36,6 +37,12 @@ import lombok.Setter;
  * — appended to, never cleared, by {@code SceneService#recordAction} — and is {@code null} on any
  * document persisted before it existed, which {@code SceneService} normalizes to an empty list at
  * read time; same "no changeset needed" reasoning as {@code SceneParticipantEntry#joinedAtRound}.
+ * {@code itemStoreMaxRarity} mirrors core's own {@code Scene#getItemStore()} — {@code null} on a
+ * Scene with nowhere to shop, same lifecycle as {@code combatScene}, set once a caller attaches a
+ * store and cleared back to {@code null} once the party leaves it. Only the ceiling Raridade is
+ * kept, matching {@code ItemStore} itself: it carries no stock of its own, just the whole {@code
+ * ItemCatalog} up to that ceiling, so a client rebuilds a real {@code ItemStore} from this one
+ * value the same way it rebuilds a {@code Scene} from {@code participants}.
  */
 @Document(collection = "scenes")
 @Getter
@@ -59,6 +66,8 @@ public class SceneDocument {
     private int currentIndex;
 
     private boolean combatScene;
+
+    private ItemRarity itemStoreMaxRarity;
 
     private String imageUrl;
 

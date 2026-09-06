@@ -65,7 +65,7 @@ final class ItemMapper {
                 document.getImprovementEffectLastActiveRound());
     }
 
-    private static ItemFavorEntry toFavorEntry(ItemFavorDto favor) {
+    static ItemFavorEntry toFavorEntry(ItemFavorDto favor) {
         if (favor == null) {
             return null;
         }
@@ -76,7 +76,7 @@ final class ItemMapper {
                 favor.requiredAttributeValue(), bonuses, favor.additionalEffects());
     }
 
-    private static ItemFavorDto toFavorDto(ItemFavorEntry favor) {
+    static ItemFavorDto toFavorDto(ItemFavorEntry favor) {
         if (favor == null) {
             return null;
         }
@@ -87,39 +87,39 @@ final class ItemMapper {
                 favor.requiredAttributeValue(), bonuses, favor.additionalEffects());
     }
 
-    private static ItemMasterpieceEntry toMasterpieceEntry(ItemMasterpieceDto masterpiece) {
+    static ItemMasterpieceEntry toMasterpieceEntry(ItemMasterpieceDto masterpiece) {
         return masterpiece == null ? null
                 : new ItemMasterpieceEntry(masterpiece.definition(), masterpiece.selectedDefense(),
                         masterpiece.selectedActionBonus());
     }
 
-    private static ItemMasterpieceDto toMasterpieceDto(ItemMasterpieceEntry masterpiece) {
+    static ItemMasterpieceDto toMasterpieceDto(ItemMasterpieceEntry masterpiece) {
         return masterpiece == null ? null
                 : new ItemMasterpieceDto(masterpiece.definition(), masterpiece.selectedDefense(),
                         masterpiece.selectedActionBonus());
     }
 
-    private static List<ItemImprovementEntry> toImprovementEntries(List<ItemImprovementDto> improvements) {
+    static List<ItemImprovementEntry> toImprovementEntries(List<ItemImprovementDto> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementEntry(improvement.definition(),
                         improvement.selectedDefense(), improvement.selectedElementalType()))
                 .toList();
     }
 
-    private static List<ItemImprovementDto> toImprovementDtos(List<ItemImprovementEntry> improvements) {
+    static List<ItemImprovementDto> toImprovementDtos(List<ItemImprovementEntry> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementDto(improvement.definition(),
                         improvement.selectedDefense(), improvement.selectedElementalType()))
                 .toList();
     }
 
-    private static PowerStoneEntry toPowerStoneEntry(PowerStoneDto powerStone) {
+    static PowerStoneEntry toPowerStoneEntry(PowerStoneDto powerStone) {
         return powerStone == null ? null
                 : new PowerStoneEntry(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
                         powerStone.improvement());
     }
 
-    private static PowerStoneDto toPowerStoneDto(PowerStoneEntry powerStone) {
+    static PowerStoneDto toPowerStoneDto(PowerStoneEntry powerStone) {
         return powerStone == null ? null
                 : new PowerStoneDto(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
                         powerStone.improvement());

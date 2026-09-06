@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.character.EgoDomain;
 
 public record CharacterSheetUpdateRequest(
@@ -21,6 +22,7 @@ public record CharacterSheetUpdateRequest(
         @Min(0) int shieldPoints,
         @Min(0) int famaPositiva,
         @Min(0) int famaNegativa,
+        @Min(0) int equipmentPoints,
         Map<EgoDomain, @Min(0) Integer> temporaryEgoPoints,
         List<@Valid TemporaryBonusDto> temporaryBonuses,
         List<@Valid BleedingDto> bleedingEffects,
@@ -28,7 +30,7 @@ public record CharacterSheetUpdateRequest(
         List<@Valid WitheringDto> witheringEffects,
         List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<@Valid LifeStealDto> lifeSteals,
-        List<String> inventory,
+        List<@Valid InventoryItemDto> inventory,
         String tokenImageUrl
 ) {
 }

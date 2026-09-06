@@ -20,9 +20,13 @@ import org.aventyrs.api.sheet.dto.BleedingDto;
 import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.LifeStealDto;
+import org.aventyrs.core.item.ItemCategory;
+import org.aventyrs.core.item.ItemRarity;
+import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
@@ -152,6 +156,7 @@ class CharacterSheetControllerIntegrationTest {
                 3,
                 2,
                 1,
+                7,
                 Map.of(EgoDomain.SORTE, 2),
                 List.of(new TemporaryBonusDto(ModifierType.SKILL_ROLL_BONUS, 2, 3)),
                 List.of(new BleedingDto(2, 3)),
@@ -159,7 +164,9 @@ class CharacterSheetControllerIntegrationTest {
                 List.of(new WitheringDto(1, 2)),
                 List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)),
                 List.of(new LifeStealDto(2, null)),
-                List.of("ROUPA_PESADA"),
+                List.of(new InventoryItemDto("ROUPA_PESADA", "Roupa Pesada", null,
+                        ItemCategory.ARMOR, ItemRarity.COMMON, ItemWeightClass.HEAVY,
+                        0, 0, 0, 0, 0, 0, null, null, List.of(), null, null, null, false)),
                 "https://images.aventyrs.test/tokens/strider.png");
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
@@ -179,6 +186,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.shieldPoints").value(3))
                 .andExpect(jsonPath("$.famaPositiva").value(2))
                 .andExpect(jsonPath("$.famaNegativa").value(1))
+                .andExpect(jsonPath("$.equipmentPoints").value(7))
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(2))
                 .andExpect(jsonPath("$.temporaryEgoPoints.AUTOCONTROLE").value(0))
                 .andExpect(jsonPath("$.temporaryBonuses", hasSize(1)))
@@ -202,7 +210,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.lifeSteals[0].value").value(2))
                 .andExpect(jsonPath("$.lifeSteals[0].remainingRounds").doesNotExist())
                 .andExpect(jsonPath("$.inventory", hasSize(1)))
-                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].templateName").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].rarity").value("COMMON"))
                 .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/strider.png"));
 
         mockMvc.perform(get("/api/character-sheets/{id}", id))
@@ -371,7 +380,7 @@ class CharacterSheetControllerIntegrationTest {
                 List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest firstUpdateRequest = new CharacterSheetUpdateRequest(
-                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+                firstUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -394,7 +403,7 @@ class CharacterSheetControllerIntegrationTest {
                 null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest secondUpdateRequest = new CharacterSheetUpdateRequest(
-                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+                secondUpdatedCharacter, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
 
         mockMvc.perform(put("/api/character-sheets/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)

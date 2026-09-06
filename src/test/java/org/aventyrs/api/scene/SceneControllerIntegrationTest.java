@@ -14,6 +14,7 @@ import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Character.Sexo;
+import org.aventyrs.core.item.ItemRarity;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import org.junit.jupiter.api.BeforeEach;
@@ -100,6 +101,7 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.imageUrl").doesNotExist())
                 .andExpect(jsonPath("$.width").value(20))
                 .andExpect(jsonPath("$.height").value(15))
+                .andExpect(jsonPath("$.itemStoreMaxRarity").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -112,7 +114,8 @@ class SceneControllerIntegrationTest {
                 0,
                 0,
                 true,
-                "https://images.example.com/scenes/bridge.png");
+                "https://images.example.com/scenes/bridge.png",
+                ItemRarity.UNCOMMON);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -124,11 +127,13 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants[0].position.y").value(10))
                 .andExpect(jsonPath("$.currentIndex").value(0))
                 .andExpect(jsonPath("$.combatScene").value(true))
-                .andExpect(jsonPath("$.imageUrl").value("https://images.example.com/scenes/bridge.png"));
+                .andExpect(jsonPath("$.imageUrl").value("https://images.example.com/scenes/bridge.png"))
+                .andExpect(jsonPath("$.itemStoreMaxRarity").value("UNCOMMON"));
 
         mockMvc.perform(get("/api/scenes/{id}", id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.participants", hasSize(2)));
+                .andExpect(jsonPath("$.participants", hasSize(2)))
+                .andExpect(jsonPath("$.itemStoreMaxRarity").value("UNCOMMON"));
 
         mockMvc.perform(get("/api/scenes"))
                 .andExpect(status().isOk())
@@ -226,6 +231,7 @@ class SceneControllerIntegrationTest {
                 0,
                 0,
                 false,
+                null,
                 null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
@@ -263,6 +269,7 @@ class SceneControllerIntegrationTest {
                 0,
                 0,
                 false,
+                null,
                 null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
@@ -283,6 +290,7 @@ class SceneControllerIntegrationTest {
                 0,
                 0,
                 false,
+                null,
                 null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
@@ -301,6 +309,7 @@ class SceneControllerIntegrationTest {
                 0,
                 5,
                 false,
+                null,
                 null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)
@@ -324,6 +333,7 @@ class SceneControllerIntegrationTest {
                 0,
                 0,
                 false,
+                null,
                 null);
 
         mockMvc.perform(put("/api/scenes/{id}", id)

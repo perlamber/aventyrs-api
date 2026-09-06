@@ -29,6 +29,8 @@ import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
+import org.aventyrs.core.item.ItemRarity;
+import org.aventyrs.core.item.ItemStore;
 import org.aventyrs.core.scene.TerrainType;
 import org.aventyrs.core.scene.grid.GridPosition;
 import org.aventyrs.core.sheet.ActionCost;
@@ -75,7 +77,7 @@ public class SceneService {
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
-                false, null, request.width(), request.height(), Instant.now(), List.of(),
+                false, null, null, request.width(), request.height(), Instant.now(), List.of(),
                 List.of(), List.of());
         return toResponse(repository.save(document));
     }
@@ -122,8 +124,19 @@ public class SceneService {
         document.setCurrentIndex(request.currentIndex());
         document.setCombatScene(request.combatScene());
         document.setImageUrl(request.imageUrl());
+        document.setItemStoreMaxRarity(toItemStoreMaxRarity(request.itemStoreMaxRarity()));
 
         return toResponse(repository.save(document));
+    }
+
+    /**
+     * {@code null} passes through untouched — nowhere to shop, same as before the update. A
+     * non-null rarity is round-tripped through a real {@link ItemStore} purely so its own
+     * constructor enforces "must be a purchasable tier," the same way {@link #recordAction}
+     * leans on {@code ActionCost}'s constructor rather than re-checking its invariant here.
+     */
+    private static ItemRarity toItemStoreMaxRarity(ItemRarity requested) {
+        return requested == null ? null : new ItemStore(requested).getMaxRarity();
     }
 
     public SceneParticipantResponse addParticipant(String id, AddParticipantRequest request) {
@@ -612,7 +625,8 @@ public class SceneService {
                 document.getHeight(),
                 actionHistory,
                 rollRequests,
-                rollResponses);
+                rollResponses,
+                document.getItemStoreMaxRarity());
     }
 
     private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {

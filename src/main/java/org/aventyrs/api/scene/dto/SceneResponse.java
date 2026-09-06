@@ -2,6 +2,7 @@ package org.aventyrs.api.scene.dto;
 
 import java.util.List;
 
+import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.scene.TerrainType;
 
 public record SceneResponse(
@@ -17,6 +18,7 @@ public record SceneResponse(
         int height,
         List<SceneActionEvent> actionHistory,
         List<RollRequestedEvent> rollRequests,
-        List<RollRespondedEvent> rollResponses
+        List<RollRespondedEvent> rollResponses,
+        ItemRarity itemStoreMaxRarity
 ) {
 }

@@ -147,7 +147,7 @@ class SceneRosterBroadcastIntegrationTest {
                                 "Roster scene",
                                 List.of(new SceneParticipantRequest(characterSheetId, 11, UUID.randomUUID(),
                                         new GridPositionDto(3, 4), 0)),
-                                0, 0, true, null))))
+                                0, 0, true, null, null))))
                 .andExpect(status().isOk());
 
         SceneResponse broadcast = rosterBroadcastFor(sceneId);

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.aventyrs.api.common.NotFoundException;
+import org.aventyrs.api.item.InventoryItemMapper;
 import org.aventyrs.api.player.PlayerRepository;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
@@ -31,6 +32,7 @@ public class CharacterSheetService {
                 request.playerId(),
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
+                0,
                 0,
                 0,
                 0,
@@ -75,6 +77,7 @@ public class CharacterSheetService {
         document.setShieldPoints(request.shieldPoints());
         document.setFamaPositiva(request.famaPositiva());
         document.setFamaNegativa(request.famaNegativa());
+        document.setEquipmentPoints(request.equipmentPoints());
         document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(request.temporaryEgoPoints()));
         document.setTemporaryBonuses(CombatantSheetMapper.toTemporaryBonusEntries(request.temporaryBonuses()));
         document.setBleedingEffects(CombatantSheetMapper.toBleedingEntries(request.bleedingEffects()));
@@ -82,7 +85,7 @@ public class CharacterSheetService {
         document.setWitheringEffects(CombatantSheetMapper.toWitheringEntries(request.witheringEffects()));
         document.setPendingEgoRecoveries(CombatantSheetMapper.toPendingEgoRecoveryEntries(request.pendingEgoRecoveries()));
         document.setLifeSteals(CombatantSheetMapper.toLifeStealEntries(request.lifeSteals()));
-        document.setInventory(request.inventory() == null ? List.of() : request.inventory());
+        document.setInventory(InventoryItemMapper.toEntries(request.inventory()));
         document.setTokenImageUrl(request.tokenImageUrl());
 
         return toResponse(repository.save(document));
@@ -177,6 +180,7 @@ public class CharacterSheetService {
                 document.getShieldPoints(),
                 document.getFamaPositiva(),
                 document.getFamaNegativa(),
+                document.getEquipmentPoints(),
                 document.getTemporaryEgoPoints(),
                 CombatantSheetMapper.toTemporaryBonusDtos(document.getTemporaryBonuses()),
                 CombatantSheetMapper.toBleedingDtos(document.getBleedingEffects()),
@@ -184,7 +188,7 @@ public class CharacterSheetService {
                 CombatantSheetMapper.toWitheringDtos(document.getWitheringEffects()),
                 CombatantSheetMapper.toPendingEgoRecoveryDtos(document.getPendingEgoRecoveries()),
                 CombatantSheetMapper.toLifeStealDtos(document.getLifeSteals()),
-                document.getInventory() == null ? List.of() : document.getInventory(),
+                InventoryItemMapper.toDtos(document.getInventory()),
                 document.getTokenImageUrl());
     }
 }

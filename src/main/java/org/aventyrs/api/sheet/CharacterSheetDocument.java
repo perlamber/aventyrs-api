@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.aventyrs.api.item.InventoryItemEntry;
 import org.aventyrs.core.character.EgoDomain;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -48,6 +49,10 @@ public class CharacterSheetDocument {
 
     private int famaNegativa;
 
+    /** Pontos de Equipamento — the budget an item-store purchase spends. 0 for a sheet persisted
+     * before it existed, matching core's own {@code AbstractCombatantSheet} default. */
+    private int equipmentPoints;
+
     private Map<EgoDomain, Integer> temporaryEgoPoints;
 
     private List<TemporaryBonusEntry> temporaryBonuses;
@@ -62,8 +67,9 @@ public class CharacterSheetDocument {
 
     private List<LifeStealEntry> lifeSteals;
 
-    /** {@code org.aventyrs.api.item.ItemDocument} ids this sheet carries — see {@link CharacterEntry}'s equipment javadoc. */
-    private List<String> inventory;
+    /** Every {@code org.aventyrs.core.item.Item} this sheet carries, embedded — see {@link InventoryItemEntry}.
+     * {@code null} on a document persisted before structured inventory existed (was {@code List<String>}). */
+    private List<InventoryItemEntry> inventory;
 
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
      * same convention as {@code SceneDocument#getImageUrl()}. */
