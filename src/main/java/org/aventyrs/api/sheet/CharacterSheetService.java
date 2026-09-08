@@ -117,7 +117,7 @@ public class CharacterSheetService {
                 stored.race(),
                 stored.sexo(),
                 stored.deity(),
-                stored.tendencia(),
+                stored.alignment(),
                 stored.sizeCategory(),
                 stored.actionProfile(),
                 stored.attributes(),

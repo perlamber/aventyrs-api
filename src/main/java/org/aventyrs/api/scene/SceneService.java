@@ -3,6 +3,8 @@ package org.aventyrs.api.scene;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import org.aventyrs.api.scene.dto.RollRequestedEvent;
 import org.aventyrs.api.scene.dto.RollResponseMessage;
 import org.aventyrs.api.scene.dto.RollRespondedEvent;
 import org.aventyrs.api.scene.dto.SceneActionEvent;
+import org.aventyrs.api.scene.dto.SceneConnectionResponse;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
@@ -31,10 +34,13 @@ import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
 import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemStore;
+import org.aventyrs.core.scene.Direction;
 import org.aventyrs.core.scene.TerrainType;
 import org.aventyrs.core.scene.grid.GridPosition;
 import org.aventyrs.core.sheet.ActionCost;
 import org.aventyrs.core.sheet.ActionOutcome;
+import org.aventyrs.core.sheet.IllegalOperationException;
+import org.aventyrs.core.util.TranslatableMessages;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -42,7 +48,8 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 /**
- * CRUD plus the one bit of action-time behavior this API does arbitrate: {@link #advanceTurn}.
+ * CRUD plus the bits of action-time behavior this API does arbitrate: {@link #advanceTurn} and
+ * {@link #startCombat}.
  *
  * <p>{@code SceneDocument#getParticipants()} is kept in a shape that mirrors core's {@code Scene}
  * exactly — its {@code activeEntries} and {@code pendingEntries} concatenated:
@@ -77,7 +84,7 @@ public class SceneService {
     public SceneResponse create(SceneCreateRequest request) {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
-                false, null, null, request.width(), request.height(), Instant.now(), List.of(),
+                false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
                 List.of(), List.of());
         return toResponse(repository.save(document));
     }
@@ -86,10 +93,19 @@ public class SceneService {
         return toResponse(findOrThrow(id));
     }
 
+    /**
+     * The scene a client should drop into when it isn't told which. The active scene if there is
+     * exactly one (see {@link SceneActivationService}); otherwise — none active, or more than one
+     * left by a race between two activations — the most recently created, the same tiebreak this
+     * endpoint used before {@code active} existed.
+     */
     public SceneResponse getAvailable() {
-        return repository.findTopByOrderByCreatedAtDesc()
-                .map(this::toResponse)
-                .orElseThrow(() -> new NotFoundException("No scenes available"));
+        List<SceneDocument> active = repository.findByActiveTrue();
+        SceneDocument chosen = active.size() == 1
+                ? active.get(0)
+                : repository.findTopByOrderByCreatedAtDesc()
+                        .orElseThrow(() -> new NotFoundException("No scenes available"));
+        return toResponse(chosen);
     }
 
     public List<SceneResponse> list() {
@@ -117,6 +133,7 @@ public class SceneService {
         requireParticipantsExist(participants);
         requireDistinctPositions(participants);
         requireValidTurnCursor(request.currentIndex(), rotationSize(participants, request.currentRound()));
+        requireRoundGatedOnCombat(request.currentRound(), request.combatScene());
 
         document.setName(request.name());
         document.setParticipants(participants);
@@ -256,9 +273,42 @@ public class SceneService {
     }
 
     /**
+     * Combat breaks out in this scene, mirroring {@code Scene#startCombat()} (core 0.0.32): flip
+     * {@code combatScene} on so the Rodada counter and the Round-boundary bookkeeping in {@link
+     * #advanceTurn} start running. Idempotent within a scene — a second call throws rather than
+     * re-firing, the same guard core's {@code startCombat()} carries.
+     *
+     * <p>What core's {@code startCombat()} also does — running {@code CombatantSheet#startCombat()}
+     * on every participant to apply start-of-combat Talento Blessings ({@code
+     * AnaoFeat#VIGOR_DO_INVERNO}) — is left to the clients, the same split {@link #advanceTurn}
+     * documents for {@code finishTurn()}/{@code startTurn(int)}: the live {@code CombatantSheet}s
+     * those Blessings land on exist only there. Each client runs its own {@code Scene#startCombat()}
+     * off the broadcast this produces.
+     *
+     * <p>A scene rebuilt from persistence already mid-combat keeps using {@link #update} (the full
+     * PUT), which sets {@code combatScene} straight through without re-firing anything — the same
+     * role core's {@code Scene#setCombatScene(boolean)} keeps alongside {@code startCombat()}.
+     *
+     * @throws IllegalOperationException ({@code SCENE_ALREADY_IN_COMBAT}) if this scene is already
+     *         a combat scene
+     */
+    public SceneResponse startCombat(String id) {
+        SceneDocument document = findOrThrow(id);
+        if (document.isCombatScene()) {
+            throw new IllegalOperationException(TranslatableMessages.SCENE_ALREADY_IN_COMBAT);
+        }
+
+        document.setCombatScene(true);
+        return toResponse(repository.save(document));
+    }
+
+    /**
      * Moves this scene's turn cursor on by one, mirroring {@code Scene#next()}'s arithmetic: step
-     * to the next participant in the rotation, and on wrapping back to the top advance the Round,
-     * merge whoever was waiting, and re-derive the order from everyone's {@code initiativeValue}.
+     * to the next participant in the rotation, and on wrapping back to the top — <b>only while
+     * {@code combatScene} is true</b> — advance the Round, merge whoever was waiting, and re-derive
+     * the order from everyone's {@code initiativeValue}. Before combat has started the wrap just
+     * cycles the cursor: {@code currentRound} stays 0 and no Round boundary fires, the Rodada gate
+     * core added in 0.0.32 ({@code Scene#next()} — "a Rodada is a combat unit").
      *
      * <p>Only the cursor moves here. {@code Scene#next()}'s other half — {@code finishTurn()} on
      * whoever's Turn just ended and {@code startTurn(int)} on whoever's beginning — deliberately
@@ -283,8 +333,10 @@ public class SceneService {
         int index = document.getCurrentIndex() + 1;
         if (index >= rotationSize) {
             index = 0;
-            round++;
-            participants = mergeAndSortRotation(participants, round);
+            if (document.isCombatScene()) {
+                round++;
+                participants = mergeAndSortRotation(participants, round);
+            }
         }
 
         document.setParticipants(participants);
@@ -573,6 +625,17 @@ public class SceneService {
         }
     }
 
+    /** A Rodada is a combat unit (core 0.0.32): a scene that isn't a combat scene is on Round 0 by
+     * definition, so a full replace can't restore one to a later Round without also marking it in
+     * combat. A mid-combat scene rebuilt from persistence sends {@code combatScene: true} alongside
+     * its round, the same pairing core's {@code setCombatScene} + {@code restoreTurnCursor} expect. */
+    private static void requireRoundGatedOnCombat(int currentRound, boolean combatScene) {
+        if (currentRound != 0 && !combatScene) {
+            throw new IllegalArgumentException(
+                    "currentRound must be 0 unless combatScene is true (a Rodada only elapses in combat)");
+        }
+    }
+
     /** The cursor indexes the rotation prefix, not the whole participant list — a participant still
      * waiting for the next Round isn't somewhere the cursor can point (see this class's javadoc). */
     private void requireValidTurnCursor(int currentIndex, int rotationSize) {
@@ -620,13 +683,45 @@ public class SceneService {
                 document.getCurrentRound(),
                 document.getCurrentIndex(),
                 document.isCombatScene(),
+                document.isActive(),
                 document.getImageUrl(),
                 document.getWidth(),
                 document.getHeight(),
                 actionHistory,
                 rollRequests,
                 rollResponses,
-                document.getItemStoreMaxRarity());
+                document.getItemStoreMaxRarity(),
+                resolveConnections(document));
+    }
+
+    /** {@code null} on any document persisted before connections existed. */
+    static Map<Direction, String> connectionsOf(SceneDocument document) {
+        return document.getConnections() == null ? Map.of() : document.getConnections();
+    }
+
+    /**
+     * Turns this scene's stored {@code Direction -> neighbour id} links into resolved neighbour
+     * summaries — the lazy "id to Scene" step kept off the write path and done here instead. One
+     * {@code findAllById} for the whole map (at most four ids); an id that no longer resolves still
+     * appears, with a {@code null} name, rather than being dropped.
+     */
+    private Map<Direction, SceneConnectionResponse> resolveConnections(SceneDocument document) {
+        Map<Direction, String> links = connectionsOf(document);
+        if (links.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, SceneDocument> neighbours = new HashMap<>();
+        repository.findAllById(links.values()).forEach(scene -> neighbours.put(scene.getId(), scene));
+
+        Map<Direction, SceneConnectionResponse> resolved = new EnumMap<>(Direction.class);
+        links.forEach((direction, neighbourId) -> {
+            SceneDocument neighbour = neighbours.get(neighbourId);
+            resolved.put(direction, new SceneConnectionResponse(
+                    neighbourId,
+                    neighbour == null ? null : neighbour.getName(),
+                    neighbour != null && neighbour.isActive()));
+        });
+        return resolved;
     }
 
     private SceneParticipantResponse toParticipantResponse(SceneParticipantEntry entry) {

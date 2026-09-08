@@ -3,12 +3,16 @@ package org.aventyrs.api.scene;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.SceneActivatedEvent;
+import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneGroupResponse;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
+import org.aventyrs.core.scene.Direction;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -27,10 +31,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class SceneController {
 
     private final SceneService service;
+    private final SceneActivationService activationService;
+    private final SceneConnectionService connectionService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public SceneController(SceneService service, SimpMessagingTemplate messagingTemplate) {
+    public SceneController(SceneService service, SceneActivationService activationService,
+            SceneConnectionService connectionService, SimpMessagingTemplate messagingTemplate) {
         this.service = service;
+        this.activationService = activationService;
+        this.connectionService = connectionService;
         this.messagingTemplate = messagingTemplate;
     }
 
@@ -79,6 +88,68 @@ public class SceneController {
         SceneResponse updated = service.update(id, request);
         broadcastRoster(updated);
         return updated;
+    }
+
+    /**
+     * Combat breaks out in this scene — flips {@code combatScene} on (see {@link
+     * SceneService#startCombat}, mirroring core 0.0.32's {@code Scene#startCombat()}) and, like a
+     * roster change, re-broadcasts the whole scene plus a {@code /topic/scenes/{id}/combat} event
+     * so every client turns into a combat scene together. A scene already in combat is a {@code
+     * 409} (core's {@code SCENE_ALREADY_IN_COMBAT}). The full {@code PUT} still sets {@code
+     * combatScene} straight through, for a scene rebuilt from persistence already mid-combat.
+     */
+    @PostMapping("/{id}/combat")
+    public SceneResponse startCombat(@PathVariable String id) {
+        SceneResponse scene = service.startCombat(id);
+        messagingTemplate.convertAndSend(
+                "/topic/scenes/" + id + "/combat",
+                new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+        broadcastRoster(scene);
+        return scene;
+    }
+
+    /**
+     * Makes this the table's active scene and clears {@code active} on every other scene in the same
+     * call (see {@link SceneActivationService}). {@code GET /scenes/available} returns the active
+     * scene when there is exactly one. Persisting a scene never activates it; this is the only way.
+     * A {@code 404} if the id is unknown.
+     */
+    @PutMapping("/{id}/active")
+    public SceneResponse activate(@PathVariable String id) {
+        return activationService.activate(id);
+    }
+
+    /**
+     * Replaces this scene's connection map and mirrors every change onto the neighbours it touches,
+     * atomically (see {@link SceneConnectionService#setConnections}). The body is a {@code Direction
+     * -> neighbour scene id} object, e.g. {@code {"NORTH": "abc-123"}}; {@code {}} clears every
+     * connection. A missing neighbour id is a {@code 404}; pointing a direction back at this scene is
+     * a {@code 400}. The response's {@code connections} come back resolved to neighbour summaries.
+     */
+    @PutMapping("/{id}/connections")
+    public SceneResponse setConnections(@PathVariable String id, @RequestBody Map<Direction, String> connections) {
+        return connectionService.setConnections(id, connections);
+    }
+
+    /**
+     * Travels one step out of this scene: the scene it connects to along {@code direction} becomes
+     * the active scene and every other scene — this one included — is cleared, in one transaction
+     * (see {@link SceneConnectionService#travel}). A {@code 404} if there's no connection that way,
+     * the neighbour has been deleted, or {@code direction} isn't one of {@code NORTH/SOUTH/EAST/WEST}.
+     * Returns the newly active scene.
+     *
+     * <p>Announces the step on {@code /topic/scenes/{id}/navigate} — the <em>origin</em> scene's
+     * topic, the one the travelling clients are still subscribed to — so every client standing in
+     * this scene follows the party to the neighbour. Deliberately not fired by {@link #activate}:
+     * the console's "Ativar" only redirects fresh joins, travelling moves the whole table.
+     */
+    @PostMapping("/{id}/move/{direction}")
+    public SceneResponse move(@PathVariable String id, @PathVariable Direction direction) {
+        SceneResponse arrived = connectionService.travel(id, direction);
+        messagingTemplate.convertAndSend(
+                "/topic/scenes/" + id + "/navigate",
+                new SceneActivatedEvent(arrived.id(), arrived.name()));
+        return arrived;
     }
 
     @DeleteMapping("/{id}")

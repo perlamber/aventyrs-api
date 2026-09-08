@@ -12,6 +12,7 @@ import org.aventyrs.api.scene.dto.RollResponseMessage;
 import org.aventyrs.api.scene.dto.RollRespondedEvent;
 import org.aventyrs.api.scene.dto.RecordActionMessage;
 import org.aventyrs.api.scene.dto.SceneActionEvent;
+import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -32,13 +33,14 @@ import org.springframework.stereotype.Controller;
  * via {@link SceneService#moveParticipant}), a combat-state change ({@code
  * /app/scenes/{sceneId}/status}, persisted via {@link CharacterSheetService#updateCombatStatus}),
  * a turn advance ({@code /app/scenes/{sceneId}/turn}, persisted via {@link
- * SceneService#advanceTurn}), a board resize ({@code /app/scenes/{sceneId}/grid}, persisted via
- * {@link SceneService#resizeGrid}), a recorded combat action ({@code
+ * SceneService#advanceTurn}), a combat start ({@code /app/scenes/{sceneId}/combat}, persisted via
+ * {@link SceneService#startCombat}), a board resize ({@code /app/scenes/{sceneId}/grid}, persisted
+ * via {@link SceneService#resizeGrid}), a recorded combat action ({@code
  * /app/scenes/{sceneId}/actions}, persisted via {@link SceneService#recordAction}), and a
  * transient, unpersisted "sonar" ping ({@code /app/scenes/{sceneId}/ping}) — all re-broadcast to
  * every client subscribed to the scene's {@code /topic/scenes/{sceneId}/moves} / {@code
- * .../status} / {@code .../turn} / {@code .../grid} / {@code .../actions} / {@code .../pings}
- * destinations.
+ * .../status} / {@code .../turn} / {@code .../combat} / {@code .../grid} / {@code .../actions} /
+ * {@code .../pings} destinations.
  *
  * <p>There's no auth in this API yet, so a rejected move (unknown participant, target cell already
  * occupied) has no client to report back to individually — it's logged and simply not broadcast,
@@ -118,6 +120,29 @@ public class SceneRealtimeController {
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", event);
         } catch (RuntimeException ex) {
             log.warn("Rejected turn advance in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
+     * Combat broke out — {@code combatScene} is flipped on and persisted ({@link
+     * SceneService#startCombat}, mirroring core 0.0.32's {@code Scene#startCombat()}), then broadcast
+     * so every client turns its own scene into a combat scene and runs its own {@code
+     * Scene#startCombat()} — which is where the start-of-combat Talento Blessings resolve, on the
+     * live {@code CombatantSheet}s that exist only client-side (same split as {@link #advanceTurn}).
+     *
+     * <p>Takes no payload: "combat started" is the whole request. Rejected the same silent way
+     * {@link #move} is — most often because the scene is already in combat ({@code
+     * SCENE_ALREADY_IN_COMBAT}), which leaves every client's state untouched.
+     */
+    @MessageMapping("/scenes/{sceneId}/combat")
+    public void startCombat(@DestinationVariable String sceneId) {
+        try {
+            var scene = sceneService.startCombat(sceneId);
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/combat",
+                    new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected combat start in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 

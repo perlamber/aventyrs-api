@@ -36,9 +36,14 @@ status, grid resize) broadcast over STOMP. There is currently **no authenticatio
 ## 3. Running locally
 
 ```bash
-docker compose up -d   # Mongo (27017) + SeaweedFS (master/volume/filer/S3 gateway)
+docker compose up -d   # Mongo (27017, single-node replica set) + SeaweedFS (master/volume/filer/S3 gateway)
 ./gradlew bootRun       # app listens on :27018
 ```
+
+Mongo runs as a one-node replica set (`rs0`) — its healthcheck runs `rs.initiate()` on first
+start. This is required for the multi-document transaction `PUT /api/scenes/{id}/connections`
+uses to keep both ends of a scene link consistent; the default `spring.mongodb.uri` carries
+`?replicaSet=rs0` to match.
 
 On startup, `MongoLiquibaseRunner` applies every changelog under
 `src/main/resources/db/changelog/` directly against MongoDB — Spring Boot's built-in Liquibase
@@ -50,7 +55,8 @@ extension programmatically instead.
 Key properties in `src/main/resources/application.properties`:
 
 - `server.port` — `27018`
-- `spring.mongodb.uri` — defaults to `mongodb://localhost:27017/aventyrs`
+- `spring.mongodb.uri` — defaults to `mongodb://localhost:27017/aventyrs?replicaSet=rs0` (the
+  `replicaSet` param is what lets the driver run transactions; point this at any replica set in prod)
 - `seaweedfs.filer-url` / `seaweedfs.s3.*` — SeaweedFS endpoints; S3 credentials fall back to
   `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`S3_BUCKET` env vars
 
@@ -82,14 +88,15 @@ All CRUD resources follow the same shape: `POST` (create), `GET /{id}`, `GET` (l
 | Resource | Base path | Notes |
 |---|---|---|
 | Player | `/api/players` | `login` is unique (`409` on conflict); also `GET /by-login/{login}`. `role` (`PLAYER`/`GM`) is a UI hint only |
-| CharacterSheet | `/api/character-sheets` | Embeds its `character` (name, race, sexo, tendencia); references a `playerId`. New sheets start with zeroed stats, mirroring `CharacterSheet.of(...)` in core. Supports `?playerId=` filtering |
+| CharacterSheet | `/api/character-sheets` | Embeds its `character` (name, race, sexo, alignment); references a `playerId`. New sheets start with zeroed stats, mirroring `CharacterSheet.of(...)` in core. Supports `?playerId=` filtering |
 | MonsterSheet | `/api/monster-sheets` | GM-authored stat blocks, same pattern as CharacterSheet. Supports `?playerId=` filtering |
-| Scene | `/api/scenes` | Participants reference a `characterSheetId`, an initiative value, an ally `group` (`UUID`), and a grid position, unique within the Scene's `width`×`height` grid (each ≤ 100, set at creation, later changed only via the live grid-resize event). Also exposes `GET /{id}/groups` |
+| Scene | `/api/scenes` | Participants reference a `characterSheetId`, an initiative value, an ally `group` (`UUID`), and a grid position, unique within the Scene's `width`×`height` grid (each ≤ 100, set at creation, later changed only via the live grid-resize event). Also exposes `GET /{id}/groups` and `POST /{id}/combat` (start combat — `409` if already in combat). A Rodada only elapses in combat: `advanceTurn` cycles the cursor before `combat` starts but leaves `currentRound` at 0. `PUT /{id}/active` makes it the table's active scene and clears `active` on every other scene; a new scene is never active. `GET /available` returns the active scene when there's exactly one, otherwise the latest created. `PUT /{id}/connections` replaces the scene's `Direction`→neighbour-id map (body e.g. `{"NORTH":"abc"}`, `{}` clears) and mirrors every change onto the neighbours in one transaction — a link is always two-sided (`NORTH` here ⇒ `SOUTH` there). `POST /{id}/move/{direction}` travels one step: the neighbour in that direction becomes active, this scene goes inactive. `connections` in the response comes back resolved to `{id, name, active}` per direction |
 | Image | `POST /api/images` | Multipart upload, stored in SeaweedFS and returned as a public URL (`201`). Only PNG/JPEG/GIF/BMP are accepted, verified from the file's own bytes, not the client-supplied Content-Type |
 | Skill | `GET /api/skills` | Lists all `SkillType` values from core |
 
 Validation/reference errors return `400`, missing resources `404`, unique-constraint violations
-`409` — see `org.aventyrs.api.common.GlobalExceptionHandler`.
+and refused core-rules operations (e.g. starting combat twice) `409` — see
+`org.aventyrs.api.common.GlobalExceptionHandler`.
 
 ## 8. Real-time Scene events (WebSocket/STOMP)
 
@@ -101,6 +108,7 @@ Scene, all persisted then broadcast to every subscribed client:
 |---|---|---|
 | Move a token | `/app/scenes/{id}/move` | `/topic/scenes/{id}/moves` |
 | Change combat status | `/app/scenes/{id}/status` | `/topic/scenes/{id}/status` |
+| Start combat | `/app/scenes/{id}/combat` | `/topic/scenes/{id}/combat` |
 | Advance the turn | `/app/scenes/{id}/turn` | `/topic/scenes/{id}/turn` |
 | Resize the grid | `/app/scenes/{id}/grid` | `/topic/scenes/{id}/grid` |
 | Sonar ping (unpersisted) | `/app/scenes/{id}/ping` | `/topic/scenes/{id}/pings` |
@@ -123,7 +131,7 @@ rules-adjacent logic the Android client will need too.
 ```
 org.aventyrs.api
 ├── common       — NotFoundException, ApiError, GlobalExceptionHandler
-├── config       — MongoLiquibaseRunner, WebSocketConfig, OpenApiConfig
+├── config       — MongoLiquibaseRunner, MongoTransactionConfig, WebSocketConfig, OpenApiConfig
 ├── player       — Player CRUD
 ├── sheet        — CharacterSheet CRUD
 ├── monster      — MonsterSheet CRUD

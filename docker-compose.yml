@@ -2,10 +2,39 @@ services:
   mongo:
     image: mongo:latest
     container_name: aventyrs-mongo
+    # Single-node replica set: multi-document transactions (SceneConnectionService pairs both
+    # sides of a scene link in one) are only allowed on a replica set member. mongo-init below
+    # runs rs.initiate() once; this node is "healthy" only once it is actually PRIMARY.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.hello().isWritablePrimary || quit(1)"]
+      interval: 5s
+      start_period: 5s
+      timeout: 5s
+      retries: 30
+
+  # One-shot: wait for mongod, then initiate the replica set if it isn't already. Exits 0.
+  mongo-init:
+    image: mongo:latest
+    container_name: aventyrs-mongo-init
+    depends_on:
+      - mongo
+    restart: on-failure
+    entrypoint:
+      - bash
+      - -c
+      - |
+        until mongosh --host mongo --quiet --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
+          echo 'waiting for mongod...'; sleep 1
+        done
+        mongosh --host mongo --quiet --eval '
+          try { if (rs.status().ok) { quit(0) } } catch (e) {}
+          rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "localhost:27017" }] })
+        '
 
   seaweedfs:
     image: chrislusf/seaweedfs:latest

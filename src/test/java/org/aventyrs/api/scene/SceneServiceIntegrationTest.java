@@ -29,14 +29,20 @@ import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.CharacterSheetCreateRequest;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
+import org.aventyrs.core.character.Alignment;
 import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
+import java.util.Map;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
+import org.aventyrs.core.scene.Direction;
 import org.aventyrs.core.scene.grid.GridPosition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,12 +56,23 @@ import org.testcontainers.mongodb.MongoDBContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 class SceneServiceIntegrationTest {
 
+    // withReplicaSet(): SceneConnectionService#setConnections writes several scene documents in one
+    // @Transactional unit, and MongoDB multi-document transactions require a replica set.
     @Container
     @ServiceConnection
-    static MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0");
+    static MongoDBContainer mongoDBContainer = new MongoDBContainer("mongo:7.0").withReplicaSet();
 
     @Autowired
     private SceneService sceneService;
+
+    @Autowired
+    private SceneActivationService sceneActivationService;
+
+    @Autowired
+    private SceneConnectionService sceneConnectionService;
+
+    @Autowired
+    private SceneRepository sceneRepository;
 
     @Autowired
     private PlayerService playerService;
@@ -75,13 +92,180 @@ class SceneServiceIntegrationTest {
         characterSheetId2 = createCharacterSheet(playerId);
     }
 
+    /** The container is shared across this class with no per-test wipe; a lingering active scene
+     * would make the getAvailable tests below order-dependent. */
+    @AfterEach
+    void clearActiveFlags() {
+        List<SceneDocument> active = sceneRepository.findByActiveTrue();
+        active.forEach(scene -> scene.setActive(false));
+        sceneRepository.saveAll(active);
+    }
+
     private String createCharacterSheet(String playerId) {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, 5, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         return characterSheetService.create(request).id();
+    }
+
+    @Test
+    void aNewSceneIsNotActive() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+
+        assertFalse(sceneService.get(sceneId).active());
+    }
+
+    @Test
+    void getAvailablePrefersTheSingleActiveSceneOverTheLatestCreated() {
+        String older = sceneService.create(new SceneCreateRequest("Older", "URBAN", 100, 100)).id();
+        String newer = sceneService.create(new SceneCreateRequest("Newer", "URBAN", 100, 100)).id();
+
+        assertEquals(newer, sceneService.getAvailable().id(), "nothing active: falls back to latest created");
+
+        sceneActivationService.activate(older);
+
+        assertEquals(older, sceneService.getAvailable().id());
+        assertTrue(sceneService.get(older).active());
+    }
+
+    @Test
+    void activatingASceneClearsActiveOnEveryOther() {
+        String a = sceneService.create(new SceneCreateRequest("A", "URBAN", 100, 100)).id();
+        String b = sceneService.create(new SceneCreateRequest("B", "URBAN", 100, 100)).id();
+
+        sceneActivationService.activate(a);
+        sceneActivationService.activate(b);
+
+        assertFalse(sceneService.get(a).active());
+        assertTrue(sceneService.get(b).active());
+        assertEquals(List.of(b),
+                sceneRepository.findByActiveTrue().stream().map(SceneDocument::getId).toList());
+    }
+
+    @Test
+    void getAvailableFallsBackToLatestCreatedWhenMoreThanOneSceneIsActive() {
+        String older = sceneService.create(new SceneCreateRequest("Older", "URBAN", 100, 100)).id();
+        String newer = sceneService.create(new SceneCreateRequest("Newer", "URBAN", 100, 100)).id();
+        // The single updateMulti in SceneActivationService normally prevents this; force the state a
+        // race between two activations could briefly leave.
+        forceActive(older);
+        forceActive(newer);
+
+        assertEquals(newer, sceneService.getAvailable().id());
+    }
+
+    @Test
+    void activatingAnUnknownSceneThrowsNotFound() {
+        assertThrows(NotFoundException.class, () -> sceneActivationService.activate(UUID.randomUUID().toString()));
+    }
+
+    private void forceActive(String sceneId) {
+        SceneDocument document = sceneRepository.findById(sceneId).orElseThrow();
+        document.setActive(true);
+        sceneRepository.save(document);
+    }
+
+    private String newScene(String name) {
+        return sceneService.create(new SceneCreateRequest(name, "URBAN", 100, 100)).id();
+    }
+
+    @Test
+    void setConnectionsEstablishesBothSidesOfTheLink() {
+        String a = newScene("A");
+        String b = newScene("B");
+
+        sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, b));
+
+        assertEquals(b, sceneService.get(a).connections().get(Direction.NORTH).id());
+        assertEquals("B", sceneService.get(a).connections().get(Direction.NORTH).name());
+        // The opposite side is written on the neighbour without the caller touching it.
+        assertEquals(a, sceneService.get(b).connections().get(Direction.SOUTH).id());
+    }
+
+    @Test
+    void rePointingADirectionDetachesTheFormerNeighbourOnBothSides() {
+        String a = newScene("A");
+        String b = newScene("B");
+        String c = newScene("C");
+        sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, b));
+
+        sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, c));
+
+        assertEquals(c, sceneService.get(a).connections().get(Direction.NORTH).id());
+        assertEquals(a, sceneService.get(c).connections().get(Direction.SOUTH).id());
+        assertFalse(sceneService.get(b).connections().containsKey(Direction.SOUTH),
+                "B's back-link to A is gone once A points north at C instead");
+    }
+
+    @Test
+    void clearingAConnectionRemovesTheNeighboursMirroredLink() {
+        String a = newScene("A");
+        String b = newScene("B");
+        sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, b));
+
+        sceneConnectionService.setConnections(a, Map.of());
+
+        assertTrue(sceneService.get(a).connections().isEmpty());
+        assertFalse(sceneService.get(b).connections().containsKey(Direction.SOUTH));
+    }
+
+    @Test
+    void connectingToANeighbourThatAlreadyHasThatSideTakenDetachesTheThirdScene() {
+        String a = newScene("A");
+        String b = newScene("B");
+        String d = newScene("D");
+        // D <-> B along B's south side.
+        sceneConnectionService.setConnections(d, Map.of(Direction.NORTH, b));
+
+        // Now A claims B's south side.
+        sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, b));
+
+        assertEquals(a, sceneService.get(b).connections().get(Direction.SOUTH).id());
+        assertFalse(sceneService.get(d).connections().containsKey(Direction.NORTH),
+                "D's link to B is severed when A takes B's south side");
+    }
+
+    @Test
+    void setConnectionsRejectsAMissingNeighbour() {
+        String a = newScene("A");
+
+        assertThrows(NotFoundException.class,
+                () -> sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, UUID.randomUUID().toString())));
+        // The transaction rolled back — nothing was written on A either.
+        assertTrue(sceneService.get(a).connections().isEmpty());
+    }
+
+    @Test
+    void setConnectionsRejectsASceneConnectingToItself() {
+        String a = newScene("A");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> sceneConnectionService.setConnections(a, Map.of(Direction.NORTH, a)));
+    }
+
+    @Test
+    void travelActivatesTheNeighbourInThatDirectionAndClearsEveryOther() {
+        String here = newScene("Here");
+        String north = newScene("North");
+        sceneConnectionService.setConnections(here, Map.of(Direction.NORTH, north));
+        sceneActivationService.activate(here);
+
+        SceneResponse arrived = sceneConnectionService.travel(here, Direction.NORTH);
+
+        assertEquals(north, arrived.id());
+        assertTrue(arrived.active());
+        assertFalse(sceneService.get(here).active(), "the scene travelled from goes inactive");
+    }
+
+    @Test
+    void travelWithNoConnectionThatWayThrowsNotFound() {
+        String here = newScene("Here");
+        String north = newScene("North");
+        sceneConnectionService.setConnections(here, Map.of(Direction.NORTH, north));
+
+        assertThrows(NotFoundException.class, () -> sceneConnectionService.travel(here, Direction.EAST));
     }
 
     @Test
@@ -344,6 +528,7 @@ class SceneServiceIntegrationTest {
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+        sceneService.startCombat(sceneId);
 
         TurnAdvancedEvent first = sceneService.advanceTurn(sceneId);
         assertEquals(characterSheetId2, first.characterSheetId());
@@ -359,6 +544,47 @@ class SceneServiceIntegrationTest {
         assertEquals(characterSheetId2, wrapped.characterSheetId());
         assertEquals(1, wrapped.currentRound());
         assertEquals(0, wrapped.currentIndex());
+    }
+
+    @Test
+    void advanceTurnBeforeCombatCyclesTheCursorButLeavesTheRoundAtZero() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+
+        assertEquals(0, sceneService.advanceTurn(sceneId).currentRound());
+        assertEquals(0, sceneService.advanceTurn(sceneId).currentRound());
+
+        // The wrap back to the top would be Round 1 in combat; outside combat it just cycles.
+        TurnAdvancedEvent wrapped = sceneService.advanceTurn(sceneId);
+        assertEquals(0, wrapped.currentRound());
+        assertEquals(0, wrapped.currentIndex());
+        assertEquals(characterSheetId2, wrapped.characterSheetId());
+        assertEquals(0, sceneService.get(sceneId).currentRound());
+    }
+
+    @Test
+    void startCombatFlipsTheFlagAndRefusesASecondCall() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, UUID.randomUUID()));
+
+        assertEquals(false, sceneService.get(sceneId).combatScene());
+        SceneResponse started = sceneService.startCombat(sceneId);
+        assertEquals(true, started.combatScene());
+        assertEquals(true, sceneService.get(sceneId).combatScene());
+
+        IllegalStateException rejected =
+                assertThrows(IllegalStateException.class, () -> sceneService.startCombat(sceneId));
+        assertEquals("SCENE_ALREADY_IN_COMBAT", rejected.getMessage());
+    }
+
+    @Test
+    void updateRejectsALaterRoundOnANonCombatScene() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+
+        assertThrows(IllegalArgumentException.class, () -> sceneService.update(sceneId,
+                new org.aventyrs.api.scene.dto.SceneUpdateRequest("Scene", List.of(), 3, -1, false, null, null)));
     }
 
     @Test
@@ -380,6 +606,7 @@ class SceneServiceIntegrationTest {
         UUID group = UUID.randomUUID();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
+        sceneService.startCombat(sceneId);
         sceneService.advanceTurn(sceneId);
 
         String latecomerId = createThirdCharacterSheet();
