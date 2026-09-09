@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.MoveRequest;
 import org.aventyrs.api.scene.dto.SceneActivatedEvent;
 import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
@@ -138,17 +139,29 @@ public class SceneController {
      * the neighbour has been deleted, or {@code direction} isn't one of {@code NORTH/SOUTH/EAST/WEST}.
      * Returns the newly active scene.
      *
+     * <p>The body names which participant groups travel along (see {@link
+     * SceneConnectionService#travel}); an absent body carries nobody.
+     *
      * <p>Announces the step on {@code /topic/scenes/{id}/navigate} — the <em>origin</em> scene's
      * topic, the one the travelling clients are still subscribed to — so every client standing in
-     * this scene follows the party to the neighbour. Deliberately not fired by {@link #activate}:
-     * the console's "Ativar" only redirects fresh joins, travelling moves the whole table.
+     * this scene re-resolves the active scene and follows if a character of theirs came along.
+     * Deliberately not fired by {@link #activate}: the console's "Ativar" only redirects fresh
+     * joins, travelling moves the whole table. When anyone actually changed scenes, both rosters
+     * are re-broadcast too, so a client already looking at either board sees the arrivals/departures.
      */
     @PostMapping("/{id}/move/{direction}")
-    public SceneResponse move(@PathVariable String id, @PathVariable Direction direction) {
-        SceneResponse arrived = connectionService.travel(id, direction);
+    public SceneResponse move(@PathVariable String id, @PathVariable Direction direction,
+            @RequestBody(required = false) MoveRequest request) {
+        SceneConnectionService.TravelResult result = connectionService.travel(
+                id, direction, request == null ? null : request.carryGroups());
+        SceneResponse arrived = result.arrived();
         messagingTemplate.convertAndSend(
                 "/topic/scenes/" + id + "/navigate",
                 new SceneActivatedEvent(arrived.id(), arrived.name()));
+        if (result.carriedAnyone()) {
+            broadcastRoster(id);
+            broadcastRoster(arrived.id());
+        }
         return arrived;
     }
 

@@ -2,11 +2,13 @@ package org.aventyrs.api.scene;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
+import org.aventyrs.api.scene.dto.MoveRequest;
 import org.aventyrs.api.scene.dto.SceneActivatedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantRequest;
@@ -416,6 +418,45 @@ class SceneControllerIntegrationTest {
                 .convertAndSend(eq("/topic/scenes/" + here + "/navigate"), published.capture());
         assertThat(published.getValue().sceneId()).isEqualTo(north);
         assertThat(published.getValue().name()).isEqualTo("Scene");
+    }
+
+    /** Travelling with a carry list moves those groups' participants into the destination and
+     * leaves the rest behind. */
+    @Test
+    void movingCarriesTheChosenGroupsIntoTheNeighbour() throws Exception {
+        String here = createEmptyScene();
+        String north = createEmptyScene();
+        mockMvc.perform(put("/api/scenes/{id}/connections", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(Direction.NORTH, north))))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/scenes/{id}/active", here)).andExpect(status().isOk());
+
+        UUID party = UUID.randomUUID();
+        UUID foes = UUID.randomUUID();
+        mockMvc.perform(post("/api/scenes/{id}/participants", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId1, 15, party))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/scenes/{id}/participants", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId2, 8, foes))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/scenes/{id}/move/{direction}", here, "NORTH")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MoveRequest(Set.of(party)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(north))
+                .andExpect(jsonPath("$.participants", hasSize(1)))
+                .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId1));
+
+        // The party left; the foes stayed.
+        mockMvc.perform(get("/api/scenes/{id}", here))
+                .andExpect(jsonPath("$.participants", hasSize(1)))
+                .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId2));
     }
 
     @Test

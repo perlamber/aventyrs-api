@@ -2,9 +2,14 @@ package org.aventyrs.api.scene;
 
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.aventyrs.api.common.NotFoundException;
+import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.core.scene.Direction;
 import org.springframework.stereotype.Service;
@@ -86,25 +91,62 @@ public class SceneConnectionService {
         return sceneService.get(sceneId);
     }
 
+    /** What a {@link #travel} step did: the scene now active, and whether any participant actually
+     * changed scenes (so the caller knows whether to re-broadcast both rosters). */
+    public record TravelResult(SceneResponse arrived, boolean carriedAnyone) {
+    }
+
     /**
-     * One step of scene-to-scene travel: makes the scene {@code sceneId} connects to along {@code
-     * direction} the active one and clears {@code active} everywhere else — delegated to {@link
-     * SceneActivationService#activate}, which clears every other scene in a single {@code
-     * updateMulti} (the previous active scene included) and then flags the arrival. Same
-     * degrade-gracefully stance on a race that {@code activate} already documents; no separate
-     * transaction is layered on here.
+     * One step of scene-to-scene travel: carries the chosen participant groups from {@code sceneId}
+     * into the scene it connects to along {@code direction}, then makes that neighbour the active
+     * scene and clears {@code active} everywhere else (delegated to {@link
+     * SceneActivationService#activate}).
+     *
+     * <p>Every participant whose {@code group} is in {@code carryGroups} is removed from the origin
+     * scene and added to the destination at a server-assigned cell — reusing {@link
+     * SceneService#removeParticipant}/{@link SceneService#addParticipant} so the turn-cursor and
+     * rotation bookkeeping stays correct on both ends. A traveller already present in the
+     * destination (the same CharacterSheet was placed there directly) is left as it stands rather
+     * than duplicated. Groups not listed stay behind in the origin scene. The whole transfer plus
+     * the activation is one transaction.
      *
      * @throws NotFoundException if {@code sceneId} has no connection that way, or that neighbour no
      *                           longer exists
      */
-    public SceneResponse travel(String sceneId, Direction direction) {
+    @Transactional
+    public TravelResult travel(String sceneId, Direction direction, Set<UUID> carryGroups) {
         SceneDocument scene = repository.findById(sceneId)
                 .orElseThrow(() -> new NotFoundException("Scene not found: " + sceneId));
         String neighbourId = connectionsOf(scene).get(direction);
         if (neighbourId == null) {
             throw new NotFoundException("Scene " + sceneId + " has no connection to the " + direction);
         }
-        return activationService.activate(neighbourId);
+        SceneDocument destination = repository.findById(neighbourId)
+                .orElseThrow(() -> new NotFoundException("Scene not found: " + neighbourId));
+
+        Set<UUID> groups = carryGroups == null ? Set.of() : carryGroups;
+        List<SceneParticipantEntry> travellers = groups.isEmpty() ? List.of()
+                : scene.getParticipants().stream()
+                        .filter(participant -> groups.contains(participant.group()))
+                        .toList();
+
+        Set<String> alreadyAtDestination = new HashSet<>();
+        destination.getParticipants().forEach(p -> alreadyAtDestination.add(p.characterSheetId()));
+
+        for (SceneParticipantEntry traveller : travellers) {
+            sceneService.removeParticipant(sceneId, traveller.characterSheetId());
+            if (!alreadyAtDestination.contains(traveller.characterSheetId())) {
+                sceneService.addParticipant(neighbourId, new AddParticipantRequest(
+                        traveller.characterSheetId(), traveller.initiativeValue(), traveller.group()));
+            }
+        }
+
+        return new TravelResult(activationService.activate(neighbourId), !travellers.isEmpty());
+    }
+
+    /** No-carry travel — kept for callers that only activate the neighbour. */
+    public SceneResponse travel(String sceneId, Direction direction) {
+        return travel(sceneId, direction, Set.of()).arrived();
     }
 
     /** Removes {@code direction} from {@code holderId}'s map, but only if it still points at {@code
