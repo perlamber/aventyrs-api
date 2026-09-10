@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -224,6 +225,112 @@ public class SceneService {
         repository.save(document);
 
         return moved;
+    }
+
+    /**
+     * Lines freshly-arrived travellers up against the edge they walked in through — the side of the
+     * board facing {@code travelDirection.opposite()}, so a party heading {@code NORTH} lands along
+     * the southern edge of the scene it enters. Each traveller keeps its place along that edge
+     * relative to the others (their spread in the scene they left, re-centred on the middle of the
+     * new edge); a cell that falls off the playable grid or is already taken is nudged to the
+     * nearest free cell along the same edge, and failing that to any free cell.
+     *
+     * <p>{@code origins} maps a traveller's {@code characterSheetId} to where it stood in the origin
+     * scene, and names only the participants that need placing — those just added to this scene.
+     * Called from {@link SceneConnectionService#travel} inside its transaction, after the travellers
+     * have been added at their provisional cells.
+     */
+    public void arrangeArrivals(String id, Map<String, GridPosition> origins, Direction travelDirection) {
+        if (origins.isEmpty()) {
+            return;
+        }
+        SceneDocument document = findOrThrow(id);
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+
+        int width = document.getWidth() > 0 ? document.getWidth() : GridPosition.GRID_SIZE;
+        int height = document.getHeight() > 0 ? document.getHeight() : GridPosition.GRID_SIZE;
+        Direction edge = travelDirection.opposite();
+        boolean alongX = edge == Direction.NORTH || edge == Direction.SOUTH;
+        int span = alongX ? width : height;
+
+        // Cells held by participants that already stood here and aren't being re-placed.
+        Set<GridPosition> taken = new HashSet<>();
+        for (SceneParticipantEntry participant : participants) {
+            if (!origins.containsKey(participant.characterSheetId())) {
+                taken.add(participant.position());
+            }
+        }
+
+        // Walk the travellers in the order they stood along the edge axis, and re-centre that axis
+        // on the middle of the new edge so the group keeps its shape and spacing.
+        List<Map.Entry<String, GridPosition>> ordered = origins.entrySet().stream()
+                .sorted(Comparator.comparingInt(entry -> edgeAxis(entry.getValue(), alongX)))
+                .toList();
+        double originCentre = ordered.stream()
+                .mapToInt(entry -> edgeAxis(entry.getValue(), alongX)).average().orElse(0);
+        double edgeCentre = (span - 1) / 2.0;
+
+        Map<String, GridPosition> placed = new HashMap<>();
+        for (Map.Entry<String, GridPosition> traveller : ordered) {
+            int ideal = (int) Math.round(edgeCentre + (edgeAxis(traveller.getValue(), alongX) - originCentre));
+            int slot = nearestFreeSlot(ideal, span, edge, width, height, taken);
+            GridPosition position = slot >= 0
+                    ? edgeCell(edge, slot, width, height)
+                    : firstFreeCell(taken, width, height);
+            taken.add(position);
+            placed.put(traveller.getKey(), position);
+        }
+
+        for (int i = 0; i < participants.size(); i++) {
+            SceneParticipantEntry entry = participants.get(i);
+            GridPosition position = placed.get(entry.characterSheetId());
+            if (position != null) {
+                participants.set(i, new SceneParticipantEntry(entry.characterSheetId(),
+                        entry.initiativeValue(), entry.group(), position, entry.joinedAtRound()));
+            }
+        }
+        requireDistinctPositions(participants);
+        document.setParticipants(participants);
+        repository.save(document);
+    }
+
+    private static int edgeAxis(GridPosition position, boolean alongX) {
+        return alongX ? position.x() : position.y();
+    }
+
+    private static GridPosition edgeCell(Direction edge, int slot, int width, int height) {
+        return switch (edge) {
+            case NORTH -> new GridPosition(slot, 0);
+            case SOUTH -> new GridPosition(slot, height - 1);
+            case WEST -> new GridPosition(0, slot);
+            case EAST -> new GridPosition(width - 1, slot);
+        };
+    }
+
+    /** The slot nearest {@code ideal} along the arrival edge whose cell is on-grid and free,
+     * searching outward in both directions, or {@code -1} if the whole edge is full. */
+    private static int nearestFreeSlot(int ideal, int span, Direction edge, int width, int height,
+            Set<GridPosition> taken) {
+        for (int distance = 0; distance < span; distance++) {
+            for (int slot : distance == 0 ? new int[] {ideal} : new int[] {ideal - distance, ideal + distance}) {
+                if (slot >= 0 && slot < span && !taken.contains(edgeCell(edge, slot, width, height))) {
+                    return slot;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private static GridPosition firstFreeCell(Set<GridPosition> taken, int width, int height) {
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                GridPosition candidate = new GridPosition(x, y);
+                if (!taken.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Scene grid is full");
     }
 
     /**

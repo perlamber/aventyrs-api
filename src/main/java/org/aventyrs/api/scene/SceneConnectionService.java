@@ -3,6 +3,7 @@ package org.aventyrs.api.scene;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +13,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.core.scene.Direction;
+import org.aventyrs.core.scene.grid.GridPosition;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -133,13 +135,18 @@ public class SceneConnectionService {
         Set<String> alreadyAtDestination = new HashSet<>();
         destination.getParticipants().forEach(p -> alreadyAtDestination.add(p.characterSheetId()));
 
+        // Where each newly-added traveller stood in the origin scene, so the destination can line
+        // them up against the edge they walk in through instead of dumping them at cell (0,0).
+        Map<String, GridPosition> arrivals = new LinkedHashMap<>();
         for (SceneParticipantEntry traveller : travellers) {
             sceneService.removeParticipant(sceneId, traveller.characterSheetId());
             if (!alreadyAtDestination.contains(traveller.characterSheetId())) {
                 sceneService.addParticipant(neighbourId, new AddParticipantRequest(
                         traveller.characterSheetId(), traveller.initiativeValue(), traveller.group()));
+                arrivals.put(traveller.characterSheetId(), traveller.position());
             }
         }
+        sceneService.arrangeArrivals(neighbourId, arrivals, direction);
 
         return new TravelResult(activationService.activate(neighbourId), !travellers.isEmpty());
     }

@@ -459,6 +459,44 @@ class SceneControllerIntegrationTest {
                 .andExpect(jsonPath("$.participants[0].characterSheetId").value(characterSheetId2));
     }
 
+    /** Carried travellers arrive lined up against the edge they walked in through — heading NORTH
+     * drops them along the southern edge of the next scene — keeping the spacing between them
+     * rather than all landing on cell (0,0). */
+    @Test
+    void movingPlacesTravellersAgainstTheOppositeEdgeKeepingTheirSpacing() throws Exception {
+        String here = createEmptyScene();
+        String north = createEmptyScene();
+        mockMvc.perform(put("/api/scenes/{id}/connections", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(Direction.NORTH, north))))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/scenes/{id}/active", here)).andExpect(status().isOk());
+
+        UUID party = UUID.randomUUID();
+        mockMvc.perform(post("/api/scenes/{id}/participants", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId1, 15, party))))
+                .andExpect(status().isCreated());
+        mockMvc.perform(post("/api/scenes/{id}/participants", here)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AddParticipantRequest(characterSheetId2, 8, party))))
+                .andExpect(status().isCreated());
+
+        // They joined the origin at (0,0) and (1,0) — one column apart along the N/S edge.
+        mockMvc.perform(post("/api/scenes/{id}/move/{direction}", here, "NORTH")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MoveRequest(Set.of(party)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(north))
+                .andExpect(jsonPath("$.participants", hasSize(2)))
+                .andExpect(jsonPath("$.participants[0].position.y").value(99))
+                .andExpect(jsonPath("$.participants[1].position.y").value(99))
+                .andExpect(jsonPath("$.participants[0].position.x").value(49))
+                .andExpect(jsonPath("$.participants[1].position.x").value(50));
+    }
+
     @Test
     void movingWithNoConnectionThatWayIsNotFound() throws Exception {
         String here = createEmptyScene();
