@@ -4,6 +4,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.aventyrs.api.item.InventoryItemMapper;
 import org.aventyrs.api.sheet.dto.AttributeValueDto;
 import org.aventyrs.api.sheet.dto.AttributeValueResponse;
 import org.aventyrs.api.sheet.dto.BleedingDto;
@@ -23,6 +24,7 @@ import org.aventyrs.api.sheet.dto.TitleDto;
 import org.aventyrs.api.sheet.dto.TitleResponse;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionPointsService;
+import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
@@ -48,8 +50,8 @@ public final class CombatantSheetMapper {
     private CombatantSheetMapper() {
     }
 
-    /** 1 is core's own {@code Character#tendencia} default — the floor of its 1-10 scale. */
-    private static final int DEFAULT_TENDENCIA = 1;
+    /** core's own {@code Character#alignment} default (it replaced the former {@code tendencia} int in core 0.0.31). */
+    private static final Alignment DEFAULT_ALIGNMENT = Alignment.NEUTRAL;
 
     /** core's own {@code AttributeValue#base} default. */
     private static final int DEFAULT_ATTRIBUTE_BASE = 1;
@@ -68,7 +70,7 @@ public final class CombatantSheetMapper {
             "NASCIDO_DA_FLORESTA", "MEIO_ELFO");
 
     public static CharacterEntry toEntry(String characterId, CharacterDto character) {
-        int tendencia = character.tendencia() == null ? DEFAULT_TENDENCIA : character.tendencia();
+        Alignment alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
         CharacterStatus status = character.status() == null ? CharacterStatus.CLEAN : character.status();
         int actionPoints = character.actionPoints() == null ? ActionPointsService.DEFAULT_ACTION_POINTS : character.actionPoints();
@@ -86,7 +88,7 @@ public final class CombatantSheetMapper {
                 toRaceEntry(character.race()),
                 character.sexo(),
                 character.deity(),
-                tendencia,
+                alignment,
                 sizeCategory,
                 character.actionProfile(),
                 normalizeAttributes(character.attributes()),
@@ -105,7 +107,7 @@ public final class CombatantSheetMapper {
                 determinationMultiplier,
                 centelhaSuperiorSelected,
                 character.feats() == null ? List.of() : character.feats(),
-                character.equipment() == null ? List.of() : character.equipment(),
+                InventoryItemMapper.toEntries(character.equipment()),
                 toTitleEntry(character.primaryTitle()),
                 toTitleEntry(character.secondaryTitle()),
                 toTitleEntry(character.tertiaryTitle()));
@@ -310,8 +312,8 @@ public final class CombatantSheetMapper {
      * {@code sizeCategory}/{@code attributes}/{@code egos}/{@code skills}/{@code
      * attributeAbilities}/{@code egoAdvantages}/{@code activeAbilities}/{@code status}/{@code
      * actionPoints}/{@code temporaryActionPointsBonus}/{@code reactions}/{@code freeActions}/
-     * {@code manaMultiplier} fall back to defaults for documents persisted before those fields
-     * existed, same reasoning as {@link #normalizeAttributes}.
+     * {@code manaMultiplier}/{@code alignment} fall back to defaults for documents persisted
+     * before those fields existed, same reasoning as {@link #normalizeAttributes}.
      */
     public static CharacterResponse toCharacterResponse(CharacterEntry character) {
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
@@ -329,6 +331,7 @@ public final class CombatantSheetMapper {
         int determinationMultiplier = character.determinationMultiplier() == null
                 ? DeterminationPointsService.DEFAULT_DETERMINATION_MULTIPLIER : character.determinationMultiplier();
         boolean centelhaSuperiorSelected = character.centelhaSuperiorSelected() != null && character.centelhaSuperiorSelected();
+        Alignment alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
 
         Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
         attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(
@@ -348,7 +351,7 @@ public final class CombatantSheetMapper {
                 toRaceResponse(character.race()),
                 character.sexo(),
                 character.deity(),
-                character.tendencia(),
+                alignment,
                 sizeCategory,
                 character.actionProfile(),
                 attributesResponse,
@@ -367,7 +370,7 @@ public final class CombatantSheetMapper {
                 determinationMultiplier,
                 centelhaSuperiorSelected,
                 character.feats() == null ? List.of() : character.feats(),
-                character.equipment() == null ? List.of() : character.equipment(),
+                InventoryItemMapper.toDtos(character.equipment()),
                 toTitleResponse(character.primaryTitle()),
                 toTitleResponse(character.secondaryTitle()),
                 toTitleResponse(character.tertiaryTitle()));

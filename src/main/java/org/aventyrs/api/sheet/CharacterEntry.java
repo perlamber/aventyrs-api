@@ -2,7 +2,9 @@ package org.aventyrs.api.sheet;
 
 import java.util.List;
 import java.util.Map;
+import org.aventyrs.api.item.InventoryItemEntry;
 import org.aventyrs.core.action.ActionProfile;
+import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -55,7 +57,7 @@ import org.aventyrs.core.skill.SkillType;
  * <p>{@code status}, {@code actionPoints}, {@code temporaryActionPointsBonus}, {@code
  * reactions}, {@code freeActions}, {@code manaMultiplier}, {@code lifeMultiplier}, {@code
  * determinationMultiplier}, and {@code centelhaSuperiorSelected} are all nullable, unlike {@code
- * tendencia} — this schema already has real documents predating these fields, so (same reasoning
+ * alignment} — this schema already has real documents predating these fields, so (same reasoning
  * as {@code sizeCategory}) they need a null-safe fallback at read time, not just a
  * default-when-omitted at write time: {@code status} to {@code CharacterStatus.CLEAN}; {@code
  * actionPoints}/{@code reactions}/{@code freeActions}/{@code manaMultiplier}/{@code
@@ -64,15 +66,25 @@ import org.aventyrs.core.skill.SkillType;
  * centelhaSuperiorSelected} to {@code false}. Every document written through {@code
  * CharacterSheetService} from now on always has a resolved, non-null value for each.
  *
- * <p>{@code feats}/{@code equipment} store core's {@code Character#feats}/{@code
- * Character#equipment} the same "constant's own {@code name()}" way {@code attributeAbilities}/
- * {@code activeAbilities} already do — {@code Feat} and {@code Item} are both interfaces backed
- * by catalog enums ({@code ArtesMarciaisFeat}, {@code ArmorItem}). Empty, not {@code null}, when
- * nothing is held/equipped.
+ * <p>{@code feats} stores core's {@code Character#feats} the same "constant's own {@code
+ * name()}" way {@code attributeAbilities}/{@code activeAbilities} already do — {@code Feat} is an
+ * interface backed by catalog enums ({@code ArtesMarciaisFeat}). {@code equipment} mirrors core's
+ * {@code Character#equipment} — a {@code List<Item>} — the same way {@code
+ * CharacterSheetDocument#inventory} mirrors {@code AbstractCombatantSheet#inventory}: each entry
+ * is a full {@link InventoryItemEntry}, embedded directly rather than referenced by id, since
+ * (same as an inventory item) a genuine owned {@code Item} carries real mutable state (damage
+ * taken, a fitted Obra-Prima/Aprimoramentos, a socketed Pedra do Poder) that a name or foreign id
+ * alone can't round-trip. Empty, not {@code null}, when nothing is held/equipped.
  *
  * <p>{@code primaryTitle}/{@code secondaryTitle}/{@code tertiaryTitle} mirror core's three
  * Título slots; {@code null} for an empty slot. See {@link TitleEntry} for how a held Título is
  * shaped.
+ *
+ * <p>{@code alignment} mirrors core's {@code Character#alignment} ({@code GOOD}/{@code
+ * NEUTRAL}/{@code EVIL}), which replaced the former unvalidated 1–10 {@code tendencia} int in
+ * core 0.0.31. Documents written before the migration ({@code 011-character-alignment.yaml})
+ * carried a {@code tendencia} int instead; that changeSet maps each to an {@link Alignment}
+ * (≤4 → {@code EVIL}, 5–6 → {@code NEUTRAL}, ≥7 → {@code GOOD}) and drops the old field.
  */
 public record CharacterEntry(
         String characterId,
@@ -80,7 +92,7 @@ public record CharacterEntry(
         RaceEntry race,
         Sexo sexo,
         Deity deity,
-        int tendencia,
+        Alignment alignment,
         SizeCategory sizeCategory,
         ActionProfile actionProfile,
         Map<AttributeDomain, AttributeValueEntry> attributes,
@@ -99,7 +111,7 @@ public record CharacterEntry(
         Integer determinationMultiplier,
         Boolean centelhaSuperiorSelected,
         List<String> feats,
-        List<String> equipment,
+        List<InventoryItemEntry> equipment,
         TitleEntry primaryTitle,
         TitleEntry secondaryTitle,
         TitleEntry tertiaryTitle

@@ -3,6 +3,7 @@ package org.aventyrs.api.sheet.dto;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.character.EgoDomain;
 
 public record CharacterSheetResponse(
@@ -17,6 +18,7 @@ public record CharacterSheetResponse(
         int shieldPoints,
         int famaPositiva,
         int famaNegativa,
+        int equipmentPoints,
         Map<EgoDomain, Integer> temporaryEgoPoints,
         List<TemporaryBonusDto> temporaryBonuses,
         List<BleedingDto> bleedingEffects,
@@ -24,7 +26,7 @@ public record CharacterSheetResponse(
         List<WitheringDto> witheringEffects,
         List<PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<LifeStealDto> lifeSteals,
-        List<String> inventory,
+        List<InventoryItemDto> inventory,
         String tokenImageUrl
 ) {
 }

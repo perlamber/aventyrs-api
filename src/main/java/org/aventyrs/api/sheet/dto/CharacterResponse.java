@@ -2,7 +2,9 @@ package org.aventyrs.api.sheet.dto;
 
 import java.util.List;
 import java.util.Map;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.action.ActionProfile;
+import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -17,7 +19,7 @@ public record CharacterResponse(
         RaceResponse race,
         Sexo sexo,
         Deity deity,
-        int tendencia,
+        Alignment alignment,
         SizeCategory sizeCategory,
         ActionProfile actionProfile,
         Map<AttributeDomain, AttributeValueResponse> attributes,
@@ -36,7 +38,7 @@ public record CharacterResponse(
         int determinationMultiplier,
         boolean centelhaSuperiorSelected,
         List<String> feats,
-        List<String> equipment,
+        List<InventoryItemDto> equipment,
         TitleResponse primaryTitle,
         TitleResponse secondaryTitle,
         TitleResponse tertiaryTitle

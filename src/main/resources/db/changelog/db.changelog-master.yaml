@@ -26,3 +26,15 @@ databaseChangeLog:
   - include:
       file: db/changelog/009-monster-sheets.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/010-items.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/011-character-alignment.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/012-scene-combat-round-gate.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/013-scene-active-flag.yaml
+      relativeToChangelogFile: false

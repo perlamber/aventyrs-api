@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-reset-non-combat-scene-round
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "scenes",
+                updates: [
+                  {
+                    q: { "combatScene": { $ne: true }, "currentRound": { $gt: 0 } },
+                    u: { $set: { "currentRound": 0 } },
+                    multi: true
+                  }
+                ]
+              }

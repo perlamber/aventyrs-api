@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-backfill-scene-active-flag
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "scenes",
+                updates: [
+                  {
+                    q: { "active": { $exists: false } },
+                    u: { $set: { "active": false } },
+                    multi: true
+                  }
+                ]
+              }

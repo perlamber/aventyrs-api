@@ -83,7 +83,7 @@ public class MonsterSheetDocument {
 
     private List<LifeStealEntry> lifeSteals;
 
-    /** Item catalog constant names (e.g. {@code "ROUPA_PESADA"}) — see {@link CharacterEntry}'s equipment javadoc. */
+    /** {@code org.aventyrs.api.item.ItemDocument} ids this sheet carries — see {@link CharacterEntry}'s equipment javadoc. */
     private List<String> inventory;
 
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
