@@ -80,6 +80,14 @@ import org.aventyrs.core.skill.SkillType;
  * Título slots; {@code null} for an empty slot. See {@link TitleEntry} for how a held Título is
  * shaped.
  *
+ * <p>{@code spells} stores core's {@code Character#spells} — every learned Magia — as each
+ * one's own {@code Spell#getName()}, the same "constant's own name()" convention {@code feats}
+ * uses; {@code Spell} isn't sealed so this is a plain string rather than an enum name, but the
+ * round-trip is identical. {@code mimetizedSpells} mirrors {@code Character#mimetizedSpells} —
+ * Magias granted by a mimetizing Talento rather than learned — each as a {@link
+ * MimetizedSpellEntry}; see that record for why the mimicry-specific activation-time/duration
+ * overrides aren't persisted. Both empty, not {@code null}, when nothing is held.
+ *
  * <p>{@code alignment} mirrors core's {@code Character#alignment} ({@code GOOD}/{@code
  * NEUTRAL}/{@code EVIL}), which replaced the former unvalidated 1–10 {@code tendencia} int in
  * core 0.0.31. Documents written before the migration ({@code 011-character-alignment.yaml})
@@ -114,6 +122,8 @@ public record CharacterEntry(
         List<InventoryItemEntry> equipment,
         TitleEntry primaryTitle,
         TitleEntry secondaryTitle,
-        TitleEntry tertiaryTitle
+        TitleEntry tertiaryTitle,
+        List<String> spells,
+        List<MimetizedSpellEntry> mimetizedSpells
 ) {
 }

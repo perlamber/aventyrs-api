@@ -16,6 +16,8 @@ import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.EgoValueResponse;
 import org.aventyrs.api.sheet.dto.LifeStealDto;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.MimetizedSpellDto;
+import org.aventyrs.api.sheet.dto.MimetizedSpellResponse;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.RaceResponse;
@@ -110,7 +112,27 @@ public final class CombatantSheetMapper {
                 InventoryItemMapper.toEntries(character.equipment()),
                 toTitleEntry(character.primaryTitle()),
                 toTitleEntry(character.secondaryTitle()),
-                toTitleEntry(character.tertiaryTitle()));
+                toTitleEntry(character.tertiaryTitle()),
+                character.spells() == null ? List.of() : character.spells(),
+                toMimetizedSpellEntries(character.mimetizedSpells()));
+    }
+
+    private static List<MimetizedSpellEntry> toMimetizedSpellEntries(List<MimetizedSpellDto> mimetizedSpells) {
+        if (mimetizedSpells == null) {
+            return List.of();
+        }
+        return mimetizedSpells.stream()
+                .map(spell -> new MimetizedSpellEntry(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .toList();
+    }
+
+    private static List<MimetizedSpellResponse> toMimetizedSpellResponses(List<MimetizedSpellEntry> mimetizedSpells) {
+        if (mimetizedSpells == null) {
+            return List.of();
+        }
+        return mimetizedSpells.stream()
+                .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .toList();
     }
 
     private static TitleEntry toTitleEntry(TitleDto title) {
@@ -373,6 +395,8 @@ public final class CombatantSheetMapper {
                 InventoryItemMapper.toDtos(character.equipment()),
                 toTitleResponse(character.primaryTitle()),
                 toTitleResponse(character.secondaryTitle()),
-                toTitleResponse(character.tertiaryTitle()));
+                toTitleResponse(character.tertiaryTitle()),
+                character.spells() == null ? List.of() : character.spells(),
+                toMimetizedSpellResponses(character.mimetizedSpells()));
     }
 }

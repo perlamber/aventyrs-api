@@ -67,6 +67,11 @@ public record CharacterDto(
         List<@Valid InventoryItemDto> equipment,
         @Valid TitleDto primaryTitle,
         @Valid TitleDto secondaryTitle,
-        @Valid TitleDto tertiaryTitle
+        @Valid TitleDto tertiaryTitle,
+        // Magias learned/mimetized, nullable like feats and stored the same "constant's own
+        // name()" way — see CharacterEntry for why. No screen grants a Magia yet, so these exist
+        // purely so a PUT round-trips what CharacterSheetService last returned.
+        List<String> spells,
+        List<@Valid MimetizedSpellDto> mimetizedSpells
 ) {
 }

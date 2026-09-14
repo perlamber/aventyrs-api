@@ -41,6 +41,8 @@ public record CharacterResponse(
         List<InventoryItemDto> equipment,
         TitleResponse primaryTitle,
         TitleResponse secondaryTitle,
-        TitleResponse tertiaryTitle
+        TitleResponse tertiaryTitle,
+        List<String> spells,
+        List<MimetizedSpellResponse> mimetizedSpells
 ) {
 }
