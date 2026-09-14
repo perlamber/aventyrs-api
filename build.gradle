@@ -65,6 +65,26 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+// Builds the fat/executable Spring Boot jar and copies it into an arbitrary
+// output directory, e.g.:
+//   ./gradlew packageJar -PoutputDir=/path/to/dist
+// Defaults to build/dist when -PoutputDir is not supplied.
+tasks.register('packageJar', Copy) {
+	group = 'distribution'
+	description = 'Builds the fat executable jar (bootJar) and copies it into -PoutputDir (default: build/dist).'
+
+	dependsOn tasks.named('bootJar')
+
+	def outputDir = project.hasProperty('outputDir') ? file(project.property('outputDir')) : file("$buildDir/dist")
+
+	from tasks.named('bootJar')
+	into outputDir
+
+	doLast {
+		println "Executable jar written to: ${new File(outputDir, tasks.named('bootJar').get().archiveFileName.get())}"
+	}
+}
+
 liquibase {
 	activities {
 		main {
