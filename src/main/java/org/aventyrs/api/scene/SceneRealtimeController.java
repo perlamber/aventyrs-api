@@ -6,6 +6,8 @@ import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizeMessage;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.HiddenStatusChangedEvent;
+import org.aventyrs.api.scene.dto.HiddenStatusMessage;
 import org.aventyrs.api.scene.dto.RollRequestMessage;
 import org.aventyrs.api.scene.dto.RollRequestedEvent;
 import org.aventyrs.api.scene.dto.RollResponseMessage;
@@ -36,11 +38,12 @@ import org.springframework.stereotype.Controller;
  * SceneService#advanceTurn}), a combat start ({@code /app/scenes/{sceneId}/combat}, persisted via
  * {@link SceneService#startCombat}), a board resize ({@code /app/scenes/{sceneId}/grid}, persisted
  * via {@link SceneService#resizeGrid}), a recorded combat action ({@code
- * /app/scenes/{sceneId}/actions}, persisted via {@link SceneService#recordAction}), and a
- * transient, unpersisted "sonar" ping ({@code /app/scenes/{sceneId}/ping}) — all re-broadcast to
- * every client subscribed to the scene's {@code /topic/scenes/{sceneId}/moves} / {@code
- * .../status} / {@code .../turn} / {@code .../combat} / {@code .../grid} / {@code .../actions} /
- * {@code .../pings} destinations.
+ * /app/scenes/{sceneId}/actions}, persisted via {@link SceneService#recordAction}), a transient,
+ * unpersisted "sonar" ping ({@code /app/scenes/{sceneId}/ping}), and an equally transient
+ * Esconder-se concealment flag ({@code /app/scenes/{sceneId}/hidden}, see {@link #hidden}) — all
+ * re-broadcast to every client subscribed to the scene's {@code /topic/scenes/{sceneId}/moves} /
+ * {@code .../status} / {@code .../turn} / {@code .../combat} / {@code .../grid} / {@code
+ * .../actions} / {@code .../pings} / {@code .../hidden} destinations.
  *
  * <p>There's no auth in this API yet, so a rejected move (unknown participant, target cell already
  * occupied) has no client to report back to individually — it's logged and simply not broadcast,
@@ -227,6 +230,33 @@ public class SceneRealtimeController {
         messagingTemplate.convertAndSend(
                 "/topic/scenes/" + sceneId + "/pings",
                 new ScenePingEvent(message.position(), Instant.now()));
+    }
+
+    /**
+     * A participant's Esconder-se concealment started or ended — relayed, never persisted, unlike
+     * {@link #status}. A concealment lives on aventyrs-core's in-memory {@code CombatantSheet} the
+     * hiding client already holds, the same "state lives with whoever's playing it" boundary every
+     * other {@code Condition}/{@code TemporaryBonus} in this ruleset keeps; this topic exists only
+     * so the rest of the table's boards can withhold or restore that token live, not to give a late
+     * joiner a way to learn who is presently hidden.
+     *
+     * <p>Membership is still asserted ({@link SceneService#requireParticipant}), same reason {@link
+     * #status} asserts it and {@link #ping} does not: this names one specific participant's state
+     * rather than an untargeted board-wide marker, so an unknown id is rejected rather than handed
+     * to every client's board.
+     */
+    @MessageMapping("/scenes/{sceneId}/hidden")
+    public void hidden(@DestinationVariable String sceneId, @Payload HiddenStatusMessage message) {
+        try {
+            sceneService.requireParticipant(sceneId, message.characterSheetId());
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/hidden",
+                    new HiddenStatusChangedEvent(message.characterSheetId(), message.hidden(),
+                            message.ordinaryConcealmentValue(), message.expertConcealmentValue()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected hidden-status change in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
     }
 
     private static GridPosition toGridPosition(GridPositionDto dto) {
