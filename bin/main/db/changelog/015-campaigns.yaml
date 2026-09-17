@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-campaigns-collection
+      author: aventyrs-api
+      changes:
+        - createCollection:
+            collectionName: campaigns
+  - changeSet:
+      id: 002-create-campaigns-session-status-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: campaigns
+            keys: '{ "sessions.status": 1 }'
+            options: '{ "name": "ix_campaigns_sessions_status" }'
+  - changeSet:
+      id: 003-create-character-sheets-campaign-id-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: characterSheets
+            keys: '{ "campaignId": 1 }'
+            options: '{ "name": "ix_character_sheets_campaign_id" }'

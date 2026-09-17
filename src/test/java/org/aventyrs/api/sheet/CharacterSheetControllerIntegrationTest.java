@@ -23,6 +23,7 @@ import org.aventyrs.api.sheet.dto.CharacterSheetUpdateRequest;
 import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
+import org.aventyrs.api.sheet.dto.FeatDto;
 import org.aventyrs.api.sheet.dto.LifeStealDto;
 import org.aventyrs.core.item.ItemCategory;
 import org.aventyrs.core.item.ItemRarity;
@@ -251,7 +252,14 @@ class CharacterSheetControllerIntegrationTest {
                 5,
                 2,
                 true,
-                List.of("ARTISTA_MARCIAL"),
+                List.of(
+                        // A Talento taken plain, one carrying a single pick, and
+                        // EXCEPCIONALIDADE's nested Talento — which itself carries two picks.
+                        new FeatDto("ARTISTA_MARCIAL", null, null),
+                        new FeatDto("FOCO_EM_PERICIA", List.of("ATLETISMO"), null),
+                        new FeatDto("EXCEPCIONALIDADE", null,
+                                new FeatDto("ARMAMENTO_DRACONICO",
+                                        List.of("GARRAS_AFIADAS", "PRESAS_LONGAS"), null))),
                 List.of(new InventoryItemDto("ROUPA_PESADA", "Roupa Pesada", null,
                         ItemCategory.ARMOR, ItemRarity.COMMON, ItemWeightClass.HEAVY,
                         0, 0, 0, 0, 0, 0, null, null, List.of(), null, null, null, false)),
@@ -298,7 +306,14 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.lifeMultiplier").value(5))
                 .andExpect(jsonPath("$.character.determinationMultiplier").value(2))
                 .andExpect(jsonPath("$.character.centelhaSuperiorSelected").value(true))
-                .andExpect(jsonPath("$.character.feats[0]").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.feats[0].type").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.feats[0].choices").isEmpty())
+                .andExpect(jsonPath("$.character.feats[0].chosenFeat").doesNotExist())
+                .andExpect(jsonPath("$.character.feats[1].type").value("FOCO_EM_PERICIA"))
+                .andExpect(jsonPath("$.character.feats[1].choices[0]").value("ATLETISMO"))
+                .andExpect(jsonPath("$.character.feats[2].type").value("EXCEPCIONALIDADE"))
+                .andExpect(jsonPath("$.character.feats[2].chosenFeat.type").value("ARMAMENTO_DRACONICO"))
+                .andExpect(jsonPath("$.character.feats[2].chosenFeat.choices", hasSize(2)))
                 .andExpect(jsonPath("$.character.equipment[0].name").value("Roupa Pesada"))
                 .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"))
                 .andExpect(jsonPath("$.character.primaryTitle.specializations[0]").value("ABENCOADO_PELA_LUZ"))
@@ -322,7 +337,11 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.lifeMultiplier").value(5))
                 .andExpect(jsonPath("$.character.determinationMultiplier").value(2))
                 .andExpect(jsonPath("$.character.centelhaSuperiorSelected").value(true))
-                .andExpect(jsonPath("$.character.feats[0]").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.feats[0].type").value("ARTISTA_MARCIAL"))
+                .andExpect(jsonPath("$.character.feats[1].type").value("FOCO_EM_PERICIA"))
+                .andExpect(jsonPath("$.character.feats[1].choices[0]").value("ATLETISMO"))
+                .andExpect(jsonPath("$.character.feats[2].chosenFeat.type").value("ARMAMENTO_DRACONICO"))
+                .andExpect(jsonPath("$.character.feats[2].chosenFeat.choices", hasSize(2)))
                 .andExpect(jsonPath("$.character.equipment[0].name").value("Roupa Pesada"))
                 .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"));
     }

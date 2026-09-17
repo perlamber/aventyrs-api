@@ -37,7 +37,7 @@ public record CharacterResponse(
         int lifeMultiplier,
         int determinationMultiplier,
         boolean centelhaSuperiorSelected,
-        List<String> feats,
+        List<FeatResponse> feats,
         List<InventoryItemDto> equipment,
         TitleResponse primaryTitle,
         TitleResponse secondaryTitle,

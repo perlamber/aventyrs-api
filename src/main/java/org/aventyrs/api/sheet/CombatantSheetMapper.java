@@ -14,6 +14,8 @@ import org.aventyrs.api.sheet.dto.CharacterSkillDto;
 import org.aventyrs.api.sheet.dto.CharacterSkillResponse;
 import org.aventyrs.api.sheet.dto.EgoValueDto;
 import org.aventyrs.api.sheet.dto.EgoValueResponse;
+import org.aventyrs.api.sheet.dto.FeatDto;
+import org.aventyrs.api.sheet.dto.FeatResponse;
 import org.aventyrs.api.sheet.dto.LifeStealDto;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
 import org.aventyrs.api.sheet.dto.MimetizedSpellDto;
@@ -108,7 +110,7 @@ public final class CombatantSheetMapper {
                 lifeMultiplier,
                 determinationMultiplier,
                 centelhaSuperiorSelected,
-                character.feats() == null ? List.of() : character.feats(),
+                toFeatEntries(character.feats()),
                 InventoryItemMapper.toEntries(character.equipment()),
                 toTitleEntry(character.primaryTitle()),
                 toTitleEntry(character.secondaryTitle()),
@@ -133,6 +135,44 @@ public final class CombatantSheetMapper {
         return mimetizedSpells.stream()
                 .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
                 .toList();
+    }
+
+    private static List<FeatEntry> toFeatEntries(List<FeatDto> feats) {
+        if (feats == null) {
+            return List.of();
+        }
+        return feats.stream().map(CombatantSheetMapper::toFeatEntry).toList();
+    }
+
+    /**
+     * Recursive for {@code ExcepcionalidadeFeat}'s nested pick alone — see {@link FeatEntry}; every
+     * other Talento's {@code chosenFeat} is null, so this bottoms out immediately.
+     */
+    private static FeatEntry toFeatEntry(FeatDto feat) {
+        if (feat == null) {
+            return null;
+        }
+        return new FeatEntry(
+                feat.type(),
+                feat.choices() == null ? List.of() : feat.choices(),
+                toFeatEntry(feat.chosenFeat()));
+    }
+
+    private static List<FeatResponse> toFeatResponses(List<FeatEntry> feats) {
+        if (feats == null) {
+            return List.of();
+        }
+        return feats.stream().map(CombatantSheetMapper::toFeatResponse).toList();
+    }
+
+    private static FeatResponse toFeatResponse(FeatEntry feat) {
+        if (feat == null) {
+            return null;
+        }
+        return new FeatResponse(
+                feat.type(),
+                feat.choices() == null ? List.of() : feat.choices(),
+                toFeatResponse(feat.chosenFeat()));
     }
 
     private static TitleEntry toTitleEntry(TitleDto title) {
@@ -391,7 +431,7 @@ public final class CombatantSheetMapper {
                 lifeMultiplier,
                 determinationMultiplier,
                 centelhaSuperiorSelected,
-                character.feats() == null ? List.of() : character.feats(),
+                toFeatResponses(character.feats()),
                 InventoryItemMapper.toDtos(character.equipment()),
                 toTitleResponse(character.primaryTitle()),
                 toTitleResponse(character.secondaryTitle()),

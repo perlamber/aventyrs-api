@@ -28,9 +28,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * a name string" convention {@code CharacterEntry#feats}/{@code #equipment} already use, since no
  * single Java type spans every {@code ItemTemplate} implementer (currently {@code ArmorItem}/
  * {@code NaturalWeapon}). {@code activeAbilityName} does the same for the {@code ItemActiveAbility}
- * a Regalia may carry. {@code favor}/{@code masterpiece}/{@code improvements}/{@code powerStone}
- * mirror core's own concrete (non-polymorphic-at-the-leaf) shapes directly — see each entry
- * type's own javadoc. {@code producedByCharacterId}/{@code improvementEffectSceneId} are kept as
+ * a Regalia may carry. {@code masterpiece}/{@code improvements} follow the same convention for
+ * their {@code definition}, whose catalog (Defensivos or Ofensivos) is decided by {@code category}
+ * — see {@link ItemMasterpieceEntry}. {@code favor}/{@code powerStone} mirror core's own concrete
+ * (non-polymorphic-at-the-leaf) shapes directly — see each entry type's own javadoc. {@code producedByCharacterId}/{@code improvementEffectSceneId} are kept as
  * plain opaque ids, same as {@code CharacterSheetDocument#playerId}: nothing here resolves them
  * against another collection.
  */

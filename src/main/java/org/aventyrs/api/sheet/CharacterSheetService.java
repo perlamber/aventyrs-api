@@ -2,7 +2,9 @@ package org.aventyrs.api.sheet;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.aventyrs.api.campaign.CampaignService;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.item.InventoryItemMapper;
 import org.aventyrs.api.player.PlayerRepository;
@@ -17,10 +19,13 @@ public class CharacterSheetService {
 
     private final CharacterSheetRepository repository;
     private final PlayerRepository playerRepository;
+    private final CampaignService campaignService;
 
-    public CharacterSheetService(CharacterSheetRepository repository, PlayerRepository playerRepository) {
+    public CharacterSheetService(CharacterSheetRepository repository, PlayerRepository playerRepository,
+            CampaignService campaignService) {
         this.repository = repository;
         this.playerRepository = playerRepository;
+        this.campaignService = campaignService;
     }
 
     public CharacterSheetResponse create(CharacterSheetCreateRequest request) {
@@ -47,6 +52,7 @@ public class CharacterSheetService {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null);
         return toResponse(repository.save(document));
     }
@@ -56,11 +62,11 @@ public class CharacterSheetService {
     }
 
     public List<CharacterSheetResponse> list() {
-        return repository.findAll().stream().map(this::toResponse).toList();
+        return toResponses(repository.findAll());
     }
 
     public List<CharacterSheetResponse> listByPlayer(String playerId) {
-        return repository.findByPlayerId(playerId).stream().map(this::toResponse).toList();
+        return toResponses(repository.findByPlayerId(playerId));
     }
 
     public CharacterSheetResponse update(String id, CharacterSheetUpdateRequest request) {
@@ -164,12 +170,24 @@ public class CharacterSheetService {
                 .orElseThrow(() -> new NotFoundException("CharacterSheet not found: " + id));
     }
 
+    /** Answers every sheet's progression lock from one Campanha query rather than one per sheet. */
+    private List<CharacterSheetResponse> toResponses(List<CharacterSheetDocument> documents) {
+        Set<String> locked = campaignService.progressionLockedCampaignIds();
+        return documents.stream()
+                .map(document -> toResponse(document, locked.contains(document.getCampaignId())))
+                .toList();
+    }
+
+    private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
+        return toResponse(document, campaignService.isProgressionLocked(document.getCampaignId()));
+    }
+
     /**
      * {@code bleedingEffects}/{@code manaDrains}/{@code witheringEffects}/{@code
      * pendingEgoRecoveries} fall back to an empty list for documents persisted before those
      * fields existed, same reasoning as {@code CombatantSheetMapper#toCharacterResponse}.
      */
-    private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
+    private CharacterSheetResponse toResponse(CharacterSheetDocument document, boolean progressionLocked) {
         return new CharacterSheetResponse(
                 document.getId(),
                 CombatantSheetMapper.toCharacterResponse(document.getCharacter()),
@@ -191,6 +209,8 @@ public class CharacterSheetService {
                 CombatantSheetMapper.toPendingEgoRecoveryDtos(document.getPendingEgoRecoveries()),
                 CombatantSheetMapper.toLifeStealDtos(document.getLifeSteals()),
                 InventoryItemMapper.toDtos(document.getInventory()),
-                document.getTokenImageUrl());
+                document.getTokenImageUrl(),
+                document.getCampaignId(),
+                progressionLocked);
     }
 }
