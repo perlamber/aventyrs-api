@@ -587,7 +587,8 @@ public class SceneService {
                 message.total(),
                 message.requiredTotal(),
                 message.note(),
-                Instant.now());
+                Instant.now(),
+                message.interceptedForCharacterSheetId());
 
         appendTo(id, "rollResponses", entry);
         return toRollRespondedEvent(entry);
@@ -619,7 +620,7 @@ public class SceneService {
     private RollRespondedEvent toRollRespondedEvent(SceneRollResponseEntry entry) {
         return new RollRespondedEvent(entry.requestId(), entry.characterSheetId(), entry.kind(),
                 entry.dice(), entry.succeeded(), entry.margin(), entry.total(), entry.requiredTotal(),
-                entry.note(), entry.respondedAt());
+                entry.note(), entry.respondedAt(), entry.interceptedForCharacterSheetId());
     }
 
     private SceneActionEvent toActionEvent(SceneActionEntry entry) {

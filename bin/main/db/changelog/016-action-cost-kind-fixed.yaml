@@ -1,0 +1,59 @@
+# Renames the persisted ActionCost kind ACTION_POINTS -> FIXED, for aventyrs-core 0.0.42.
+#
+# The constant was renamed in core, and scenes.actionHistory[].cost is core's own ActionCost record
+# persisted directly (see SceneActionEntry), so every action recorded before the bump carries a
+# kind no current enum has. That breaks reading in both directions: this API can no longer map such
+# a document onto ActionCost, and a 0.0.43 client cannot deserialize the costKind it is handed —
+# which is why whole scenes stopped loading rather than merely losing their log.
+#
+# A $map pipeline rather than arrayFilters, matching 007's own embedded-array rewrite, and guarded
+# so only the stale value is touched: a cost already written as FIXED is left exactly as it is.
+databaseChangeLog:
+  - changeSet:
+      id: 001-rename-action-cost-kind-action-points-to-fixed
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "scenes",
+                updates: [
+                  {
+                    q: { "actionHistory.cost.kind": "ACTION_POINTS" },
+                    u: [
+                      {
+                        $set: {
+                          "actionHistory": {
+                            $map: {
+                              input: "$actionHistory",
+                              as: "action",
+                              in: {
+                                $mergeObjects: [
+                                  "$$action",
+                                  {
+                                    "cost": {
+                                      $mergeObjects: [
+                                        "$$action.cost",
+                                        {
+                                          "kind": {
+                                            $cond: [
+                                              { $eq: [ "$$action.cost.kind", "ACTION_POINTS" ] },
+                                              "FIXED",
+                                              "$$action.cost.kind"
+                                            ]
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

@@ -31,5 +31,8 @@ public record SceneRollResponseEntry(
         Integer total,
         Integer requiredTotal,
         String note,
-        Instant respondedAt) {
+        Instant respondedAt,
+        /* See RollResponseMessage#interceptedForCharacterSheetId. Null on any entry persisted
+         * before interception existed. */
+        String interceptedForCharacterSheetId) {
 }

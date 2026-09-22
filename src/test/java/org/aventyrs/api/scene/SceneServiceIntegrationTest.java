@@ -339,14 +339,14 @@ class SceneServiceIntegrationTest {
 
         RollRespondedEvent rolled = sceneService.respondToRoll(sceneId, new RollResponseMessage(
                 requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(4, 5, 3),
-                Boolean.TRUE, 3, 21, 18, null));
+                Boolean.TRUE, 3, 21, 18, null, null));
         assertEquals(Boolean.TRUE, rolled.succeeded());
         assertEquals(3, rolled.margin());
         assertEquals(List.of(4, 5, 3), rolled.dice());
 
         RollRespondedEvent reacted = sceneService.respondToRoll(sceneId, new RollResponseMessage(
                 requestId, characterSheetId1, RollResponseKind.REACTED, null,
-                null, null, null, null, "Conjurando Escudo Arcano"));
+                null, null, null, null, "Conjurando Escudo Arcano", null));
         assertNull(reacted.succeeded(), "a declared reaction states no verdict");
         assertEquals(List.of(), reacted.dice());
         assertEquals("Conjurando Escudo Arcano", reacted.note());
@@ -382,7 +382,7 @@ class SceneServiceIntegrationTest {
                     startTogether.await();
                     return sceneService.respondToRoll(sceneId, new RollResponseMessage(
                             requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(1, 2, 3),
-                            Boolean.TRUE, roll, roll, 0, null));
+                            Boolean.TRUE, roll, roll, 0, null, null));
                 }));
             }
             startTogether.countDown();

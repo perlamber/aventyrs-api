@@ -20,5 +20,8 @@ public record RollRespondedEvent(
         Integer total,
         Integer requiredTotal,
         String note,
-        Instant respondedAt) {
+        Instant respondedAt,
+        /* See RollResponseMessage#interceptedForCharacterSheetId — carried through so every client
+         * can close the original target's row too, since that combatant never rolls. */
+        String interceptedForCharacterSheetId) {
 }
