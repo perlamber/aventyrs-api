@@ -20,6 +20,7 @@ public record SceneResponse(
         int width,
         int height,
         List<SceneActionEvent> actionHistory,
+        List<AbilityActivatedEvent> abilityHistory,
         List<RollRequestedEvent> rollRequests,
         List<RollRespondedEvent> rollResponses,
         ItemRarity itemStoreMaxRarity,

@@ -113,6 +113,8 @@ public class SceneDocument {
 
     private List<SceneActionEntry> actionHistory;
 
+    private List<SceneAbilityEntry> abilityHistory;
+
     /**
      * Rolls the Narrador has asked the table for, and the answers to them — two flat lists rather
      * than responses nested inside their request, so both append with a plain {@code $push} and no

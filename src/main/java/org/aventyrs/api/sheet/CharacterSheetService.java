@@ -112,11 +112,17 @@ public class CharacterSheetService {
      * <p>The rest of {@code character} is rebuilt from the stored entry rather than re-derived,
      * since {@link CharacterEntry} is a record — only {@code status} differs in the copy.
      */
-    public void updateCombatStatus(String id, int hitPointsSpent, CharacterStatus status) {
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status) {
         CharacterSheetDocument document = findOrThrow(id);
         CharacterEntry stored = document.getCharacter();
 
+        // All three pools, not PV alone: activating a Habilidade de Título spends PD (and some are
+        // priced in PV instead), so a Cena that only ever persisted damage silently refunded every
+        // PD spent the moment a player reconnected.
         document.setHitPointsSpent(hitPointsSpent);
+        document.setMagicPointsSpent(magicPointsSpent);
+        document.setDeterminationPointsSpent(determinationPointsSpent);
         document.setCharacter(new CharacterEntry(
                 stored.characterId(),
                 stored.name(),

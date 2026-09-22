@@ -14,6 +14,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.aventyrs.api.common.NotFoundException;
+import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
+import org.aventyrs.api.scene.dto.AbilityActivationMessage;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
@@ -86,7 +88,9 @@ public class SceneService {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
-                List.of(), List.of());
+                // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
+                // follows field declaration order.
+                List.of(), List.of(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -517,6 +521,64 @@ public class SceneService {
                 message.criticalResult(), message.reachedDifficultyLevel());
     }
 
+    /**
+     * Records a Habilidade de Título one client just activated, and hands back the event to
+     * broadcast.
+     *
+     * <p>Persisted onto the Scene's own log beside {@code actionHistory}, and for the same reason:
+     * a client joining late has no other way to learn that an Aura is standing or that an ally's
+     * Defesas were raised three Rodadas ago. Taken at face value — this server runs no rules
+     * engine, so what the activating client's core decided is what is stored.
+     *
+     * @throws NotFoundException if characterSheetId is not a participant of this scene
+     */
+    public AbilityActivatedEvent recordAbility(String id, AbilityActivationMessage message) {
+        SceneDocument document = findOrThrow(id);
+        indexOfParticipant(document.getParticipants(), message.characterSheetId());
+
+        SceneAbilityEntry entry = new SceneAbilityEntry(
+                message.characterSheetId(),
+                message.titleType(),
+                message.abilityId(),
+                message.abilityName(),
+                message.determinationPointsSpent(),
+                message.hitPointsSpent(),
+                message.turnNumber(),
+                message.blessings() == null ? List.of() : List.copyOf(message.blessings()),
+                message.enchanterCharacterSheetId(),
+                message.boundCharacterSheetIds() == null
+                        ? List.of() : List.copyOf(message.boundCharacterSheetIds()),
+                message.enchantmentRounds());
+
+        List<SceneAbilityEntry> history = new ArrayList<>(abilityHistoryOf(document));
+        history.add(entry);
+        document.setAbilityHistory(history);
+        repository.save(document);
+
+        return toAbilityEvent(entry);
+    }
+
+    /** {@code null} on any document persisted before {@code abilityHistory} existed. */
+    private static List<SceneAbilityEntry> abilityHistoryOf(SceneDocument document) {
+        return document.getAbilityHistory() == null ? List.of() : document.getAbilityHistory();
+    }
+
+    private AbilityActivatedEvent toAbilityEvent(SceneAbilityEntry entry) {
+        return new AbilityActivatedEvent(
+                entry.characterSheetId(),
+                entry.titleType(),
+                entry.abilityId(),
+                entry.abilityName(),
+                SceneAbilityEntry.orZero(entry.determinationPointsSpent()),
+                SceneAbilityEntry.orZero(entry.hitPointsSpent()),
+                SceneAbilityEntry.orZero(entry.turnNumber()),
+                entry.blessings() == null ? List.of() : List.copyOf(entry.blessings()),
+                entry.enchanterCharacterSheetId(),
+                entry.boundCharacterSheetIds() == null
+                        ? List.of() : List.copyOf(entry.boundCharacterSheetIds()),
+                SceneAbilityEntry.orZero(entry.enchantmentRounds()));
+    }
+
     /** {@code null} on any document persisted before {@code actionHistory} existed. */
     private static List<SceneActionEntry> actionHistoryOf(SceneDocument document) {
         return document.getActionHistory() == null ? List.of() : document.getActionHistory();
@@ -787,6 +849,9 @@ public class SceneService {
         List<RollRespondedEvent> rollResponses = rollResponsesOf(document).stream()
                 .map(this::toRollRespondedEvent)
                 .toList();
+        List<AbilityActivatedEvent> abilityHistory = abilityHistoryOf(document).stream()
+                .map(this::toAbilityEvent)
+                .toList();
         return new SceneResponse(
                 document.getId(),
                 document.getName(),
@@ -800,6 +865,7 @@ public class SceneService {
                 document.getWidth(),
                 document.getHeight(),
                 actionHistory,
+                abilityHistory,
                 rollRequests,
                 rollResponses,
                 document.getItemStoreMaxRarity(),
