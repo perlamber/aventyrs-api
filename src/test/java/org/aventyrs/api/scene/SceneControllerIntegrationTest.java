@@ -196,6 +196,21 @@ class SceneControllerIntegrationTest {
     }
 
     @Test
+    void endCombatFlipsTheFlagOffAndRejectsASceneNotInCombat() throws Exception {
+        String id = createEmptyScene();
+
+        mockMvc.perform(post("/api/scenes/{id}/combat/end", id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("SCENE_NOT_IN_COMBAT"));
+
+        mockMvc.perform(post("/api/scenes/{id}/combat", id)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/scenes/{id}/combat/end", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.combatScene").value(false))
+                .andExpect(jsonPath("$.currentRound").value(0));
+    }
+
+    @Test
     void addParticipantJoinsWithFirstFreeGridPosition() throws Exception {
         String id = createEmptyScene();
         UUID party = UUID.randomUUID();

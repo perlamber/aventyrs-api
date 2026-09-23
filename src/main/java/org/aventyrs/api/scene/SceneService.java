@@ -414,6 +414,31 @@ public class SceneService {
     }
 
     /**
+     * Combat ends in this scene — the GM's "encerrar combate", mirroring {@code Scene#endCombat()}
+     * (core 0.0.48): flip {@code combatScene} off and put {@code currentRound} back to 0, so the
+     * next combat counts its Rodadas afresh. The turn cursor is left where it is.
+     *
+     * <p>What core's {@code endCombat()} also does — dropping every participant's combat-scoped
+     * grants ("até o final da Cena": Campeão da Taverna's stacked Defesas, Impacto Elemental's
+     * budget) — is left to the clients, the same split {@link #startCombat} documents: those
+     * grants live on the {@code CombatantSheet}s that exist only there. Each client runs its own
+     * {@code Scene#endCombat()} off the broadcast this produces.
+     *
+     * @throws IllegalOperationException ({@code SCENE_NOT_IN_COMBAT}) if this scene is not a combat
+     *         scene
+     */
+    public SceneResponse endCombat(String id) {
+        SceneDocument document = findOrThrow(id);
+        if (!document.isCombatScene()) {
+            throw new IllegalOperationException(TranslatableMessages.SCENE_NOT_IN_COMBAT);
+        }
+
+        document.setCombatScene(false);
+        document.setCurrentRound(0);
+        return toResponse(repository.save(document));
+    }
+
+    /**
      * Moves this scene's turn cursor on by one, mirroring {@code Scene#next()}'s arithmetic: step
      * to the next participant in the rotation, and on wrapping back to the top — <b>only while
      * {@code combatScene} is true</b> — advance the Round, merge whoever was waiting, and re-derive

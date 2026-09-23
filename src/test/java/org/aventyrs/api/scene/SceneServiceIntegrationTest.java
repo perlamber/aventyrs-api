@@ -615,6 +615,29 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void endCombatFlipsTheFlagOffResetsTheRodadaAndRefusesASceneNotInCombat() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, UUID.randomUUID()));
+
+        IllegalStateException early =
+                assertThrows(IllegalStateException.class, () -> sceneService.endCombat(sceneId));
+        assertEquals("SCENE_NOT_IN_COMBAT", early.getMessage());
+
+        sceneService.startCombat(sceneId);
+        sceneService.advanceTurn(sceneId);
+        sceneService.advanceTurn(sceneId);
+        sceneService.advanceTurn(sceneId);
+        assertTrue(sceneService.get(sceneId).currentRound() > 0);
+
+        SceneResponse ended = sceneService.endCombat(sceneId);
+        assertEquals(false, ended.combatScene());
+        assertEquals(0, ended.currentRound());
+        assertEquals(false, sceneService.get(sceneId).combatScene());
+
+        assertEquals(true, sceneService.startCombat(sceneId).combatScene(), "a later combat may start again");
+    }
+
+    @Test
     void updateRejectsALaterRoundOnANonCombatScene() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
 

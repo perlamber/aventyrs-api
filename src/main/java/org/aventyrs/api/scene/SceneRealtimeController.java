@@ -155,6 +155,25 @@ public class SceneRealtimeController {
     }
 
     /**
+     * Combat ended — {@code combatScene} is flipped off and the Rodada reset ({@link
+     * SceneService#endCombat}, mirroring core 0.0.48's {@code Scene#endCombat()}), then broadcast on
+     * the same {@code /combat} topic as a start, with {@code combatScene} {@code false}, so every
+     * client runs its own {@code Scene#endCombat()} and drops its combat-scoped grants. Takes no
+     * payload; rejected silently (most often {@code SCENE_NOT_IN_COMBAT}), like {@link #startCombat}.
+     */
+    @MessageMapping("/scenes/{sceneId}/combat/end")
+    public void endCombat(@DestinationVariable String sceneId) {
+        try {
+            var scene = sceneService.endCombat(sceneId);
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/combat",
+                    new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected combat end in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
      * The board was resized — persisted onto the scene ({@link SceneService#resizeGrid}), then
      * broadcast so every client redraws at the same extent instead of each holding its own idea of
      * how big the map is.

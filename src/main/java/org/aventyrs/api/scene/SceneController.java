@@ -110,6 +110,22 @@ public class SceneController {
     }
 
     /**
+     * Combat ends in this scene — the GM's "encerrar combate" (see {@link SceneService#endCombat},
+     * mirroring core 0.0.48's {@code Scene#endCombat()}). Broadcast on the same {@code
+     * /topic/scenes/{id}/combat} topic as a start, with {@code combatScene} {@code false}, plus the
+     * whole scene. A scene not in combat is a {@code 409} (core's {@code SCENE_NOT_IN_COMBAT}).
+     */
+    @PostMapping("/{id}/combat/end")
+    public SceneResponse endCombat(@PathVariable String id) {
+        SceneResponse scene = service.endCombat(id);
+        messagingTemplate.convertAndSend(
+                "/topic/scenes/" + id + "/combat",
+                new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+        broadcastRoster(scene);
+        return scene;
+    }
+
+    /**
      * Makes this the table's active scene and clears {@code active} on every other scene in the same
      * call (see {@link SceneActivationService}). {@code GET /scenes/available} returns the active
      * scene when there is exactly one. Persisting a scene never activates it; this is the only way.

@@ -51,6 +51,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Container;
@@ -73,6 +77,9 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     private String playerId;
 
@@ -264,7 +271,9 @@ class CharacterSheetControllerIntegrationTest {
                         ItemCategory.ARMOR, ItemRarity.COMMON, ItemWeightClass.HEAVY,
                         0, 0, 0, 0, 0, 0, null, null, List.of(), null, null, null, false)),
                 new TitleDto("SANTO", List.of("ABENCOADO_PELA_LUZ"), List.of("GRITO_DE_GUERRA_VULCANO")),
-                null,
+                // A second Título carrying an acquisition-time choice (core 0.0.48).
+                new TitleDto("SENHOR_DA_BRIGA", List.of("PUNHO_INIGUALAVEL"), List.of("IMPACTO_ELEMENTAL"),
+                        Map.of("IMPACTO_ELEMENTAL", "FOGO")),
                 null,
                 null,
                 null);
@@ -318,7 +327,9 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"))
                 .andExpect(jsonPath("$.character.primaryTitle.specializations[0]").value("ABENCOADO_PELA_LUZ"))
                 .andExpect(jsonPath("$.character.primaryTitle.abilities[0]").value("GRITO_DE_GUERRA_VULCANO"))
-                .andExpect(jsonPath("$.character.secondaryTitle").doesNotExist())
+                .andExpect(jsonPath("$.character.primaryTitle.choices").isEmpty())
+                .andExpect(jsonPath("$.character.secondaryTitle.type").value("SENHOR_DA_BRIGA"))
+                .andExpect(jsonPath("$.character.secondaryTitle.choices.IMPACTO_ELEMENTAL").value("FOGO"))
                 .andReturn().getResponse().getContentAsString();
 
         String id = objectMapper.readTree(createResponse).get("id").asText();
@@ -343,7 +354,19 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.feats[2].chosenFeat.type").value("ARMAMENTO_DRACONICO"))
                 .andExpect(jsonPath("$.character.feats[2].chosenFeat.choices", hasSize(2)))
                 .andExpect(jsonPath("$.character.equipment[0].name").value("Roupa Pesada"))
-                .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"));
+                .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"))
+                .andExpect(jsonPath("$.character.secondaryTitle.choices.IMPACTO_ELEMENTAL").value("FOGO"));
+
+        // A Título stored before TitleEntry#choices existed has no such field at all. Strip it from
+        // the stored document to write that older shape on purpose — every other path here creates
+        // documents through the current code and would carry the field straight past the bug.
+        mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(id)),
+                new Update().unset("character.primaryTitle.choices"), CharacterSheetDocument.class);
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.primaryTitle.type").value("SANTO"))
+                .andExpect(jsonPath("$.character.primaryTitle.choices").isEmpty());
     }
 
     @Test

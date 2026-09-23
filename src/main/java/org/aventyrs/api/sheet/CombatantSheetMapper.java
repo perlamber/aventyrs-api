@@ -182,7 +182,8 @@ public final class CombatantSheetMapper {
         return new TitleEntry(
                 title.type(),
                 title.specializations() == null ? List.of() : title.specializations(),
-                title.abilities() == null ? List.of() : title.abilities());
+                title.abilities() == null ? List.of() : title.abilities(),
+                title.choices() == null ? Map.of() : title.choices());
     }
 
     private static TitleResponse toTitleResponse(TitleEntry title) {
@@ -192,7 +193,8 @@ public final class CombatantSheetMapper {
         return new TitleResponse(
                 title.type(),
                 title.specializations() == null ? List.of() : title.specializations(),
-                title.abilities() == null ? List.of() : title.abilities());
+                title.abilities() == null ? List.of() : title.abilities(),
+                title.choices() == null ? Map.of() : title.choices());
     }
 
     /**
