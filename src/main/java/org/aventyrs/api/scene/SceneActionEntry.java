@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import java.util.List;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.sheet.ActionCost;
 import org.aventyrs.core.sheet.ActionOutcome;
@@ -20,6 +21,10 @@ import org.aventyrs.core.skill.SkillType;
  * both are plain data carriers with no polymorphism to flatten away. {@code outcome} is {@code
  * null} when the roll wasn't resolved against anything stated. {@code attackSourceKind} is {@code
  * null} unless the action was an attack — see {@link AttackSourceKind}.
+ *
+ * <p>{@code dice}/{@code total} are the 3d6 faces and the final total the rolling client showed its
+ * own player — what lets every other client's log render the same card, dice and all, instead of
+ * a bare verdict. Both are {@code null} from a client that predates them.
  */
 public record SceneActionEntry(
         String characterSheetId,
@@ -28,5 +33,7 @@ public record SceneActionEntry(
         AttackSourceKind attackSourceKind,
         ActionCost cost,
         int turnNumber,
-        ActionOutcome outcome) {
+        ActionOutcome outcome,
+        List<Integer> dice,
+        Integer total) {
 }

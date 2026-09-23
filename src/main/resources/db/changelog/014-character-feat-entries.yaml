@@ -1,0 +1,57 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-character-feat-names-to-entries
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "characterSheets",
+                updates: [
+                  {
+                    q: { "character.feats.0": { $type: "string" } },
+                    u: [
+                      {
+                        $set: {
+                          "character.feats": {
+                            $map: {
+                              input: "$character.feats",
+                              as: "feat",
+                              in: { type: "$$feat", choices: [], chosenFeat: null }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-monster-feat-names-to-entries
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { "character.feats.0": { $type: "string" } },
+                    u: [
+                      {
+                        $set: {
+                          "character.feats": {
+                            $map: {
+                              input: "$character.feats",
+                              as: "feat",
+                              in: { type: "$$feat", choices: [], chosenFeat: null }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

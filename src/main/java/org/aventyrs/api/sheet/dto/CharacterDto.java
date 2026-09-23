@@ -31,10 +31,12 @@ import org.aventyrs.core.skill.SkillType;
  * EgoDomain} key means untrained/unchosen, so it's left as-is rather than defaulted. {@code
  * actionProfile} is required, unlike those: core's own {@code Character#actionProfile} is
  * {@code @NonNull} with no default, since it's the Perfil de Ação chosen once at character
- * creation. {@code attributeAbilities}/{@code activeAbilities}/{@code feats} are nullable and
- * carry each entry as its implementing type's {@code name()} (or, for a non-enum implementer,
- * its class's simple name); {@code egoAdvantages} does the same per domain — see {@code
- * CharacterEntry} for why these are stored as names. {@code equipment} is nullable too, but
+ * creation. {@code attributeAbilities}/{@code activeAbilities} are nullable and carry each entry
+ * as its implementing type's {@code name()} (or, for a non-enum implementer, its class's simple
+ * name); {@code egoAdvantages} does the same per domain — see {@code CharacterEntry} for why these
+ * are stored as names. {@code feats} is nullable the same way but carries full {@link FeatDto}
+ * entries, since a Talento can record an acquisition-time choice that a bare name would lose — see
+ * {@code FeatEntry}. {@code equipment} is nullable too, but
  * carries full {@link InventoryItemDto} entries instead — see {@code CharacterEntry}'s own
  * javadoc for why a worn item is embedded rather than stored as a name or foreign id. {@code
  * primaryTitle}/{@code
@@ -63,10 +65,15 @@ public record CharacterDto(
         Integer lifeMultiplier,
         Integer determinationMultiplier,
         Boolean centelhaSuperiorSelected,
-        List<String> feats,
+        List<@Valid FeatDto> feats,
         List<@Valid InventoryItemDto> equipment,
         @Valid TitleDto primaryTitle,
         @Valid TitleDto secondaryTitle,
-        @Valid TitleDto tertiaryTitle
+        @Valid TitleDto tertiaryTitle,
+        // Magias learned/mimetized, nullable like attributeAbilities and stored the same
+        // "constant's own name()" way — see CharacterEntry. No screen grants a Magia yet, so these exist
+        // purely so a PUT round-trips what CharacterSheetService last returned.
+        List<String> spells,
+        List<@Valid MimetizedSpellDto> mimetizedSpells
 ) {
 }

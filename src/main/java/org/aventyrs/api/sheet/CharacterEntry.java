@@ -66,9 +66,12 @@ import org.aventyrs.core.skill.SkillType;
  * centelhaSuperiorSelected} to {@code false}. Every document written through {@code
  * CharacterSheetService} from now on always has a resolved, non-null value for each.
  *
- * <p>{@code feats} stores core's {@code Character#feats} the same "constant's own {@code
- * name()}" way {@code attributeAbilities}/{@code activeAbilities} already do — {@code Feat} is an
- * interface backed by catalog enums ({@code ArtesMarciaisFeat}). {@code equipment} mirrors core's
+ * <p>{@code feats} mirrors core's {@code Character#feats} as a {@link FeatEntry} each — a catalog
+ * constant's own {@code name()} plus the acquisition-time choice it carries. Unlike {@code
+ * attributeAbilities}/{@code activeAbilities}, a bare name is <em>not</em> enough here: core's
+ * choice-carrying Talentos are non-enum {@code AbstractFeat} subclasses recording a pick, and core
+ * refuses to grant the plain constant in their place. See {@link FeatEntry} for the full reasoning
+ * and for the two shapes it deliberately flattens. {@code equipment} mirrors core's
  * {@code Character#equipment} — a {@code List<Item>} — the same way {@code
  * CharacterSheetDocument#inventory} mirrors {@code AbstractCombatantSheet#inventory}: each entry
  * is a full {@link InventoryItemEntry}, embedded directly rather than referenced by id, since
@@ -79,6 +82,15 @@ import org.aventyrs.core.skill.SkillType;
  * <p>{@code primaryTitle}/{@code secondaryTitle}/{@code tertiaryTitle} mirror core's three
  * Título slots; {@code null} for an empty slot. See {@link TitleEntry} for how a held Título is
  * shaped.
+ *
+ * <p>{@code spells} stores core's {@code Character#spells} — every learned Magia — as each
+ * one's own {@code Spell#getName()}, the same "constant's own name()" convention {@code
+ * attributeAbilities} uses; {@code Spell} isn't sealed so this is a plain string rather than an
+ * enum name, and a Magia carries no acquisition-time choice the way a Talento can, but the
+ * round-trip is identical. {@code mimetizedSpells} mirrors {@code Character#mimetizedSpells} —
+ * Magias granted by a mimetizing Talento rather than learned — each as a {@link
+ * MimetizedSpellEntry}; see that record for why the mimicry-specific activation-time/duration
+ * overrides aren't persisted. Both empty, not {@code null}, when nothing is held.
  *
  * <p>{@code alignment} mirrors core's {@code Character#alignment} ({@code GOOD}/{@code
  * NEUTRAL}/{@code EVIL}), which replaced the former unvalidated 1–10 {@code tendencia} int in
@@ -110,10 +122,12 @@ public record CharacterEntry(
         Integer lifeMultiplier,
         Integer determinationMultiplier,
         Boolean centelhaSuperiorSelected,
-        List<String> feats,
+        List<FeatEntry> feats,
         List<InventoryItemEntry> equipment,
         TitleEntry primaryTitle,
         TitleEntry secondaryTitle,
-        TitleEntry tertiaryTitle
+        TitleEntry tertiaryTitle,
+        List<String> spells,
+        List<MimetizedSpellEntry> mimetizedSpells
 ) {
 }

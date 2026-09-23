@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-scenes-collection
+      author: aventyrs-api
+      changes:
+        - createCollection:
+            collectionName: scenes

@@ -1,6 +1,8 @@
 package org.aventyrs.api.scene;
 
 import java.time.Instant;
+import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
+import org.aventyrs.api.scene.dto.AbilityActivationMessage;
 import org.aventyrs.api.scene.dto.CharacterStatusChangedEvent;
 import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
@@ -95,11 +97,14 @@ public class SceneRealtimeController {
         try {
             sceneService.requireParticipant(sceneId, message.characterSheetId());
             characterSheetService.updateCombatStatus(
-                    message.characterSheetId(), message.hitPointsSpent(), message.status());
+                    message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
+                    message.determinationPointsSpent(), message.status());
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",
                     new CharacterStatusChangedEvent(
-                            message.characterSheetId(), message.hitPointsSpent(), message.status()));
+                            message.characterSheetId(), message.hitPointsSpent(),
+                            message.magicPointsSpent(), message.determinationPointsSpent(),
+                            message.status()));
         } catch (RuntimeException ex) {
             log.warn("Rejected status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -146,6 +151,25 @@ public class SceneRealtimeController {
                     new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
         } catch (RuntimeException ex) {
             log.warn("Rejected combat start in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
+     * Combat ended — {@code combatScene} is flipped off and the Rodada reset ({@link
+     * SceneService#endCombat}, mirroring core 0.0.48's {@code Scene#endCombat()}), then broadcast on
+     * the same {@code /combat} topic as a start, with {@code combatScene} {@code false}, so every
+     * client runs its own {@code Scene#endCombat()} and drops its combat-scoped grants. Takes no
+     * payload; rejected silently (most often {@code SCENE_NOT_IN_COMBAT}), like {@link #startCombat}.
+     */
+    @MessageMapping("/scenes/{sceneId}/combat/end")
+    public void endCombat(@DestinationVariable String sceneId) {
+        try {
+            var scene = sceneService.endCombat(sceneId);
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/combat",
+                    new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected combat end in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 
@@ -198,6 +222,29 @@ public class SceneRealtimeController {
      * panel as it was. Nothing checks that the sender is the Narrador; see {@link
      * org.aventyrs.api.scene.dto.RollRequestMessage} for why that is not enforceable here.
      */
+    /**
+     * A Habilidade de Título one client just activated — persisted onto this Scene's log and
+     * broadcast to <b>everyone</b>, not only to the activator.
+     *
+     * <p>That breadth is the whole point rather than a convenience: a clause granting "a você e
+     * seus aliados adjacentes" cannot be resolved by the client that activated it, because those
+     * allies' real sheets live in their own clients. Each recipient's client grants the reported
+     * Blessings to the sheets it actually owns when this arrives.
+     *
+     * <p>Rejected the same silent way {@link #move} is — an unknown participant leaves every
+     * client's log as it was.
+     */
+    @MessageMapping("/scenes/{sceneId}/abilities")
+    public void recordAbility(@DestinationVariable String sceneId, @Payload AbilityActivationMessage message) {
+        try {
+            AbilityActivatedEvent event = sceneService.recordAbility(sceneId, message);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/abilities", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected ability activation in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
     @MessageMapping("/scenes/{sceneId}/roll-requests")
     public void requestRoll(@DestinationVariable String sceneId, @Payload RollRequestMessage message) {
         try {

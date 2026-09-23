@@ -1,0 +1,44 @@
+# Backfills joinedAtRound onto scene participants persisted before the field existed.
+#
+# It defaults to 0 — "in the turn rotation from Round 0" — which is the correct reading for every
+# participant written back then, since nothing was holding anyone back until this field introduced
+# the active/pending split (see SceneParticipantEntry).
+#
+# This can't be left to the mapping layer: Spring Data Mongo instantiates SceneParticipantEntry
+# through its canonical record constructor, and a missing field arrives as null rather than as an
+# int's default, which the primitive component rejects outright — an unmigrated document fails to
+# read at all rather than reading as 0.
+databaseChangeLog:
+  - changeSet:
+      id: 001-backfill-scene-participant-joined-at-round
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "scenes",
+                updates: [
+                  {
+                    q: { "participants.joinedAtRound": { $exists: false } },
+                    u: [
+                      {
+                        $set: {
+                          "participants": {
+                            $map: {
+                              input: "$participants",
+                              as: "participant",
+                              in: {
+                                $mergeObjects: [
+                                  { "joinedAtRound": 0 },
+                                  "$$participant"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

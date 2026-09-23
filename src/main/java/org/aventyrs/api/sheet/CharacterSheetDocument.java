@@ -74,4 +74,12 @@ public class CharacterSheetDocument {
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
      * same convention as {@code SceneDocument#getImageUrl()}. */
     private String tokenImageUrl;
+
+    /**
+     * The one Campanha this sheet takes part in, or {@code null} for none. This field is the
+     * membership record. Only {@code CampaignService}'s participant endpoints write it: {@code PUT
+     * /character-sheets/{id}} leaves it alone. {@code null} on every document persisted before it
+     * existed, which reads correctly as "in no Campanha".
+     */
+    private String campaignId;
 }

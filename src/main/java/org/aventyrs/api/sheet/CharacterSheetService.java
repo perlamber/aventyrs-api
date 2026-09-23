@@ -2,7 +2,9 @@ package org.aventyrs.api.sheet;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import org.aventyrs.api.campaign.CampaignService;
 import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.item.InventoryItemMapper;
 import org.aventyrs.api.player.PlayerRepository;
@@ -17,10 +19,13 @@ public class CharacterSheetService {
 
     private final CharacterSheetRepository repository;
     private final PlayerRepository playerRepository;
+    private final CampaignService campaignService;
 
-    public CharacterSheetService(CharacterSheetRepository repository, PlayerRepository playerRepository) {
+    public CharacterSheetService(CharacterSheetRepository repository, PlayerRepository playerRepository,
+            CampaignService campaignService) {
         this.repository = repository;
         this.playerRepository = playerRepository;
+        this.campaignService = campaignService;
     }
 
     public CharacterSheetResponse create(CharacterSheetCreateRequest request) {
@@ -47,6 +52,7 @@ public class CharacterSheetService {
                 List.of(),
                 List.of(),
                 List.of(),
+                null,
                 null);
         return toResponse(repository.save(document));
     }
@@ -56,11 +62,11 @@ public class CharacterSheetService {
     }
 
     public List<CharacterSheetResponse> list() {
-        return repository.findAll().stream().map(this::toResponse).toList();
+        return toResponses(repository.findAll());
     }
 
     public List<CharacterSheetResponse> listByPlayer(String playerId) {
-        return repository.findByPlayerId(playerId).stream().map(this::toResponse).toList();
+        return toResponses(repository.findByPlayerId(playerId));
     }
 
     public CharacterSheetResponse update(String id, CharacterSheetUpdateRequest request) {
@@ -106,11 +112,17 @@ public class CharacterSheetService {
      * <p>The rest of {@code character} is rebuilt from the stored entry rather than re-derived,
      * since {@link CharacterEntry} is a record — only {@code status} differs in the copy.
      */
-    public void updateCombatStatus(String id, int hitPointsSpent, CharacterStatus status) {
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status) {
         CharacterSheetDocument document = findOrThrow(id);
         CharacterEntry stored = document.getCharacter();
 
+        // All three pools, not PV alone: activating a Habilidade de Título spends PD (and some are
+        // priced in PV instead), so a Cena that only ever persisted damage silently refunded every
+        // PD spent the moment a player reconnected.
         document.setHitPointsSpent(hitPointsSpent);
+        document.setMagicPointsSpent(magicPointsSpent);
+        document.setDeterminationPointsSpent(determinationPointsSpent);
         document.setCharacter(new CharacterEntry(
                 stored.characterId(),
                 stored.name(),
@@ -139,7 +151,9 @@ public class CharacterSheetService {
                 stored.equipment(),
                 stored.primaryTitle(),
                 stored.secondaryTitle(),
-                stored.tertiaryTitle()));
+                stored.tertiaryTitle(),
+                stored.spells(),
+                stored.mimetizedSpells()));
 
         repository.save(document);
     }
@@ -162,12 +176,24 @@ public class CharacterSheetService {
                 .orElseThrow(() -> new NotFoundException("CharacterSheet not found: " + id));
     }
 
+    /** Answers every sheet's progression lock from one Campanha query rather than one per sheet. */
+    private List<CharacterSheetResponse> toResponses(List<CharacterSheetDocument> documents) {
+        Set<String> locked = campaignService.progressionLockedCampaignIds();
+        return documents.stream()
+                .map(document -> toResponse(document, locked.contains(document.getCampaignId())))
+                .toList();
+    }
+
+    private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
+        return toResponse(document, campaignService.isProgressionLocked(document.getCampaignId()));
+    }
+
     /**
      * {@code bleedingEffects}/{@code manaDrains}/{@code witheringEffects}/{@code
      * pendingEgoRecoveries} fall back to an empty list for documents persisted before those
      * fields existed, same reasoning as {@code CombatantSheetMapper#toCharacterResponse}.
      */
-    private CharacterSheetResponse toResponse(CharacterSheetDocument document) {
+    private CharacterSheetResponse toResponse(CharacterSheetDocument document, boolean progressionLocked) {
         return new CharacterSheetResponse(
                 document.getId(),
                 CombatantSheetMapper.toCharacterResponse(document.getCharacter()),
@@ -189,6 +215,8 @@ public class CharacterSheetService {
                 CombatantSheetMapper.toPendingEgoRecoveryDtos(document.getPendingEgoRecoveries()),
                 CombatantSheetMapper.toLifeStealDtos(document.getLifeSteals()),
                 InventoryItemMapper.toDtos(document.getInventory()),
-                document.getTokenImageUrl());
+                document.getTokenImageUrl(),
+                document.getCampaignId(),
+                progressionLocked);
     }
 }

@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-monster-sheets-collection
+      author: aventyrs-api
+      changes:
+        - createCollection:
+            collectionName: monsterSheets
+  - changeSet:
+      id: 002-create-monster-sheets-player-id-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: monsterSheets
+            keys: '{ "playerId": 1 }'
+            options: '{ "name": "ix_monster_sheets_player_id" }'
+  - changeSet:
+      id: 003-create-monster-sheets-character-id-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: monsterSheets
+            keys: '{ "character.characterId": 1 }'
+            options: '{ "name": "ix_monster_sheets_character_id" }'

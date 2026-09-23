@@ -23,5 +23,10 @@ public record RollResponseMessage(
         Integer margin,
         Integer total,
         Integer requiredTotal,
-        String note) {
+        String note,
+        /* Who this answer was made on behalf of, when an intercepting Reacao redirected the attack
+         * before it was rolled (aventyrs-core 0.0.42's SantoAbility#GUARDA_VIDAS). Null on every
+         * ordinary answer. characterSheetId stays the interceptor: the roll really is their own
+         * Defesa, against an attack that named them from the start. */
+        String interceptedForCharacterSheetId) {
 }

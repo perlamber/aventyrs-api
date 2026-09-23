@@ -76,7 +76,7 @@ class MonsterSheetControllerIntegrationTest {
     private static CharacterDto goblinCharacter() {
         return new CharacterDto(
                 "Goblin", MONSTER_RACE, null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -244,7 +244,7 @@ class MonsterSheetControllerIntegrationTest {
     void rejectsCreationWithBlankCharacterName() throws Exception {
         CharacterDto blankNamed = new CharacterDto(
                 "", MONSTER_RACE, null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, 2, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")

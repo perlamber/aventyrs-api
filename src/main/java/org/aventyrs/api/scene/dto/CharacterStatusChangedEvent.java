@@ -8,5 +8,7 @@ import org.aventyrs.core.character.CharacterStatus;
  * the {@link CharacterStatusMessage} that produced it (its own token badge is confirmed by the
  * echo, the same single-source-of-truth flow {@link TokenMovedEvent} uses for moves).
  */
-public record CharacterStatusChangedEvent(String characterSheetId, int hitPointsSpent, CharacterStatus status) {
+public record CharacterStatusChangedEvent(String characterSheetId, int hitPointsSpent,
+                                          int magicPointsSpent, int determinationPointsSpent,
+                                          CharacterStatus status) {
 }

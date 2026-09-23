@@ -1,0 +1,63 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-character-tendencia-to-alignment
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "characterSheets",
+                updates: [
+                  {
+                    q: { "character.tendencia": { $exists: true } },
+                    u: [
+                      {
+                        $set: {
+                          "character.alignment": {
+                            $switch: {
+                              branches: [
+                                { case: { $lte: [ "$character.tendencia", 4 ] }, then: "EVIL" },
+                                { case: { $gte: [ "$character.tendencia", 7 ] }, then: "GOOD" }
+                              ],
+                              default: "NEUTRAL"
+                            }
+                          }
+                        }
+                      },
+                      { $unset: "character.tendencia" }
+                    ],
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-monster-tendencia-to-alignment
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { "character.tendencia": { $exists: true } },
+                    u: [
+                      {
+                        $set: {
+                          "character.alignment": {
+                            $switch: {
+                              branches: [
+                                { case: { $lte: [ "$character.tendencia", 4 ] }, then: "EVIL" },
+                                { case: { $gte: [ "$character.tendencia", 7 ] }, then: "GOOD" }
+                              ],
+                              default: "NEUTRAL"
+                            }
+                          }
+                        }
+                      },
+                      { $unset: "character.tendencia" }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

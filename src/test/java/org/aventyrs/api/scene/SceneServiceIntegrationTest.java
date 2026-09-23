@@ -20,6 +20,7 @@ import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
@@ -105,7 +106,7 @@ class SceneServiceIntegrationTest {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
                         Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
-                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         return characterSheetService.create(request).id();
     }
@@ -159,6 +160,40 @@ class SceneServiceIntegrationTest {
     @Test
     void activatingAnUnknownSceneThrowsNotFound() {
         assertThrows(NotFoundException.class, () -> sceneActivationService.activate(UUID.randomUUID().toString()));
+    }
+
+    /**
+     * A Cena whose {@code abilityHistory} predates the compulsion fields must still load.
+     *
+     * <p><b>Regression.</b> {@link SceneAbilityEntry} grew three components after entries were
+     * already persisted in a live database. One of them was a primitive {@code int}, and Spring
+     * Data cannot instantiate a record whose primitive component has no stored value: it refused
+     * with "Parameter enchantmentRounds must not be null" and <em>every</em> scene read returned
+     * 400, not merely the one holding the older entry — which took the GM console's scene list
+     * down with it.
+     *
+     * <p>Every other test here creates its documents through the current code, so they all carry
+     * the new fields and pass straight through the bug. This one writes the older shape on purpose.
+     */
+    @Test
+    void aSceneWhoseAbilityHistoryPredatesTheCompulsionFieldsStillLoads() {
+        String sceneId = newScene("Cena Legada");
+        SceneDocument document = sceneRepository.findById(sceneId).orElseThrow();
+        document.setAbilityHistory(List.of(new SceneAbilityEntry(
+                characterSheetId1, "SANTO", "ORGULHO_ELDURIANO", "Orgulho Elduriano",
+                3, 0, 7, List.of(),
+                // The three that did not exist when such an entry was first written.
+                null, null, null)));
+        sceneRepository.save(document);
+
+        SceneResponse response = sceneService.get(sceneId);
+
+        assertEquals(1, response.abilityHistory().size());
+        AbilityActivatedEvent event = response.abilityHistory().get(0);
+        assertEquals("ORGULHO_ELDURIANO", event.abilityId());
+        assertEquals(3, event.determinationPointsSpent());
+        assertEquals(0, event.enchantmentRounds(), "a missing count reads as none, not a failure");
+        assertEquals(List.of(), event.boundCharacterSheetIds());
     }
 
     private void forceActive(String sceneId) {
@@ -339,14 +374,14 @@ class SceneServiceIntegrationTest {
 
         RollRespondedEvent rolled = sceneService.respondToRoll(sceneId, new RollResponseMessage(
                 requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(4, 5, 3),
-                Boolean.TRUE, 3, 21, 18, null));
+                Boolean.TRUE, 3, 21, 18, null, null));
         assertEquals(Boolean.TRUE, rolled.succeeded());
         assertEquals(3, rolled.margin());
         assertEquals(List.of(4, 5, 3), rolled.dice());
 
         RollRespondedEvent reacted = sceneService.respondToRoll(sceneId, new RollResponseMessage(
                 requestId, characterSheetId1, RollResponseKind.REACTED, null,
-                null, null, null, null, "Conjurando Escudo Arcano"));
+                null, null, null, null, "Conjurando Escudo Arcano", null));
         assertNull(reacted.succeeded(), "a declared reaction states no verdict");
         assertEquals(List.of(), reacted.dice());
         assertEquals("Conjurando Escudo Arcano", reacted.note());
@@ -382,7 +417,7 @@ class SceneServiceIntegrationTest {
                     startTogether.await();
                     return sceneService.respondToRoll(sceneId, new RollResponseMessage(
                             requestId, characterSheetId1, RollResponseKind.ROLLED, List.of(1, 2, 3),
-                            Boolean.TRUE, roll, roll, 0, null));
+                            Boolean.TRUE, roll, roll, 0, null, null));
                 }));
             }
             startTogether.countDown();
@@ -470,7 +505,7 @@ class SceneServiceIntegrationTest {
         assertEquals(CharacterStatus.CLEAN, before.character().status());
         assertEquals(0, before.damageTaken());
 
-        characterSheetService.updateCombatStatus(characterSheetId1, 13, CharacterStatus.LOW_LIFE);
+        characterSheetService.updateCombatStatus(characterSheetId1, 13, 0, 0, CharacterStatus.LOW_LIFE);
 
         CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
         assertEquals(CharacterStatus.LOW_LIFE, after.character().status());
@@ -492,7 +527,7 @@ class SceneServiceIntegrationTest {
     @Test
     void updateCombatStatusRejectsAnUnknownCharacterSheet() {
         assertThrows(NotFoundException.class,
-                () -> characterSheetService.updateCombatStatus("no-such-sheet", 5, CharacterStatus.FALLEN));
+                () -> characterSheetService.updateCombatStatus("no-such-sheet", 5, 0, 0, CharacterStatus.FALLEN));
     }
 
     private String createThirdCharacterSheet() {
@@ -577,6 +612,29 @@ class SceneServiceIntegrationTest {
         IllegalStateException rejected =
                 assertThrows(IllegalStateException.class, () -> sceneService.startCombat(sceneId));
         assertEquals("SCENE_ALREADY_IN_COMBAT", rejected.getMessage());
+    }
+
+    @Test
+    void endCombatFlipsTheFlagOffResetsTheRodadaAndRefusesASceneNotInCombat() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, UUID.randomUUID()));
+
+        IllegalStateException early =
+                assertThrows(IllegalStateException.class, () -> sceneService.endCombat(sceneId));
+        assertEquals("SCENE_NOT_IN_COMBAT", early.getMessage());
+
+        sceneService.startCombat(sceneId);
+        sceneService.advanceTurn(sceneId);
+        sceneService.advanceTurn(sceneId);
+        sceneService.advanceTurn(sceneId);
+        assertTrue(sceneService.get(sceneId).currentRound() > 0);
+
+        SceneResponse ended = sceneService.endCombat(sceneId);
+        assertEquals(false, ended.combatScene());
+        assertEquals(0, ended.currentRound());
+        assertEquals(false, sceneService.get(sceneId).combatScene());
+
+        assertEquals(true, sceneService.startCombat(sceneId).combatScene(), "a later combat may start again");
     }
 
     @Test

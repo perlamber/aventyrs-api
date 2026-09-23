@@ -42,7 +42,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 	implementation 'org.liquibase.ext:liquibase-mongodb:5.0.3'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
-	implementation 'org.aventyrs.core:aventyrs-core:0.0.33'
+	implementation 'org.aventyrs.core:aventyrs-core:0.0.48'
 	implementation 'software.amazon.awssdk:s3'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -88,8 +88,12 @@ tasks.register('packageJar', Copy) {
 liquibase {
 	activities {
 		main {
-			changelogFile 'src/main/resources/db/changelog/db.changelog-master.yaml'
+			changelogFile 'db/changelog/db.changelog-master.yaml'
 			url 'mongodb://localhost:27017/aventyrs'
+			// Liquibase 5.x resolves an `include` against the search path, not against the
+			// changelog's own location, so without this every include under db/changelog fails
+			// to be found and the master parses no further than its first one.
+			searchPath 'src/main/resources'
 		}
 	}
 	runList = 'main'

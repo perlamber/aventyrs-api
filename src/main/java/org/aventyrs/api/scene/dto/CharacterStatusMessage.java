@@ -13,5 +13,7 @@ import org.aventyrs.core.character.CharacterStatus;
  * alongside it rather than being derived, so the stored damage and the stored tier can never
  * disagree — a sheet reloaded later resolves the same status it was broadcast with.
  */
-public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent, CharacterStatus status) {
+public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
+                                     int magicPointsSpent, int determinationPointsSpent,
+                                     CharacterStatus status) {
 }

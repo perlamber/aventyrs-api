@@ -6,4 +6,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 public interface CharacterSheetRepository extends MongoRepository<CharacterSheetDocument, String> {
 
     List<CharacterSheetDocument> findByPlayerId(String playerId);
+
+    List<CharacterSheetDocument> findByCampaignId(String campaignId);
 }

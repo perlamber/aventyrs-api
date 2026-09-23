@@ -105,7 +105,7 @@ class SceneControllerIntegrationTest {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
                         Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
-                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         String response = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -193,6 +193,21 @@ class SceneControllerIntegrationTest {
         mockMvc.perform(post("/api/scenes/{id}/combat", id))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("SCENE_ALREADY_IN_COMBAT"));
+    }
+
+    @Test
+    void endCombatFlipsTheFlagOffAndRejectsASceneNotInCombat() throws Exception {
+        String id = createEmptyScene();
+
+        mockMvc.perform(post("/api/scenes/{id}/combat/end", id))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("SCENE_NOT_IN_COMBAT"));
+
+        mockMvc.perform(post("/api/scenes/{id}/combat", id)).andExpect(status().isOk());
+        mockMvc.perform(post("/api/scenes/{id}/combat/end", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.combatScene").value(false))
+                .andExpect(jsonPath("$.currentRound").value(0));
     }
 
     @Test

@@ -5,6 +5,7 @@ import java.util.List;
 import org.aventyrs.api.image.ImageStorageException;
 import org.aventyrs.core.sheet.IllegalOperationException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -63,6 +64,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleIllegalOperation(IllegalOperationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiError.of(HttpStatus.CONFLICT.value(), HttpStatus.CONFLICT.getReasonPhrase(), ex.getMessage()));
+    }
+
+    /**
+     * Another request changed a {@code @Version}ed document between this one's read and its save,
+     * e.g. two GMs starting a Sessão at once ({@code CampaignDocument}). The caller should reload
+     * and retry.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLocking(OptimisticLockingFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiError.of(HttpStatus.CONFLICT.value(), HttpStatus.CONFLICT.getReasonPhrase(),
+                        "The resource was changed by another request; reload and retry"));
     }
 
     @ExceptionHandler(DuplicateKeyException.class)

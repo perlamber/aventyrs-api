@@ -14,6 +14,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.aventyrs.api.common.NotFoundException;
+import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
+import org.aventyrs.api.scene.dto.AbilityActivationMessage;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
@@ -86,7 +88,9 @@ public class SceneService {
         SceneDocument document = new SceneDocument(
                 UUID.randomUUID().toString(), request.name(), TerrainType.valueOf(request.terrain()), List.of(), 0, -1,
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
-                List.of(), List.of());
+                // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
+                // follows field declaration order.
+                List.of(), List.of(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -410,6 +414,31 @@ public class SceneService {
     }
 
     /**
+     * Combat ends in this scene — the GM's "encerrar combate", mirroring {@code Scene#endCombat()}
+     * (core 0.0.48): flip {@code combatScene} off and put {@code currentRound} back to 0, so the
+     * next combat counts its Rodadas afresh. The turn cursor is left where it is.
+     *
+     * <p>What core's {@code endCombat()} also does — dropping every participant's combat-scoped
+     * grants ("até o final da Cena": Campeão da Taverna's stacked Defesas, Impacto Elemental's
+     * budget) — is left to the clients, the same split {@link #startCombat} documents: those
+     * grants live on the {@code CombatantSheet}s that exist only there. Each client runs its own
+     * {@code Scene#endCombat()} off the broadcast this produces.
+     *
+     * @throws IllegalOperationException ({@code SCENE_NOT_IN_COMBAT}) if this scene is not a combat
+     *         scene
+     */
+    public SceneResponse endCombat(String id) {
+        SceneDocument document = findOrThrow(id);
+        if (!document.isCombatScene()) {
+            throw new IllegalOperationException(TranslatableMessages.SCENE_NOT_IN_COMBAT);
+        }
+
+        document.setCombatScene(false);
+        document.setCurrentRound(0);
+        return toResponse(repository.save(document));
+    }
+
+    /**
      * Moves this scene's turn cursor on by one, mirroring {@code Scene#next()}'s arithmetic: step
      * to the next participant in the rotation, and on wrapping back to the top — <b>only while
      * {@code combatScene} is true</b> — advance the Round, merge whoever was waiting, and re-derive
@@ -494,7 +523,9 @@ public class SceneService {
                 message.attackSourceKind(),
                 new ActionCost(message.costKind(), message.actionPoints()),
                 message.turnNumber(),
-                toOutcome(message));
+                toOutcome(message),
+                message.dice() == null ? null : List.copyOf(message.dice()),
+                message.total());
 
         List<SceneActionEntry> history = new ArrayList<>(actionHistoryOf(document));
         history.add(entry);
@@ -513,6 +544,64 @@ public class SceneService {
         }
         return new ActionOutcome(message.succeeded(), message.margin(),
                 message.criticalResult(), message.reachedDifficultyLevel());
+    }
+
+    /**
+     * Records a Habilidade de Título one client just activated, and hands back the event to
+     * broadcast.
+     *
+     * <p>Persisted onto the Scene's own log beside {@code actionHistory}, and for the same reason:
+     * a client joining late has no other way to learn that an Aura is standing or that an ally's
+     * Defesas were raised three Rodadas ago. Taken at face value — this server runs no rules
+     * engine, so what the activating client's core decided is what is stored.
+     *
+     * @throws NotFoundException if characterSheetId is not a participant of this scene
+     */
+    public AbilityActivatedEvent recordAbility(String id, AbilityActivationMessage message) {
+        SceneDocument document = findOrThrow(id);
+        indexOfParticipant(document.getParticipants(), message.characterSheetId());
+
+        SceneAbilityEntry entry = new SceneAbilityEntry(
+                message.characterSheetId(),
+                message.titleType(),
+                message.abilityId(),
+                message.abilityName(),
+                message.determinationPointsSpent(),
+                message.hitPointsSpent(),
+                message.turnNumber(),
+                message.blessings() == null ? List.of() : List.copyOf(message.blessings()),
+                message.enchanterCharacterSheetId(),
+                message.boundCharacterSheetIds() == null
+                        ? List.of() : List.copyOf(message.boundCharacterSheetIds()),
+                message.enchantmentRounds());
+
+        List<SceneAbilityEntry> history = new ArrayList<>(abilityHistoryOf(document));
+        history.add(entry);
+        document.setAbilityHistory(history);
+        repository.save(document);
+
+        return toAbilityEvent(entry);
+    }
+
+    /** {@code null} on any document persisted before {@code abilityHistory} existed. */
+    private static List<SceneAbilityEntry> abilityHistoryOf(SceneDocument document) {
+        return document.getAbilityHistory() == null ? List.of() : document.getAbilityHistory();
+    }
+
+    private AbilityActivatedEvent toAbilityEvent(SceneAbilityEntry entry) {
+        return new AbilityActivatedEvent(
+                entry.characterSheetId(),
+                entry.titleType(),
+                entry.abilityId(),
+                entry.abilityName(),
+                SceneAbilityEntry.orZero(entry.determinationPointsSpent()),
+                SceneAbilityEntry.orZero(entry.hitPointsSpent()),
+                SceneAbilityEntry.orZero(entry.turnNumber()),
+                entry.blessings() == null ? List.of() : List.copyOf(entry.blessings()),
+                entry.enchanterCharacterSheetId(),
+                entry.boundCharacterSheetIds() == null
+                        ? List.of() : List.copyOf(entry.boundCharacterSheetIds()),
+                SceneAbilityEntry.orZero(entry.enchantmentRounds()));
     }
 
     /** {@code null} on any document persisted before {@code actionHistory} existed. */
@@ -585,7 +674,8 @@ public class SceneService {
                 message.total(),
                 message.requiredTotal(),
                 message.note(),
-                Instant.now());
+                Instant.now(),
+                message.interceptedForCharacterSheetId());
 
         appendTo(id, "rollResponses", entry);
         return toRollRespondedEvent(entry);
@@ -617,7 +707,7 @@ public class SceneService {
     private RollRespondedEvent toRollRespondedEvent(SceneRollResponseEntry entry) {
         return new RollRespondedEvent(entry.requestId(), entry.characterSheetId(), entry.kind(),
                 entry.dice(), entry.succeeded(), entry.margin(), entry.total(), entry.requiredTotal(),
-                entry.note(), entry.respondedAt());
+                entry.note(), entry.respondedAt(), entry.interceptedForCharacterSheetId());
     }
 
     private SceneActionEvent toActionEvent(SceneActionEntry entry) {
@@ -633,7 +723,9 @@ public class SceneService {
                 outcome == null ? null : outcome.succeeded(),
                 outcome == null ? null : outcome.margin(),
                 outcome == null ? null : outcome.criticalResult(),
-                outcome == null ? null : outcome.reachedDifficultyLevel());
+                outcome == null ? null : outcome.reachedDifficultyLevel(),
+                entry.dice(),
+                entry.total());
     }
 
     /** How many of participants are in the turn rotation at round — the length of the list's prefix. */
@@ -782,6 +874,9 @@ public class SceneService {
         List<RollRespondedEvent> rollResponses = rollResponsesOf(document).stream()
                 .map(this::toRollRespondedEvent)
                 .toList();
+        List<AbilityActivatedEvent> abilityHistory = abilityHistoryOf(document).stream()
+                .map(this::toAbilityEvent)
+                .toList();
         return new SceneResponse(
                 document.getId(),
                 document.getName(),
@@ -795,6 +890,7 @@ public class SceneService {
                 document.getWidth(),
                 document.getHeight(),
                 actionHistory,
+                abilityHistory,
                 rollRequests,
                 rollResponses,
                 document.getItemStoreMaxRarity(),
