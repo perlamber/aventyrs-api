@@ -35,6 +35,8 @@ public record CharacterSheetResponse(
         List<InventoryItemDto> inventory,
         String tokenImageUrl,
         String campaignId,
-        boolean progressionLocked
+        boolean progressionLocked,
+        List<HourlyEgoRecoveryDto> hourlyEgoRecoveries,
+        boolean exhausted
 ) {
 }

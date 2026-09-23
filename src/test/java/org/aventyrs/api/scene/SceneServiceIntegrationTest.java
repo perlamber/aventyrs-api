@@ -79,6 +79,9 @@ class SceneServiceIntegrationTest {
     private PlayerService playerService;
 
     @Autowired
+    private org.aventyrs.api.sheet.CharacterSheetRepository characterSheetRepository;
+
+    @Autowired
     private CharacterSheetService characterSheetService;
 
     private String characterSheetId1;
@@ -182,8 +185,8 @@ class SceneServiceIntegrationTest {
         document.setAbilityHistory(List.of(new SceneAbilityEntry(
                 characterSheetId1, "SANTO", "ORGULHO_ELDURIANO", "Orgulho Elduriano",
                 3, 0, 7, List.of(),
-                // The three that did not exist when such an entry was first written.
-                null, null, null)));
+                // The four that did not exist when such an entry was first written.
+                null, null, null, null)));
         sceneRepository.save(document);
 
         SceneResponse response = sceneService.get(sceneId);
@@ -716,5 +719,73 @@ class SceneServiceIntegrationTest {
         sceneService.removeParticipant(sceneId, characterSheetId1);
 
         assertEquals(-1, sceneService.get(sceneId).currentIndex());
+    }
+
+    // --- Gigante Enfurecido: the Ego state a live Cena persists ----------------------------------
+
+    @Test
+    void combatStatusPersistsTheEgoStateWhenSentAndLeavesItAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                Map.of(org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3),
+                List.of(new org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto(
+                        org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3, 2, 1)),
+                true);
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 4, 0, 0, CharacterStatus.HIGH_LIFE);
+
+        CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
+        assertEquals(3, after.temporaryEgoPoints().get(org.aventyrs.core.character.EgoDomain.AUTOCONTROLE));
+        assertEquals(List.of(new org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto(
+                org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3, 2, 1)), after.hourlyEgoRecoveries());
+        assertTrue(after.exhausted());
+        assertEquals(4, after.damageTaken());
+    }
+
+    @Test
+    void aSheetWrittenBeforeTheEgoStateExistedStillReads() {
+        var document = characterSheetRepository.findById(characterSheetId2).orElseThrow();
+        document.setHourlyEgoRecoveries(null);
+        document.setExhausted(null);
+        characterSheetRepository.save(document);
+
+        CharacterSheetResponse response = characterSheetService.get(characterSheetId2);
+
+        assertEquals(List.of(), response.hourlyEgoRecoveries());
+        assertFalse(response.exhausted());
+    }
+
+    @Test
+    void anAbilityActivationCarriesItsEffectsOnOthersThroughTheLogAndTheEcho() {
+        String sceneId = newScene("Grito");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        var effects = new org.aventyrs.api.scene.dto.TitleEffectsDto(
+                List.of(new org.aventyrs.api.scene.dto.AreaDamageDto(characterSheetId2, 7, "PRIMORDIAL", null)),
+                List.of(new org.aventyrs.api.scene.dto.InflictedConditionDto(characterSheetId2, "ABALADO", 2, true)),
+                null);
+
+        AbilityActivatedEvent echoed = sceneService.recordAbility(sceneId,
+                new org.aventyrs.api.scene.dto.AbilityActivationMessage(characterSheetId1, "GIGANTE_ENFURECIDO",
+                        "GRITOS_DE_GUERRA", "Gritos de Guerra", 3, 0, 2, List.of(), null, List.of(), 0, effects));
+
+        assertEquals(effects, echoed.effects());
+        assertEquals(effects, sceneService.get(sceneId).abilityHistory().get(0).effects());
+    }
+
+    @Test
+    void passingTimeValidatesTheRestAndWhoRests() {
+        String sceneId = newScene("Acampamento");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        var event = sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(4, "CURTO", List.of(characterSheetId1)));
+
+        assertEquals(4, event.hours());
+        assertEquals("CURTO", event.restType());
+        assertThrows(IllegalArgumentException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(-1, null, null)));
+        assertThrows(IllegalArgumentException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(1, "SONECA", null)));
+        assertThrows(RuntimeException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(1, null, List.of(characterSheetId2))));
     }
 }

@@ -1,5 +1,8 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.SceneTimeMessage;
+import org.aventyrs.api.scene.dto.CombatantStateMessage;
+import org.aventyrs.api.scene.dto.CombatantStateChangedEvent;
 import java.time.Instant;
 import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.AbilityActivationMessage;
@@ -98,7 +101,8 @@ public class SceneRealtimeController {
             sceneService.requireParticipant(sceneId, message.characterSheetId());
             characterSheetService.updateCombatStatus(
                     message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
-                    message.determinationPointsSpent(), message.status());
+                    message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints(),
+                    message.hourlyEgoRecoveries(), message.exhausted());
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",
                     new CharacterStatusChangedEvent(
@@ -303,6 +307,41 @@ public class SceneRealtimeController {
         } catch (RuntimeException ex) {
             log.warn("Rejected hidden-status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * A participant's live state for the rest of the table's boards — its effective size (a Titã
+     * Enlouquecido grows), its Frenesi, and whether it must attack the nearest creature. Relayed, never
+     * persisted, like {@link #hidden}: it lives on the owning client's core sheet, and this topic only
+     * lets every other board draw it. Membership is asserted for the same reason {@link #hidden} does.
+     */
+    @MessageMapping("/scenes/{sceneId}/state")
+    public void combatantState(@DestinationVariable String sceneId, @Payload CombatantStateMessage message) {
+        try {
+            sceneService.requireParticipant(sceneId, message.characterSheetId());
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/state",
+                    new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
+                            message.frenzyRounds(), message.frenzyModes(), message.compelled()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected state change in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The GM passed in-game time or granted a Descanso (see {@link SceneService#passTime}), broadcast
+     * so each client applies it to its own sheets. Only the GM's client offers the control — a
+     * client-side restriction, as {@link #resizeGrid}'s is. Rejected silently like {@link #move}.
+     */
+    @MessageMapping("/scenes/{sceneId}/time")
+    public void passTime(@DestinationVariable String sceneId, @Payload SceneTimeMessage message) {
+        try {
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/time",
+                    sceneService.passTime(sceneId, message));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected time passing in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 

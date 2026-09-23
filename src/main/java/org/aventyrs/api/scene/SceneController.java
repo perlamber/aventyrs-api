@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.SceneTimeMessage;
+import org.aventyrs.api.scene.dto.SceneTimeEvent;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -107,6 +109,18 @@ public class SceneController {
                 new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
         broadcastRoster(scene);
         return scene;
+    }
+
+    /**
+     * The GM passes in-game time or grants a Descanso Verdadeiro — the REST twin of the {@code
+     * /app/scenes/{id}/time} STOMP message, broadcast on the same {@code /topic/scenes/{id}/time}.
+     * Negative hours or an unknown rest type are a {@code 400}.
+     */
+    @PostMapping("/{id}/time")
+    public SceneTimeEvent passTime(@PathVariable String id, @RequestBody SceneTimeMessage message) {
+        SceneTimeEvent event = service.passTime(id, message);
+        messagingTemplate.convertAndSend("/topic/scenes/" + id + "/time", event);
+        return event;
     }
 
     /**

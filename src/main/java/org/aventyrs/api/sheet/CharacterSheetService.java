@@ -1,5 +1,8 @@
 package org.aventyrs.api.sheet;
 
+import java.util.Map;
+import org.aventyrs.core.character.EgoDomain;
+import org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
@@ -53,7 +56,9 @@ public class CharacterSheetService {
                 List.of(),
                 List.of(),
                 null,
-                null);
+                null,
+                List.of(),
+                false);
         return toResponse(repository.save(document));
     }
 
@@ -114,7 +119,28 @@ public class CharacterSheetService {
      */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
             int determinationPointsSpent, CharacterStatus status) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, null, null, null);
+    }
+
+    /**
+     * {@link #updateCombatStatus(String, int, int, int, CharacterStatus)}, plus the Ego state a live
+     * Cena changes — the temporary Ego spent, the hourly Ego debt, and the exhaustion. Each is written
+     * only when sent: {@code null} means "this client did not report it", never "clear it", so an
+     * older client's status frames leave them alone.
+     */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted) {
         CharacterSheetDocument document = findOrThrow(id);
+        if (temporaryEgoPoints != null) {
+            document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
+        }
+        if (hourlyEgoRecoveries != null) {
+            document.setHourlyEgoRecoveries(CombatantSheetMapper.toHourlyEgoRecoveryEntries(hourlyEgoRecoveries));
+        }
+        if (exhausted != null) {
+            document.setExhausted(exhausted);
+        }
         CharacterEntry stored = document.getCharacter();
 
         // All three pools, not PV alone: activating a Habilidade de Título spends PD (and some are
@@ -217,6 +243,8 @@ public class CharacterSheetService {
                 InventoryItemMapper.toDtos(document.getInventory()),
                 document.getTokenImageUrl(),
                 document.getCampaignId(),
-                progressionLocked);
+                progressionLocked,
+                CombatantSheetMapper.toHourlyEgoRecoveryDtos(document.getHourlyEgoRecoveries()),
+                Boolean.TRUE.equals(document.getExhausted()));
     }
 }

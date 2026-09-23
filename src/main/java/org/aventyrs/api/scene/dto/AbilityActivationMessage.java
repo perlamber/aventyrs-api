@@ -44,5 +44,14 @@ public record AbilityActivationMessage(
         List<BlessingDto> blessings,
         String enchanterCharacterSheetId,
         List<String> boundCharacterSheetIds,
-        int enchantmentRounds) {
+        int enchantmentRounds,
+        TitleEffectsDto effects) {
+
+    /** An activation affecting nobody beyond Blessings and bindings. */
+    public AbilityActivationMessage(String characterSheetId, String titleType, String abilityId, String abilityName,
+            int determinationPointsSpent, int hitPointsSpent, int turnNumber, List<BlessingDto> blessings,
+            String enchanterCharacterSheetId, List<String> boundCharacterSheetIds, int enchantmentRounds) {
+        this(characterSheetId, titleType, abilityId, abilityName, determinationPointsSpent, hitPointsSpent,
+                turnNumber, blessings, enchanterCharacterSheetId, boundCharacterSheetIds, enchantmentRounds, null);
+    }
 }

@@ -1,5 +1,8 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.core.rest.RestType;
+import org.aventyrs.api.scene.dto.SceneTimeMessage;
+import org.aventyrs.api.scene.dto.SceneTimeEvent;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -573,7 +576,8 @@ public class SceneService {
                 message.enchanterCharacterSheetId(),
                 message.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(message.boundCharacterSheetIds()),
-                message.enchantmentRounds());
+                message.enchantmentRounds(),
+                message.effects());
 
         List<SceneAbilityEntry> history = new ArrayList<>(abilityHistoryOf(document));
         history.add(entry);
@@ -601,7 +605,8 @@ public class SceneService {
                 entry.enchanterCharacterSheetId(),
                 entry.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(entry.boundCharacterSheetIds()),
-                SceneAbilityEntry.orZero(entry.enchantmentRounds()));
+                SceneAbilityEntry.orZero(entry.enchantmentRounds()),
+                entry.effects());
     }
 
     /** {@code null} on any document persisted before {@code actionHistory} existed. */
@@ -755,6 +760,27 @@ public class SceneService {
      * broadcasting combat state for a sheet that has nothing to do with that scene — {@link
      * #moveParticipant} gets the same guarantee for free from {@link #indexOfParticipant}.
      */
+    /**
+     * Checks a GM's "Passar tempo"/"Descansar" against this scene — hours not negative, a known
+     * {@code RestType}, every named sheet a participant — and returns what to broadcast. Nothing is
+     * persisted here: each client applies the time to the core sheets it owns and reports the result
+     * on {@code /status}, the same split every other rules effect keeps.
+     *
+     * @throws IllegalArgumentException for negative hours or an unknown rest type
+     */
+    public SceneTimeEvent passTime(String id, SceneTimeMessage message) {
+        SceneDocument document = findOrThrow(id);
+        if (message.hours() < 0) {
+            throw new IllegalArgumentException("Hours cannot be negative: " + message.hours());
+        }
+        if (message.restType() != null) {
+            RestType.valueOf(message.restType());
+        }
+        List<String> resting = message.characterSheetIds() == null ? List.of() : List.copyOf(message.characterSheetIds());
+        resting.forEach(sheetId -> indexOfParticipant(document.getParticipants(), sheetId));
+        return new SceneTimeEvent(message.hours(), message.restType(), resting);
+    }
+
     public void requireParticipant(String id, String characterSheetId) {
         indexOfParticipant(findOrThrow(id).getParticipants(), characterSheetId);
     }

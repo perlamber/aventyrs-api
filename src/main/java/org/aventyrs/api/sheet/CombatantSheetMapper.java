@@ -1,5 +1,6 @@
 package org.aventyrs.api.sheet;
 
+import org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -358,6 +359,26 @@ public final class CombatantSheetMapper {
         return entries == null ? List.of() : entries.stream()
                 .map(withering -> new WitheringDto(withering.valuePerRound(), withering.remainingRounds()))
                 .toList();
+    }
+
+    public static List<HourlyEgoRecoveryEntry> toHourlyEgoRecoveryEntries(List<HourlyEgoRecoveryDto> provided) {
+        return provided == null ? List.of() : provided.stream()
+                .map(owed -> new HourlyEgoRecoveryEntry(owed.domain(), owed.points(), owed.hoursPerPoint(),
+                        owed.bankedHours()))
+                .toList();
+    }
+
+    /** Null-safe both ways: an older document has no list, and an older entry may lack a number. */
+    public static List<HourlyEgoRecoveryDto> toHourlyEgoRecoveryDtos(List<HourlyEgoRecoveryEntry> entries) {
+        return entries == null ? List.of() : entries.stream()
+                .filter(owed -> owed.domain() != null)
+                .map(owed -> new HourlyEgoRecoveryDto(owed.domain(), orZero(owed.points()),
+                        owed.hoursPerPoint() == null ? 2 : owed.hoursPerPoint(), orZero(owed.bankedHours())))
+                .toList();
+    }
+
+    private static int orZero(Integer value) {
+        return value == null ? 0 : value;
     }
 
     public static List<PendingEgoRecoveryDto> toPendingEgoRecoveryDtos(List<PendingEgoRecoveryEntry> entries) {
