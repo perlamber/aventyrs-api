@@ -1,6 +1,7 @@
 package org.aventyrs.api.monster;
 
 import java.util.List;
+import org.aventyrs.api.item.InventoryItemMapper;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -50,7 +51,7 @@ public class MonsterSheetService {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of(),
+                InventoryItemMapper.toEntries(request.inventory()),
                 request.tokenImageUrl());
         return toResponse(repository.save(document));
     }
@@ -90,7 +91,7 @@ public class MonsterSheetService {
         document.setWitheringEffects(CombatantSheetMapper.toWitheringEntries(request.witheringEffects()));
         document.setPendingEgoRecoveries(CombatantSheetMapper.toPendingEgoRecoveryEntries(request.pendingEgoRecoveries()));
         document.setLifeSteals(CombatantSheetMapper.toLifeStealEntries(request.lifeSteals()));
-        document.setInventory(request.inventory() == null ? List.of() : request.inventory());
+        document.setInventory(InventoryItemMapper.toEntries(request.inventory()));
         document.setTokenImageUrl(request.tokenImageUrl());
 
         return toResponse(repository.save(document));
@@ -154,7 +155,7 @@ public class MonsterSheetService {
                 CombatantSheetMapper.toWitheringDtos(document.getWitheringEffects()),
                 CombatantSheetMapper.toPendingEgoRecoveryDtos(document.getPendingEgoRecoveries()),
                 CombatantSheetMapper.toLifeStealDtos(document.getLifeSteals()),
-                document.getInventory() == null ? List.of() : document.getInventory(),
+                InventoryItemMapper.toDtos(document.getInventory()),
                 document.getTokenImageUrl());
     }
 }

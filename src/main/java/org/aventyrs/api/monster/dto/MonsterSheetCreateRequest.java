@@ -1,5 +1,7 @@
 package org.aventyrs.api.monster.dto;
 
+import java.util.List;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import java.util.Map;
 import org.aventyrs.core.monster.SkillDifficulty;
 import org.aventyrs.core.skill.SkillType;
@@ -17,7 +19,8 @@ import org.aventyrs.core.effect.CriticalEffectType;
  * domain factory. {@code generalDifficulty} defaults to Médio +0 ({@code SkillDifficulty.DEFAULT}) and {@code
  * skillDifficulties} to empty, {@code
  * undead} to {@code false} and {@code criticalEffectImmunities} to empty when omitted, matching
- * core's {@code AbstractMonsterTemplate}'s own {@code @Builder.Default}s.
+ * core's {@code AbstractMonsterTemplate}'s own {@code @Builder.Default}s. {@code inventory}, what
+ * the foe carries for a Saquear to take, defaults to empty.
  */
 public record MonsterSheetCreateRequest(
         @NotNull @Valid CharacterDto character,
@@ -28,6 +31,7 @@ public record MonsterSheetCreateRequest(
         Map<SkillType, SkillDifficulty> skillDifficulties,
         Boolean undead,
         Set<CriticalEffectType> criticalEffectImmunities,
-        String tokenImageUrl
+        String tokenImageUrl,
+        List<@Valid InventoryItemDto> inventory
 ) {
 }

@@ -1,5 +1,6 @@
 package org.aventyrs.api.monster.dto;
 
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.monster.SkillDifficulty;
 import org.aventyrs.core.skill.SkillType;
 import java.util.List;
@@ -36,7 +37,7 @@ public record MonsterSheetResponse(
         List<WitheringDto> witheringEffects,
         List<PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<LifeStealDto> lifeSteals,
-        List<String> inventory,
+        List<InventoryItemDto> inventory,
         String tokenImageUrl
 ) {
 }

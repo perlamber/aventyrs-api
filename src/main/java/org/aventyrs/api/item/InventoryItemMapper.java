@@ -25,7 +25,7 @@ public final class InventoryItemMapper {
         return entries == null ? List.of() : entries.stream().map(InventoryItemMapper::toDto).toList();
     }
 
-    static InventoryItemEntry toEntry(InventoryItemDto dto) {
+    public static InventoryItemEntry toEntry(InventoryItemDto dto) {
         return new InventoryItemEntry(
                 dto.templateName(),
                 dto.name(),
@@ -48,7 +48,7 @@ public final class InventoryItemMapper {
                 dto.donatedByAventyr());
     }
 
-    static InventoryItemDto toDto(InventoryItemEntry entry) {
+    public static InventoryItemDto toDto(InventoryItemEntry entry) {
         return new InventoryItemDto(
                 entry.templateName(),
                 entry.name(),

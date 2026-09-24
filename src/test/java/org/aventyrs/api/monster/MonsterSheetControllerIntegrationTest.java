@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.api.monster.dto.MonsterSheetCreateRequest;
 import org.aventyrs.api.monster.dto.MonsterSheetUpdateRequest;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -30,6 +31,9 @@ import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
+import org.aventyrs.core.item.ItemCategory;
+import org.aventyrs.core.item.ItemRarity;
+import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.core.modifier.ModifierType;
 import org.aventyrs.core.rest.RestType;
 import org.aventyrs.core.skill.DifficultyLevel;
@@ -81,12 +85,36 @@ class MonsterSheetControllerIntegrationTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
+    static InventoryItemDto roupaPesada() {
+        return new InventoryItemDto("ROUPA_PESADA", "Roupa Pesada", null, ItemCategory.ARMOR, ItemRarity.COMMON,
+                ItemWeightClass.HEAVY, 0, 2, 0, 0, 0, 0, null, null, List.of(), null, null, null, false);
+    }
+
+    /** A foe authored with loot keeps it, for a Saquear to take. */
+    @Test
+    void storesTheInventoryGivenAtCreation() throws Exception {
+        MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
+                goblinCharacter(), gmId, 12, 9, null, null, null, null, null, List.of(roupaPesada()));
+
+        String created = mockMvc.perform(post("/api/monster-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String id = objectMapper.readTree(created).get("id").asText();
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.inventory", hasSize(1)))
+                .andExpect(jsonPath("$.inventory[0].name").value("Roupa Pesada"))
+                .andExpect(jsonPath("$.inventory[0].category").value("ARMOR"));
+    }
+
     @Test
     void performsFullCrudLifecycle() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
                 goblinCharacter(), gmId, 12, 9, SkillDifficulty.of(DifficultyLevel.HARD, 2),
                 Map.of(SkillType.FURTIVIDADE, SkillDifficulty.of(DifficultyLevel.MEDIUM, 1)), true, Set.of(CriticalEffectType.SANGRAMENTO),
-                null);
+                null, null);
 
         String createResponse = mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -157,7 +185,7 @@ class MonsterSheetControllerIntegrationTest {
                 List.of(new WitheringDto(1, 2)),
                 List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)),
                 List.of(new LifeStealDto(2, null)),
-                List.of("ROUPA_PESADA"),
+                List.of(roupaPesada()),
                 "https://images.aventyrs.test/tokens/goblin.png");
 
         mockMvc.perform(put("/api/monster-sheets/{id}", id)
@@ -186,7 +214,8 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(1)))
                 .andExpect(jsonPath("$.lifeSteals", hasSize(1)))
                 .andExpect(jsonPath("$.inventory", hasSize(1)))
-                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].templateName").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].name").value("Roupa Pesada"))
                 .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/goblin.png"));
 
         mockMvc.perform(get("/api/monster-sheets/{id}", id))
@@ -203,7 +232,7 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void defaultsDifficultiesUndeadAndImmunitiesWhenOmitted() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, null, null, null, null, null);
+                goblinCharacter(), gmId, 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -222,7 +251,7 @@ class MonsterSheetControllerIntegrationTest {
     void storesTheTokenImageUrlGivenAtCreation() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
                 goblinCharacter(), gmId, 12, 9, null, null, null, null,
-                "https://images.aventyrs.test/tokens/zumbi.png");
+                "https://images.aventyrs.test/tokens/zumbi.png", null);
 
         String created = mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -240,7 +269,7 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(
-                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, null, null, null, null);
+                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -253,7 +282,7 @@ class MonsterSheetControllerIntegrationTest {
         CharacterDto blankNamed = new CharacterDto(
                 "", MONSTER_RACE, null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, null, null, null, null);
+        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)

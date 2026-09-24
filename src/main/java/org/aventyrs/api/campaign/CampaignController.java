@@ -3,6 +3,10 @@ package org.aventyrs.api.campaign;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.aventyrs.api.campaign.dto.BagAddRequest;
+import org.aventyrs.api.campaign.dto.BagClaimRequest;
+import org.aventyrs.api.campaign.dto.BagDepositRequest;
+import org.aventyrs.api.campaign.dto.BagLootRequest;
 import org.aventyrs.api.campaign.dto.CampaignCreateRequest;
 import org.aventyrs.api.campaign.dto.CampaignResponse;
 import org.springframework.http.HttpStatus;
@@ -20,7 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Campanhas, their Sessões and their participants. Every Sessão or participant change re-broadcasts
  * the whole {@link CampaignResponse} on {@code /topic/campaigns/{id}/sessions}, so a client showing
- * one of the Campanha's sheets can lock or unlock progression without reloading.
+ * one of the Campanha's sheets can lock or unlock progression without reloading. Every bag change
+ * broadcasts it on {@code /topic/campaigns/{id}/bag} instead.
  */
 @RestController
 @RequestMapping("/api/campaigns")
@@ -83,6 +88,42 @@ public class CampaignController {
     @DeleteMapping("/{id}/participants/{characterSheetId}")
     public CampaignResponse removeParticipant(@PathVariable String id, @PathVariable String characterSheetId) {
         return broadcast(service.removeParticipant(id, characterSheetId));
+    }
+
+    /** The GM puts an item into the Campanha's bag. */
+    @PostMapping("/{id}/bag")
+    public ResponseEntity<CampaignResponse> addToBag(@PathVariable String id, @Valid @RequestBody BagAddRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(broadcastBag(service.addToBag(id, request)));
+    }
+
+    /** The GM throws a bag item away. A {@code 409 BAG_ITEM_NOT_FOUND} if it is already gone. */
+    @DeleteMapping("/{id}/bag/{entryId}")
+    public CampaignResponse discardFromBag(@PathVariable String id, @PathVariable String entryId) {
+        return broadcastBag(service.discardFromBag(id, entryId));
+    }
+
+    /** A participant takes a bag item. A {@code 409 BAG_ITEM_NOT_FOUND} if someone took it first. */
+    @PostMapping("/{id}/bag/{entryId}/claim")
+    public CampaignResponse claimFromBag(@PathVariable String id, @PathVariable String entryId,
+            @Valid @RequestBody BagClaimRequest request) {
+        return broadcastBag(service.claimFromBag(id, entryId, request));
+    }
+
+    /** A participant puts one carried item into the bag. */
+    @PostMapping("/{id}/bag/deposit")
+    public CampaignResponse depositToBag(@PathVariable String id, @Valid @RequestBody BagDepositRequest request) {
+        return broadcastBag(service.depositToBag(id, request));
+    }
+
+    /** Saquear, or the end-of-combat sweep: everything the foe carries goes into the bag. */
+    @PostMapping("/{id}/bag/loot")
+    public CampaignResponse lootIntoBag(@PathVariable String id, @Valid @RequestBody BagLootRequest request) {
+        return broadcastBag(service.lootIntoBag(id, request));
+    }
+
+    private CampaignResponse broadcastBag(CampaignResponse campaign) {
+        messagingTemplate.convertAndSend("/topic/campaigns/" + campaign.id() + "/bag", campaign);
+        return campaign;
     }
 
     private CampaignResponse broadcast(CampaignResponse campaign) {

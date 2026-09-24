@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.AllArgsConstructor;
+import org.aventyrs.api.item.InventoryItemEntry;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -86,8 +87,13 @@ public class MonsterSheetDocument {
 
     private List<LifeStealEntry> lifeSteals;
 
-    /** {@code org.aventyrs.api.item.ItemDocument} ids this sheet carries — see {@link CharacterEntry}'s equipment javadoc. */
-    private List<String> inventory;
+    /**
+     * What this foe carries, not wears — embedded, the same shape as {@code
+     * CharacterSheetDocument#inventory}. It was once a list of {@code items}-collection ids that
+     * nothing read or wrote; changelog 018 migrated it. A Saquear, or the end of combat, moves the
+     * whole list into the Campanha's bag ({@code CampaignService#lootFrom}).
+     */
+    private List<InventoryItemEntry> inventory;
 
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
      * same convention as {@code SceneDocument#getImageUrl()}. */

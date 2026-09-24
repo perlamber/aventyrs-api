@@ -1,5 +1,6 @@
 package org.aventyrs.api.monster.dto;
 
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.monster.SkillDifficulty;
 import org.aventyrs.core.skill.SkillType;
 import jakarta.validation.Valid;
@@ -39,7 +40,7 @@ public record MonsterSheetUpdateRequest(
         List<@Valid WitheringDto> witheringEffects,
         List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<@Valid LifeStealDto> lifeSteals,
-        List<String> inventory,
+        List<@Valid InventoryItemDto> inventory,
         String tokenImageUrl
 ) {
 }
