@@ -24,6 +24,7 @@ public record SceneResponse(
         List<RollRequestedEvent> rollRequests,
         List<RollRespondedEvent> rollResponses,
         ItemRarity itemStoreMaxRarity,
-        Map<Direction, SceneConnectionResponse> connections
+        Map<Direction, SceneConnectionResponse> connections,
+        List<GridPositionDto> difficultTerrain
 ) {
 }

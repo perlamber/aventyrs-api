@@ -1,6 +1,7 @@
 package org.aventyrs.api.monster;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.aventyrs.api.common.NotFoundException;
@@ -10,7 +11,8 @@ import org.aventyrs.api.monster.dto.MonsterSheetUpdateRequest;
 import org.aventyrs.api.player.PlayerRepository;
 import org.aventyrs.api.sheet.CombatantSheetMapper;
 import org.aventyrs.core.effect.CriticalEffectType;
-import org.aventyrs.core.skill.DifficultyLevel;
+import org.aventyrs.core.monster.SkillDifficulty;
+import org.aventyrs.core.skill.SkillType;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -33,8 +35,8 @@ public class MonsterSheetService {
                 request.playerId(),
                 request.physicalDefense(),
                 request.magicDefense(),
-                normalizeAttackDifficulty(request.attackDifficulty()),
-                request.attackBonus(),
+                normalizeGeneralDifficulty(request.generalDifficulty()),
+                normalizeSkillDifficulties(request.skillDifficulties()),
                 normalizeUndead(request.undead()),
                 normalizeCriticalEffectImmunities(request.criticalEffectImmunities()),
                 0,
@@ -73,8 +75,8 @@ public class MonsterSheetService {
         document.setPlayerId(request.playerId());
         document.setPhysicalDefense(request.physicalDefense());
         document.setMagicDefense(request.magicDefense());
-        document.setAttackDifficulty(normalizeAttackDifficulty(request.attackDifficulty()));
-        document.setAttackBonus(request.attackBonus());
+        document.setGeneralDifficulty(normalizeGeneralDifficulty(request.generalDifficulty()));
+        document.setSkillDifficulties(normalizeSkillDifficulties(request.skillDifficulties()));
         document.setUndead(normalizeUndead(request.undead()));
         document.setCriticalEffectImmunities(normalizeCriticalEffectImmunities(request.criticalEffectImmunities()));
         document.setHitPointsSpent(request.hitPointsSpent());
@@ -113,8 +115,13 @@ public class MonsterSheetService {
     }
 
     /** core's own {@code AbstractMonsterTemplate}'s {@code @Builder.Default}. */
-    private static DifficultyLevel normalizeAttackDifficulty(DifficultyLevel attackDifficulty) {
-        return attackDifficulty == null ? DifficultyLevel.MEDIUM : attackDifficulty;
+    private static SkillDifficulty normalizeGeneralDifficulty(SkillDifficulty generalDifficulty) {
+        return generalDifficulty == null ? SkillDifficulty.DEFAULT : generalDifficulty;
+    }
+
+    private static Map<SkillType, SkillDifficulty> normalizeSkillDifficulties(
+            Map<SkillType, SkillDifficulty> skillDifficulties) {
+        return skillDifficulties == null ? Map.of() : skillDifficulties;
     }
 
     private static boolean normalizeUndead(Boolean undead) {
@@ -132,8 +139,8 @@ public class MonsterSheetService {
                 document.getPlayerId(),
                 document.getPhysicalDefense(),
                 document.getMagicDefense(),
-                normalizeAttackDifficulty(document.getAttackDifficulty()),
-                document.getAttackBonus(),
+                normalizeGeneralDifficulty(document.getGeneralDifficulty()),
+                normalizeSkillDifficulties(document.getSkillDifficulties()),
                 document.isUndead(),
                 normalizeCriticalEffectImmunities(document.getCriticalEffectImmunities()),
                 document.getHitPointsSpent(),

@@ -47,3 +47,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/016-action-cost-kind-fixed.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/017-monster-skill-difficulties.yaml
+      relativeToChangelogFile: false

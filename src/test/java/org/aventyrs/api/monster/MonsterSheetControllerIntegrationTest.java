@@ -1,5 +1,7 @@
 package org.aventyrs.api.monster;
 
+import org.aventyrs.core.skill.SkillType;
+import org.aventyrs.core.monster.SkillDifficulty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -82,7 +84,8 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void performsFullCrudLifecycle() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, DifficultyLevel.HARD, 2, true, Set.of(CriticalEffectType.SANGRAMENTO),
+                goblinCharacter(), gmId, 12, 9, SkillDifficulty.of(DifficultyLevel.HARD, 2),
+                Map.of(SkillType.FURTIVIDADE, SkillDifficulty.of(DifficultyLevel.MEDIUM, 1)), true, Set.of(CriticalEffectType.SANGRAMENTO),
                 null);
 
         String createResponse = mockMvc.perform(post("/api/monster-sheets")
@@ -96,8 +99,10 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.playerId").value(gmId))
                 .andExpect(jsonPath("$.physicalDefense").value(12))
                 .andExpect(jsonPath("$.magicDefense").value(9))
-                .andExpect(jsonPath("$.attackDifficulty").value("HARD"))
-                .andExpect(jsonPath("$.attackBonus").value(2))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("HARD"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(2))
+                .andExpect(jsonPath("$.skillDifficulties.FURTIVIDADE.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.skillDifficulties.FURTIVIDADE.bonus").value(1))
                 .andExpect(jsonPath("$.undead").value(true))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(1)))
                 .andExpect(jsonPath("$.criticalEffectImmunities[0]").value("SANGRAMENTO"))
@@ -137,8 +142,8 @@ class MonsterSheetControllerIntegrationTest {
                 gmId,
                 14,
                 10,
-                DifficultyLevel.MEDIUM,
-                3,
+                SkillDifficulty.of(DifficultyLevel.MEDIUM, 3),
+                Map.of(),
                 false,
                 Set.of(),
                 10,
@@ -163,8 +168,9 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.playerId").value(gmId))
                 .andExpect(jsonPath("$.physicalDefense").value(14))
                 .andExpect(jsonPath("$.magicDefense").value(10))
-                .andExpect(jsonPath("$.attackDifficulty").value("MEDIUM"))
-                .andExpect(jsonPath("$.attackBonus").value(3))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(3))
+                .andExpect(jsonPath("$.skillDifficulties").isEmpty())
                 .andExpect(jsonPath("$.undead").value(false))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(0)))
                 .andExpect(jsonPath("$.damageTaken").value(10))
@@ -195,15 +201,17 @@ class MonsterSheetControllerIntegrationTest {
     }
 
     @Test
-    void defaultsAttackDifficultyUndeadAndImmunitiesWhenOmitted() throws Exception {
+    void defaultsDifficultiesUndeadAndImmunitiesWhenOmitted() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, null, 2, null, null, null);
+                goblinCharacter(), gmId, 12, 9, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.attackDifficulty").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(0))
+                .andExpect(jsonPath("$.skillDifficulties").isEmpty())
                 .andExpect(jsonPath("$.undead").value(false))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(0)));
     }
@@ -213,7 +221,7 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void storesTheTokenImageUrlGivenAtCreation() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, null, 2, null, null,
+                goblinCharacter(), gmId, 12, 9, null, null, null, null,
                 "https://images.aventyrs.test/tokens/zumbi.png");
 
         String created = mockMvc.perform(post("/api/monster-sheets")
@@ -232,7 +240,7 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(
-                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, 2, null, null, null);
+                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -245,7 +253,7 @@ class MonsterSheetControllerIntegrationTest {
         CharacterDto blankNamed = new CharacterDto(
                 "", MONSTER_RACE, null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, 2, null, null, null);
+        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)

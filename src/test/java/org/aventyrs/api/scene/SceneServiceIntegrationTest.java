@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.SceneParticipantRequest;
+import org.aventyrs.api.scene.dto.ConcealmentDto;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +21,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
@@ -449,6 +452,61 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void moveParticipantMayShareAnOccupiedCellOnlyWhenFlagged() {
+        String sceneId = newScene("Entre as Pernas");
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+        SceneParticipantResponse giant =
+                sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
+        GridPosition giantCell = new GridPosition(giant.position().x(), giant.position().y());
+
+        SceneParticipantEntry moved = sceneService.moveParticipant(sceneId, characterSheetId1, giantCell, true);
+
+        assertEquals(giantCell, moved.position());
+        // An already-shared hex does not trip a later, ordinary move of either occupant.
+        sceneService.moveParticipant(sceneId, characterSheetId2, giantCell);
+        sceneService.moveParticipant(sceneId, characterSheetId2, new GridPosition(40, 40));
+        assertThrows(IllegalArgumentException.class,
+                () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(40, 40)));
+    }
+
+    @Test
+    void paintedTerrenoDificilPersistsAndClears() {
+        String sceneId = newScene("Pântano");
+
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(1, 1), new GridPosition(2, 2)), true);
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(1, 1)), false);
+
+        assertEquals(List.of(new GridPositionDto(2, 2)), sceneService.get(sceneId).difficultTerrain());
+    }
+
+    @Test
+    void paintingBeyondTheBoardIsDroppedAndAShrinkPrunesIt() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Pequena", "URBAN", 20, 20)).id();
+
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(5, 5), new GridPosition(15, 15),
+                new GridPosition(30, 30)), true);
+        assertEquals(2, sceneService.get(sceneId).difficultTerrain().size(), "the off-board cell is dropped");
+
+        sceneService.resizeGrid(sceneId, 10, 10);
+
+        assertEquals(List.of(new GridPositionDto(5, 5)), sceneService.get(sceneId).difficultTerrain());
+    }
+
+    /** A document written before difficultTerrain existed has no such field at all. */
+    @Test
+    void aScenePersistedBeforeTerrenoDificilStillLoads() {
+        String sceneId = newScene("Cena Antiga");
+        SceneDocument document = sceneRepository.findById(sceneId).orElseThrow();
+        document.setDifficultTerrain(null);
+        sceneRepository.save(document);
+
+        assertEquals(List.of(), sceneService.get(sceneId).difficultTerrain());
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(3, 3)), true);
+        assertEquals(1, sceneService.get(sceneId).difficultTerrain().size());
+    }
+
+    @Test
     void moveParticipantRejectsAnUnknownParticipant() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
 
@@ -551,6 +609,55 @@ class SceneServiceIntegrationTest {
         assertEquals(characterSheetId2, scene.participants().get(0).characterSheetId());
         assertEquals(characterSheetId1, scene.participants().get(1).characterSheetId());
         assertEquals(0, scene.participants().get(0).joinedAtRound());
+    }
+
+    @Test
+    void aParticipantAddedHiddenCarriesItsConcealmentInTheScene() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.MEDIUM, 3, 21, 19);
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group, concealment));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+
+        SceneResponse scene = sceneService.get(sceneId);
+        assertEquals(concealment, participant(scene, characterSheetId1).concealment());
+        assertNull(participant(scene, characterSheetId2).concealment());
+    }
+
+    @Test
+    void setConcealmentHidesAndRevealsAParticipant() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, UUID.randomUUID()));
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.HARD, 1, 24, 21);
+
+        sceneService.setConcealment(sceneId, characterSheetId1, concealment);
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+
+        sceneService.setConcealment(sceneId, characterSheetId1, null);
+        assertNull(participant(sceneService.get(sceneId), characterSheetId1).concealment());
+    }
+
+    /** A concealment survives a move — moving hidden is the client's call to reveal, not the API's. */
+    @Test
+    void aHiddenParticipantStaysHiddenAcrossAMoveAndABulkUpdate() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.EASY, 2, 16, 15);
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group, concealment));
+
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(4, 4));
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+
+        sceneService.update(sceneId, new org.aventyrs.api.scene.dto.SceneUpdateRequest("Renamed",
+                List.of(new SceneParticipantRequest(characterSheetId1, 8, group, new GridPositionDto(4, 4), 0)),
+                0, -1, false, null, null));
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+    }
+
+    private static SceneParticipantResponse participant(SceneResponse scene, String characterSheetId) {
+        return scene.participants().stream()
+                .filter(entry -> entry.characterSheetId().equals(characterSheetId))
+                .findFirst().orElseThrow();
     }
 
     @Test

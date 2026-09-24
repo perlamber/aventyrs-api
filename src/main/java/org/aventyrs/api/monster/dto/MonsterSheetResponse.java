@@ -1,5 +1,7 @@
 package org.aventyrs.api.monster.dto;
 
+import org.aventyrs.core.monster.SkillDifficulty;
+import org.aventyrs.core.skill.SkillType;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,7 +14,6 @@ import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
-import org.aventyrs.core.skill.DifficultyLevel;
 
 public record MonsterSheetResponse(
         String id,
@@ -20,8 +21,8 @@ public record MonsterSheetResponse(
         String playerId,
         int physicalDefense,
         int magicDefense,
-        DifficultyLevel attackDifficulty,
-        int attackBonus,
+        SkillDifficulty generalDifficulty,
+        Map<SkillType, SkillDifficulty> skillDifficulties,
         boolean undead,
         Set<CriticalEffectType> criticalEffectImmunities,
         int damageTaken,

@@ -7,6 +7,7 @@ import java.util.Map;
 import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.scene.Direction;
 import org.aventyrs.core.scene.TerrainType;
+import org.aventyrs.core.scene.grid.GridPosition;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -128,4 +129,13 @@ public class SceneDocument {
     private List<SceneRollRequestEntry> rollRequests;
 
     private List<SceneRollResponseEntry> rollResponses;
+
+    /**
+     * The hexes the GM marked Terreno Difícil ({@link SceneService#paintTerrain}) — core prices
+     * entering one at 2UD ({@code MovementTerrainService}). {@code null} on any document persisted
+     * before it existed; read through {@code SceneService#difficultTerrainOf}. A list of core
+     * {@code GridPosition} records, whose two ints are set by the canonical constructor on every
+     * element that exists, so an absent field is the only older shape there is.
+     */
+    private List<GridPosition> difficultTerrain;
 }
