@@ -1,5 +1,8 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.core.rest.RestType;
+import org.aventyrs.api.scene.dto.SceneTimeMessage;
+import org.aventyrs.api.scene.dto.SceneTimeEvent;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -7,6 +10,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,6 +21,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.AbilityActivationMessage;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.ConcealmentDto;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.RecordActionMessage;
@@ -32,6 +37,7 @@ import org.aventyrs.api.scene.dto.SceneParticipantRequest;
 import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
+import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
 import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
@@ -90,7 +96,7 @@ public class SceneService {
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
                 // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
                 // follows field declaration order.
-                List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -132,11 +138,18 @@ public class SceneService {
     public SceneResponse update(String id, SceneUpdateRequest request) {
         SceneDocument document = findOrThrow(id);
 
+        // The bulk PUT carries no concealment (a GM re-saving the Scene says nothing about who is
+        // hiding), so whoever is Escondido stays so rather than being revealed by an edit.
+        Map<String, SceneConcealmentEntry> concealments = new HashMap<>();
+        document.getParticipants().stream()
+                .filter(entry -> entry.concealment() != null)
+                .forEach(entry -> concealments.put(entry.characterSheetId(), entry.concealment()));
         List<SceneParticipantEntry> participants = request.participants().stream()
                 .map(this::toEntry)
+                .map(entry -> entry.withConcealment(concealments.get(entry.characterSheetId())))
                 .toList();
         requireParticipantsExist(participants);
-        requireDistinctPositions(participants);
+        requireDistinctPositions(participants, sharedPositions(document.getParticipants()));
         requireValidTurnCursor(request.currentIndex(), rotationSize(participants, request.currentRound()));
         requireRoundGatedOnCombat(request.currentRound(), request.combatScene());
 
@@ -175,7 +188,8 @@ public class SceneService {
                 request.initiativeValue(),
                 request.group(),
                 firstFreePosition(participants),
-                joinsNow ? document.getCurrentRound() : document.getCurrentRound() + 1);
+                joinsNow ? document.getCurrentRound() : document.getCurrentRound() + 1,
+                toConcealmentEntry(request.concealment()));
         if (joinsNow) {
             participants.add(rotationInsertionIndex(participants, document.getCurrentRound(), entry), entry);
         } else {
@@ -212,7 +226,23 @@ public class SceneService {
     }
 
     public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition) {
+        return moveParticipant(id, characterSheetId, newPosition, false);
+    }
+
+    /**
+     * Moves a participant, letting them end on an occupied hex when sharesSpace — Entre as Pernas'
+     * "permanecer em um mesmo espaço ocupado por inimigo" (core {@code
+     * MovementTerrainService#stepRules}). Whether the sharing is legal is judged by the moving
+     * client, which holds both sheets; this API holds neither, so it trusts the flag — the same
+     * client-side boundary every GM-only action here already has.
+     */
+    public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition,
+                                                 boolean sharesSpace) {
         SceneDocument document = findOrThrow(id);
+        Set<GridPosition> permittedShared = new HashSet<>(sharedPositions(document.getParticipants()));
+        if (sharesSpace) {
+            permittedShared.add(newPosition);
+        }
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int index = indexOfParticipant(participants, characterSheetId);
@@ -221,9 +251,10 @@ public class SceneService {
                 participants.get(index).initiativeValue(),
                 participants.get(index).group(),
                 newPosition,
-                participants.get(index).joinedAtRound());
+                participants.get(index).joinedAtRound(),
+                participants.get(index).concealment());
         participants.set(index, moved);
-        requireDistinctPositions(participants);
+        requireDistinctPositions(participants, permittedShared);
 
         document.setParticipants(participants);
         repository.save(document);
@@ -290,10 +321,11 @@ public class SceneService {
             GridPosition position = placed.get(entry.characterSheetId());
             if (position != null) {
                 participants.set(i, new SceneParticipantEntry(entry.characterSheetId(),
-                        entry.initiativeValue(), entry.group(), position, entry.joinedAtRound()));
+                        entry.initiativeValue(), entry.group(), position, entry.joinedAtRound(),
+                        entry.concealment()));
             }
         }
-        requireDistinctPositions(participants);
+        requireDistinctPositions(participants, sharedPositions(document.getParticipants()));
         document.setParticipants(participants);
         repository.save(document);
     }
@@ -360,9 +392,44 @@ public class SceneService {
 
         document.setWidth(width);
         document.setHeight(height);
+        // Terreno Difícil painted beyond the new edge has no board left to lie on.
+        document.setDifficultTerrain(difficultTerrainOf(document).stream()
+                .filter(cell -> cell.x() < width && cell.y() < height)
+                .toList());
         repository.save(document);
 
         return new GridResizedEvent(width, height);
+    }
+
+    /**
+     * The GM marks (difficult) or clears Terreno Difícil on cells, and gets back every difficult
+     * hex the scene now has. Cells beyond the scene's extent are dropped rather than refused — a
+     * drag that runs off the board still paints what it crossed. Only the GM's client offers it;
+     * with no auth here that is a client-side restriction, as for {@link #resizeGrid}.
+     */
+    public TerrainPaintedEvent paintTerrain(String id, List<GridPosition> cells, boolean difficult) {
+        SceneDocument document = findOrThrow(id);
+        int width = document.getWidth() > 0 ? document.getWidth() : GridPosition.GRID_SIZE;
+        int height = document.getHeight() > 0 ? document.getHeight() : GridPosition.GRID_SIZE;
+        Set<GridPosition> painted = new LinkedHashSet<>(difficultTerrainOf(document));
+        for (GridPosition cell : cells == null ? List.<GridPosition>of() : cells) {
+            if (cell.x() >= width || cell.y() >= height) {
+                continue;
+            }
+            if (difficult) {
+                painted.add(cell);
+            } else {
+                painted.remove(cell);
+            }
+        }
+        document.setDifficultTerrain(List.copyOf(painted));
+        repository.save(document);
+        return new TerrainPaintedEvent(painted.stream().map(cell -> new GridPositionDto(cell.x(), cell.y())).toList());
+    }
+
+    /** {@code difficultTerrain}, null-safe — absent on a document persisted before it existed. */
+    private static List<GridPosition> difficultTerrainOf(SceneDocument document) {
+        return document.getDifficultTerrain() == null ? List.of() : document.getDifficultTerrain();
     }
 
     private static void requireGridExtent(int dimension, String name) {
@@ -573,7 +640,8 @@ public class SceneService {
                 message.enchanterCharacterSheetId(),
                 message.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(message.boundCharacterSheetIds()),
-                message.enchantmentRounds());
+                message.enchantmentRounds(),
+                message.effects());
 
         List<SceneAbilityEntry> history = new ArrayList<>(abilityHistoryOf(document));
         history.add(entry);
@@ -601,7 +669,8 @@ public class SceneService {
                 entry.enchanterCharacterSheetId(),
                 entry.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(entry.boundCharacterSheetIds()),
-                SceneAbilityEntry.orZero(entry.enchantmentRounds()));
+                SceneAbilityEntry.orZero(entry.enchantmentRounds()),
+                entry.effects());
     }
 
     /** {@code null} on any document persisted before {@code actionHistory} existed. */
@@ -755,8 +824,43 @@ public class SceneService {
      * broadcasting combat state for a sheet that has nothing to do with that scene — {@link
      * #moveParticipant} gets the same guarantee for free from {@link #indexOfParticipant}.
      */
+    /**
+     * Checks a GM's "Passar tempo"/"Descansar" against this scene — hours not negative, a known
+     * {@code RestType}, every named sheet a participant — and returns what to broadcast. Nothing is
+     * persisted here: each client applies the time to the core sheets it owns and reports the result
+     * on {@code /status}, the same split every other rules effect keeps.
+     *
+     * @throws IllegalArgumentException for negative hours or an unknown rest type
+     */
+    public SceneTimeEvent passTime(String id, SceneTimeMessage message) {
+        SceneDocument document = findOrThrow(id);
+        if (message.hours() < 0) {
+            throw new IllegalArgumentException("Hours cannot be negative: " + message.hours());
+        }
+        if (message.restType() != null) {
+            RestType.valueOf(message.restType());
+        }
+        List<String> resting = message.characterSheetIds() == null ? List.of() : List.copyOf(message.characterSheetIds());
+        resting.forEach(sheetId -> indexOfParticipant(document.getParticipants(), sheetId));
+        return new SceneTimeEvent(message.hours(), message.restType(), resting);
+    }
+
     public void requireParticipant(String id, String characterSheetId) {
         indexOfParticipant(findOrThrow(id).getParticipants(), characterSheetId);
+    }
+
+    /**
+     * Records a participant's concealment starting ({@code concealment} non-{@code null}) or ending
+     * ({@code null}) — what the {@code /hidden} relay persists before broadcasting, so the Scene
+     * payload a later joiner reads agrees with what the live boards were told.
+     */
+    public void setConcealment(String id, String characterSheetId, ConcealmentDto concealment) {
+        SceneDocument document = findOrThrow(id);
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        int index = indexOfParticipant(participants, characterSheetId);
+        participants.set(index, participants.get(index).withConcealment(toConcealmentEntry(concealment)));
+        document.setParticipants(participants);
+        repository.save(document);
     }
 
     private int indexOfParticipant(List<SceneParticipantEntry> participants, String characterSheetId) {
@@ -817,11 +921,34 @@ public class SceneService {
         throw new IllegalArgumentException("No CharacterSheet or MonsterSheet found: " + combatantSheetId);
     }
 
-    private void requireDistinctPositions(List<SceneParticipantEntry> participants) {
-        long distinctPositions = participants.stream().map(SceneParticipantEntry::position).distinct().count();
-        if (distinctPositions != participants.size()) {
+    /**
+     * Two participants may not stand on one hex — except on a hex in permittedShared: one a move
+     * was explicitly allowed to share ({@link #moveParticipant(String, String, GridPosition, boolean)}),
+     * or one already shared in the persisted scene, so a later full {@code PUT} carrying the same
+     * positions back is not refused for a sharing this API already accepted.
+     */
+    private void requireDistinctPositions(List<SceneParticipantEntry> participants,
+                                          Set<GridPosition> permittedShared) {
+        Map<GridPosition, Long> counts = participants.stream()
+                .collect(Collectors.groupingBy(SceneParticipantEntry::position, Collectors.counting()));
+        boolean clash = counts.entrySet().stream()
+                .anyMatch(entry -> entry.getValue() > 1 && !permittedShared.contains(entry.getKey()));
+        if (clash) {
             throw new IllegalArgumentException("Two participants cannot occupy the same grid position");
         }
+    }
+
+    /** The hexes more than one of participants already stands on. */
+    private static Set<GridPosition> sharedPositions(List<SceneParticipantEntry> participants) {
+        if (participants == null) {
+            return Set.of();
+        }
+        return participants.stream()
+                .collect(Collectors.groupingBy(SceneParticipantEntry::position, Collectors.counting()))
+                .entrySet().stream()
+                .filter(entry -> entry.getValue() > 1)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     /** A Rodada is a combat unit (core 0.0.32): a scene that isn't a combat scene is on Round 0 by
@@ -851,7 +978,8 @@ public class SceneService {
                 request.initiativeValue(),
                 request.group(),
                 new GridPosition(request.position().x(), request.position().y()),
-                request.joinedAtRound());
+                request.joinedAtRound(),
+                null);
     }
 
     private SceneDocument findOrThrow(String id) {
@@ -894,7 +1022,10 @@ public class SceneService {
                 rollRequests,
                 rollResponses,
                 document.getItemStoreMaxRarity(),
-                resolveConnections(document));
+                resolveConnections(document),
+                difficultTerrainOf(document).stream()
+                        .map(cell -> new GridPositionDto(cell.x(), cell.y()))
+                        .toList());
     }
 
     /** {@code null} on any document persisted before connections existed. */
@@ -933,6 +1064,17 @@ public class SceneService {
                 entry.initiativeValue(),
                 entry.group(),
                 new GridPositionDto(entry.position().x(), entry.position().y()),
-                entry.joinedAtRound());
+                entry.joinedAtRound(),
+                toConcealmentDto(entry.concealment()));
+    }
+
+    private static SceneConcealmentEntry toConcealmentEntry(ConcealmentDto dto) {
+        return dto == null ? null : new SceneConcealmentEntry(dto.difficultyLevel(), dto.bonus(),
+                dto.ordinaryConcealmentValue(), dto.expertConcealmentValue());
+    }
+
+    private static ConcealmentDto toConcealmentDto(SceneConcealmentEntry entry) {
+        return entry == null ? null : new ConcealmentDto(entry.difficultyLevel(), entry.bonus(),
+                entry.ordinaryConcealmentValue(), entry.expertConcealmentValue());
     }
 }

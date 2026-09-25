@@ -1,5 +1,8 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.SceneTimeMessage;
+import org.aventyrs.api.scene.dto.CombatantStateMessage;
+import org.aventyrs.api.scene.dto.CombatantStateChangedEvent;
 import java.time.Instant;
 import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.AbilityActivationMessage;
@@ -19,11 +22,15 @@ import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
+import org.aventyrs.api.scene.dto.TerrainPaintMessage;
+import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
 import org.aventyrs.api.scene.dto.TokenMovedEvent;
 import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.aventyrs.core.scene.grid.GridPosition;
+
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -72,7 +79,8 @@ public class SceneRealtimeController {
     public void move(@DestinationVariable String sceneId, @Payload TokenMoveMessage message) {
         try {
             SceneParticipantEntry updated = sceneService.moveParticipant(
-                    sceneId, message.characterSheetId(), toGridPosition(message.position()));
+                    sceneId, message.characterSheetId(), toGridPosition(message.position()),
+                    Boolean.TRUE.equals(message.sharesSpace()));
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/moves",
                     new TokenMovedEvent(updated.characterSheetId(), toDto(updated.position())));
@@ -98,7 +106,8 @@ public class SceneRealtimeController {
             sceneService.requireParticipant(sceneId, message.characterSheetId());
             characterSheetService.updateCombatStatus(
                     message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
-                    message.determinationPointsSpent(), message.status());
+                    message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints(),
+                    message.hourlyEgoRecoveries(), message.exhausted());
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",
                     new CharacterStatusChangedEvent(
@@ -183,6 +192,23 @@ public class SceneRealtimeController {
      * auth does arrive. Rejected the same silent way {@link #move} is — a shrink that would strand
      * a token is refused, and every client keeps drawing the extent it already had.
      */
+    /**
+     * The GM painted or cleared Terreno Difícil — persisted ({@link SceneService#paintTerrain}), then
+     * broadcast as the scene's whole difficult set so every client prices movement off the same
+     * board. GM-only on the client, unenforced here, and rejected silently like {@link #move}.
+     */
+    @MessageMapping("/scenes/{sceneId}/terrain")
+    public void paintTerrain(@DestinationVariable String sceneId, @Payload TerrainPaintMessage message) {
+        try {
+            List<GridPosition> cells = message.cells() == null ? List.of()
+                    : message.cells().stream().map(SceneRealtimeController::toGridPosition).toList();
+            TerrainPaintedEvent event = sceneService.paintTerrain(sceneId, cells, message.difficult());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/terrain", event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected terrain paint in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
     @MessageMapping("/scenes/{sceneId}/grid")
     public void resizeGrid(@DestinationVariable String sceneId, @Payload GridResizeMessage message) {
         try {
@@ -280,12 +306,13 @@ public class SceneRealtimeController {
     }
 
     /**
-     * A participant's Esconder-se concealment started or ended — relayed, never persisted, unlike
-     * {@link #status}. A concealment lives on aventyrs-core's in-memory {@code CombatantSheet} the
-     * hiding client already holds, the same "state lives with whoever's playing it" boundary every
-     * other {@code Condition}/{@code TemporaryBonus} in this ruleset keeps; this topic exists only
-     * so the rest of the table's boards can withhold or restore that token live, not to give a late
-     * joiner a way to learn who is presently hidden.
+     * A participant's Esconder-se concealment started or ended — persisted onto the participant
+     * ({@link SceneService#setConcealment}), then relayed. The {@code Hidden} Condição itself still
+     * lives on aventyrs-core's in-memory {@code CombatantSheet} the hiding client holds; what is
+     * persisted is its GD, so a participant can <i>enter</i> a Cena hidden (see {@code
+     * AddParticipantRequest#concealment}) and a late joiner — or the client controlling that
+     * participant, after a reconnect — learns who is presently hidden from the Scene itself rather
+     * than only from a live broadcast it may have missed.
      *
      * <p>Membership is still asserted ({@link SceneService#requireParticipant}), same reason {@link
      * #status} asserts it and {@link #ping} does not: this names one specific participant's state
@@ -295,14 +322,50 @@ public class SceneRealtimeController {
     @MessageMapping("/scenes/{sceneId}/hidden")
     public void hidden(@DestinationVariable String sceneId, @Payload HiddenStatusMessage message) {
         try {
-            sceneService.requireParticipant(sceneId, message.characterSheetId());
+            sceneService.setConcealment(sceneId, message.characterSheetId(), message.toConcealment());
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/hidden",
                     new HiddenStatusChangedEvent(message.characterSheetId(), message.hidden(),
-                            message.ordinaryConcealmentValue(), message.expertConcealmentValue()));
+                            message.ordinaryConcealmentValue(), message.expertConcealmentValue(),
+                            message.difficultyLevel(), message.bonus()));
         } catch (RuntimeException ex) {
             log.warn("Rejected hidden-status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * A participant's live state for the rest of the table's boards — its effective size (a Titã
+     * Enlouquecido grows), its Frenesi, and whether it must attack the nearest creature. Relayed, never
+     * persisted: it lives on the owning client's core sheet, and this topic only lets every other
+     * board draw it. Membership is asserted for the same reason {@link #hidden} checks it.
+     */
+    @MessageMapping("/scenes/{sceneId}/state")
+    public void combatantState(@DestinationVariable String sceneId, @Payload CombatantStateMessage message) {
+        try {
+            sceneService.requireParticipant(sceneId, message.characterSheetId());
+            messagingTemplate.convertAndSend(
+                    "/topic/scenes/" + sceneId + "/state",
+                    new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
+                            message.frenzyRounds(), message.frenzyModes(), message.compelled()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected state change in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The GM passed in-game time or granted a Descanso (see {@link SceneService#passTime}), broadcast
+     * so each client applies it to its own sheets. Only the GM's client offers the control — a
+     * client-side restriction, as {@link #resizeGrid}'s is. Rejected silently like {@link #move}.
+     */
+    @MessageMapping("/scenes/{sceneId}/time")
+    public void passTime(@DestinationVariable String sceneId, @Payload SceneTimeMessage message) {
+        try {
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/time",
+                    sceneService.passTime(sceneId, message));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected time passing in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 

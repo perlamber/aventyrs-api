@@ -18,5 +18,11 @@ package org.aventyrs.api.scene.dto;
  * @param scope        the core {@code TargetScope} constant name the granting clause declared
  * @param source       what granted it, for the recipient's own non-cumulative bookkeeping
  */
-public record BlessingDto(String modifierType, int value, int rounds, String scope, String source) {
+public record BlessingDto(String modifierType, int value, int rounds, String scope, String source,
+                          String reach, Boolean countsDownAtTurnStart) {
+
+    /** A Blessing whose reach the receiving client derives from the trait, counting down at Turn end. */
+    public BlessingDto(String modifierType, int value, int rounds, String scope, String source) {
+        this(modifierType, value, rounds, scope, source, null, null);
+    }
 }

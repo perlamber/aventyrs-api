@@ -3,12 +3,14 @@ package org.aventyrs.api.scene.dto;
 import java.util.UUID;
 
 /** {@code joinedAtRound}: see {@code SceneParticipantEntry} — a participant is in the turn
- * rotation exactly when it is {@code <=} the scene's {@code currentRound}. */
+ * rotation exactly when it is {@code <=} the scene's {@code currentRound}. {@code concealment} is
+ * {@code null} unless the participant is currently Escondido — see {@code SceneConcealmentEntry}. */
 public record SceneParticipantResponse(
         String characterSheetId,
         int initiativeValue,
         UUID group,
         GridPositionDto position,
-        int joinedAtRound
+        int joinedAtRound,
+        ConcealmentDto concealment
 ) {
 }

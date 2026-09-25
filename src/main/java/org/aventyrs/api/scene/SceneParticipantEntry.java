@@ -19,11 +19,22 @@ import org.aventyrs.core.scene.grid.GridPosition;
  * <p>Scene documents persisted before this field existed deserialise it as {@code 0}, which reads
  * as "in the rotation from Round 0" — the correct reading for every scene written back then, since
  * nothing was holding anyone back at the time. That's why there's no Liquibase changeset for it.
+ *
+ * <p>{@code concealment} is non-{@code null} exactly while the participant is Escondido — see {@link
+ * SceneConcealmentEntry}. Documents written before it existed read it as {@code null}: nobody was
+ * persisted hidden then, which is exactly right.
  */
 public record SceneParticipantEntry(
         String characterSheetId,
         int initiativeValue,
         UUID group,
         GridPosition position,
-        int joinedAtRound) {
+        int joinedAtRound,
+        SceneConcealmentEntry concealment) {
+
+    /** This entry with its concealment replaced — {@code null} lifts it. */
+    public SceneParticipantEntry withConcealment(SceneConcealmentEntry newConcealment) {
+        return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
+                newConcealment);
+    }
 }

@@ -1,9 +1,12 @@
 package org.aventyrs.api.monster;
 
+import org.aventyrs.core.monster.SkillDifficulty;
+import org.aventyrs.core.skill.SkillType;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.AllArgsConstructor;
+import org.aventyrs.api.item.InventoryItemEntry;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,7 +19,6 @@ import org.aventyrs.api.sheet.TemporaryBonusEntry;
 import org.aventyrs.api.sheet.WitheringEntry;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
-import org.aventyrs.core.skill.DifficultyLevel;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -31,8 +33,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * character, but this API doesn't enforce that distinction any harder than {@code PlayerRole}
  * enforces anything else here (see that enum's own javadoc). Unlike {@code CharacterSheetDocument}
  * there's still no experience/Fama fields: a foe never spends XP (see core's {@code MonsterSheet}
- * javadoc for why). {@code physicalDefense}/{@code magicDefense}/{@code attackDifficulty}/{@code
- * attackBonus}/{@code undead}/{@code criticalEffectImmunities} mirror core's {@code MonsterSheet}'s
+ * javadoc for why). {@code physicalDefense}/{@code magicDefense}/{@code generalDifficulty}/{@code
+ * skillDifficulties}/{@code undead}/{@code criticalEffectImmunities} mirror core's {@code MonsterSheet}'s
  * own fields, authored on the stat block rather than derived.
  */
 @Document(collection = "monsterSheets")
@@ -53,9 +55,11 @@ public class MonsterSheetDocument {
 
     private int magicDefense;
 
-    private DifficultyLevel attackDifficulty;
+    /** core's {@code MonsterTemplate#getGeneralDifficulty()} — the GD on every Perícia without an entry below. */
+    private SkillDifficulty generalDifficulty;
 
-    private int attackBonus;
+    /** core's {@code MonsterTemplate#getSkillDifficulties()} — the GD per Perícia the foe knows. */
+    private Map<SkillType, SkillDifficulty> skillDifficulties;
 
     private boolean undead;
 
@@ -83,8 +87,13 @@ public class MonsterSheetDocument {
 
     private List<LifeStealEntry> lifeSteals;
 
-    /** {@code org.aventyrs.api.item.ItemDocument} ids this sheet carries — see {@link CharacterEntry}'s equipment javadoc. */
-    private List<String> inventory;
+    /**
+     * What this foe carries, not wears — embedded, the same shape as {@code
+     * CharacterSheetDocument#inventory}. It was once a list of {@code items}-collection ids that
+     * nothing read or wrote; changelog 018 migrated it. A Saquear, or the end of combat, moves the
+     * whole list into the Campanha's bag ({@code CampaignService#lootFrom}).
+     */
+    private List<InventoryItemEntry> inventory;
 
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
      * same convention as {@code SceneDocument#getImageUrl()}. */

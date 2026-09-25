@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.SceneParticipantRequest;
+import org.aventyrs.api.scene.dto.ConcealmentDto;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -19,6 +21,7 @@ import org.aventyrs.api.common.NotFoundException;
 import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
 import org.aventyrs.api.scene.dto.AddParticipantRequest;
+import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
 import org.aventyrs.api.scene.dto.AbilityActivatedEvent;
 import org.aventyrs.api.scene.dto.SceneCreateRequest;
@@ -77,6 +80,9 @@ class SceneServiceIntegrationTest {
 
     @Autowired
     private PlayerService playerService;
+
+    @Autowired
+    private org.aventyrs.api.sheet.CharacterSheetRepository characterSheetRepository;
 
     @Autowired
     private CharacterSheetService characterSheetService;
@@ -182,8 +188,8 @@ class SceneServiceIntegrationTest {
         document.setAbilityHistory(List.of(new SceneAbilityEntry(
                 characterSheetId1, "SANTO", "ORGULHO_ELDURIANO", "Orgulho Elduriano",
                 3, 0, 7, List.of(),
-                // The three that did not exist when such an entry was first written.
-                null, null, null)));
+                // The four that did not exist when such an entry was first written.
+                null, null, null, null)));
         sceneRepository.save(document);
 
         SceneResponse response = sceneService.get(sceneId);
@@ -446,6 +452,61 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void moveParticipantMayShareAnOccupiedCellOnlyWhenFlagged() {
+        String sceneId = newScene("Entre as Pernas");
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, group));
+        SceneParticipantResponse giant =
+                sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 8, group));
+        GridPosition giantCell = new GridPosition(giant.position().x(), giant.position().y());
+
+        SceneParticipantEntry moved = sceneService.moveParticipant(sceneId, characterSheetId1, giantCell, true);
+
+        assertEquals(giantCell, moved.position());
+        // An already-shared hex does not trip a later, ordinary move of either occupant.
+        sceneService.moveParticipant(sceneId, characterSheetId2, giantCell);
+        sceneService.moveParticipant(sceneId, characterSheetId2, new GridPosition(40, 40));
+        assertThrows(IllegalArgumentException.class,
+                () -> sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(40, 40)));
+    }
+
+    @Test
+    void paintedTerrenoDificilPersistsAndClears() {
+        String sceneId = newScene("Pântano");
+
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(1, 1), new GridPosition(2, 2)), true);
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(1, 1)), false);
+
+        assertEquals(List.of(new GridPositionDto(2, 2)), sceneService.get(sceneId).difficultTerrain());
+    }
+
+    @Test
+    void paintingBeyondTheBoardIsDroppedAndAShrinkPrunesIt() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Pequena", "URBAN", 20, 20)).id();
+
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(5, 5), new GridPosition(15, 15),
+                new GridPosition(30, 30)), true);
+        assertEquals(2, sceneService.get(sceneId).difficultTerrain().size(), "the off-board cell is dropped");
+
+        sceneService.resizeGrid(sceneId, 10, 10);
+
+        assertEquals(List.of(new GridPositionDto(5, 5)), sceneService.get(sceneId).difficultTerrain());
+    }
+
+    /** A document written before difficultTerrain existed has no such field at all. */
+    @Test
+    void aScenePersistedBeforeTerrenoDificilStillLoads() {
+        String sceneId = newScene("Cena Antiga");
+        SceneDocument document = sceneRepository.findById(sceneId).orElseThrow();
+        document.setDifficultTerrain(null);
+        sceneRepository.save(document);
+
+        assertEquals(List.of(), sceneService.get(sceneId).difficultTerrain());
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(3, 3)), true);
+        assertEquals(1, sceneService.get(sceneId).difficultTerrain().size());
+    }
+
+    @Test
     void moveParticipantRejectsAnUnknownParticipant() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
 
@@ -548,6 +609,55 @@ class SceneServiceIntegrationTest {
         assertEquals(characterSheetId2, scene.participants().get(0).characterSheetId());
         assertEquals(characterSheetId1, scene.participants().get(1).characterSheetId());
         assertEquals(0, scene.participants().get(0).joinedAtRound());
+    }
+
+    @Test
+    void aParticipantAddedHiddenCarriesItsConcealmentInTheScene() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.MEDIUM, 3, 21, 19);
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group, concealment));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+
+        SceneResponse scene = sceneService.get(sceneId);
+        assertEquals(concealment, participant(scene, characterSheetId1).concealment());
+        assertNull(participant(scene, characterSheetId2).concealment());
+    }
+
+    @Test
+    void setConcealmentHidesAndRevealsAParticipant() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, UUID.randomUUID()));
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.HARD, 1, 24, 21);
+
+        sceneService.setConcealment(sceneId, characterSheetId1, concealment);
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+
+        sceneService.setConcealment(sceneId, characterSheetId1, null);
+        assertNull(participant(sceneService.get(sceneId), characterSheetId1).concealment());
+    }
+
+    /** A concealment survives a move — moving hidden is the client's call to reveal, not the API's. */
+    @Test
+    void aHiddenParticipantStaysHiddenAcrossAMoveAndABulkUpdate() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        ConcealmentDto concealment = new ConcealmentDto(DifficultyLevel.EASY, 2, 16, 15);
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group, concealment));
+
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(4, 4));
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+
+        sceneService.update(sceneId, new org.aventyrs.api.scene.dto.SceneUpdateRequest("Renamed",
+                List.of(new SceneParticipantRequest(characterSheetId1, 8, group, new GridPositionDto(4, 4), 0)),
+                0, -1, false, null, null));
+        assertEquals(concealment, participant(sceneService.get(sceneId), characterSheetId1).concealment());
+    }
+
+    private static SceneParticipantResponse participant(SceneResponse scene, String characterSheetId) {
+        return scene.participants().stream()
+                .filter(entry -> entry.characterSheetId().equals(characterSheetId))
+                .findFirst().orElseThrow();
     }
 
     @Test
@@ -716,5 +826,73 @@ class SceneServiceIntegrationTest {
         sceneService.removeParticipant(sceneId, characterSheetId1);
 
         assertEquals(-1, sceneService.get(sceneId).currentIndex());
+    }
+
+    // --- Gigante Enfurecido: the Ego state a live Cena persists ----------------------------------
+
+    @Test
+    void combatStatusPersistsTheEgoStateWhenSentAndLeavesItAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                Map.of(org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3),
+                List.of(new org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto(
+                        org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3, 2, 1)),
+                true);
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 4, 0, 0, CharacterStatus.HIGH_LIFE);
+
+        CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
+        assertEquals(3, after.temporaryEgoPoints().get(org.aventyrs.core.character.EgoDomain.AUTOCONTROLE));
+        assertEquals(List.of(new org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto(
+                org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3, 2, 1)), after.hourlyEgoRecoveries());
+        assertTrue(after.exhausted());
+        assertEquals(4, after.damageTaken());
+    }
+
+    @Test
+    void aSheetWrittenBeforeTheEgoStateExistedStillReads() {
+        var document = characterSheetRepository.findById(characterSheetId2).orElseThrow();
+        document.setHourlyEgoRecoveries(null);
+        document.setExhausted(null);
+        characterSheetRepository.save(document);
+
+        CharacterSheetResponse response = characterSheetService.get(characterSheetId2);
+
+        assertEquals(List.of(), response.hourlyEgoRecoveries());
+        assertFalse(response.exhausted());
+    }
+
+    @Test
+    void anAbilityActivationCarriesItsEffectsOnOthersThroughTheLogAndTheEcho() {
+        String sceneId = newScene("Grito");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        var effects = new org.aventyrs.api.scene.dto.TitleEffectsDto(
+                List.of(new org.aventyrs.api.scene.dto.AreaDamageDto(characterSheetId2, 7, "PRIMORDIAL", null)),
+                List.of(new org.aventyrs.api.scene.dto.InflictedConditionDto(characterSheetId2, "ABALADO", 2, true)),
+                null);
+
+        AbilityActivatedEvent echoed = sceneService.recordAbility(sceneId,
+                new org.aventyrs.api.scene.dto.AbilityActivationMessage(characterSheetId1, "GIGANTE_ENFURECIDO",
+                        "GRITOS_DE_GUERRA", "Gritos de Guerra", 3, 0, 2, List.of(), null, List.of(), 0, effects));
+
+        assertEquals(effects, echoed.effects());
+        assertEquals(effects, sceneService.get(sceneId).abilityHistory().get(0).effects());
+    }
+
+    @Test
+    void passingTimeValidatesTheRestAndWhoRests() {
+        String sceneId = newScene("Acampamento");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        var event = sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(4, "CURTO", List.of(characterSheetId1)));
+
+        assertEquals(4, event.hours());
+        assertEquals("CURTO", event.restType());
+        assertThrows(IllegalArgumentException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(-1, null, null)));
+        assertThrows(IllegalArgumentException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(1, "SONECA", null)));
+        assertThrows(RuntimeException.class, () -> sceneService.passTime(sceneId,
+                new org.aventyrs.api.scene.dto.SceneTimeMessage(1, null, List.of(characterSheetId2))));
     }
 }

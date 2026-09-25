@@ -10,7 +10,8 @@ import java.util.List;
  *
  * <p>Also the payload broadcast on {@code /topic/campaigns/{id}/sessions} after every Sessão
  * change and every participant change, so an open client can lock or unlock its progression UI
- * right away.
+ * right away. {@code bag} is the shared loot, oldest first. The same response is broadcast on
+ * {@code /topic/campaigns/{id}/bag} after every bag change.
  */
 public record CampaignResponse(
         String id,
@@ -19,5 +20,6 @@ public record CampaignResponse(
         List<String> participantSheetIds,
         boolean progressionLocked,
         Integer ongoingSessionNumber,
-        Instant createdAt) {
+        Instant createdAt,
+        List<CampaignBagItemResponse> bag) {
 }

@@ -1,0 +1,24 @@
+# A monster sheet's inventory goes from a list of `items`-collection ids to embedded
+# InventoryItemEntry documents, the same shape as a character sheet's. Monsters now carry loot
+# that a Saquear moves into the Campanha's bag.
+#
+# No client ever wrote the old id list (the monster editor had no inventory), so any string
+# entries are dropped rather than resolved. Guarded on the first element being a string, so a
+# sheet already in the new shape, or with an empty list, is untouched.
+databaseChangeLog:
+  - changeSet:
+      id: 001-monster-inventory-embedded
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { "inventory.0": { $type: "string" } },
+                    u: { $set: { "inventory": [] } },
+                    multi: true
+                  }
+                ]
+              }

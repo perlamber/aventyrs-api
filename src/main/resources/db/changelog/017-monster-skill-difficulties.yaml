@@ -1,0 +1,37 @@
+# Replaces a monster sheet's attack-only GD with a general GD plus per-Perícia GDs, for
+# aventyrs-core 0.0.54 (MonsterTemplate#getGeneralDifficulty / #getSkillDifficulties).
+#
+# The single GD a foe had was the only one it presented, so it becomes the general GD — every attack
+# the foe makes keeps the exact threshold it had. skillDifficulties starts empty; the GM authors the
+# Perícias the foe knows from the editor. A missing attackDifficulty was read as MEDIUM (core's
+# builder default, see the old MonsterSheetService#normalizeAttackDifficulty), so it migrates as one.
+#
+# Guarded on the old field existing, so a sheet already written in the new shape is untouched.
+databaseChangeLog:
+  - changeSet:
+      id: 001-monster-attack-difficulty-to-general-difficulty
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { "generalDifficulty": { $exists: false } },
+                    u: [
+                      {
+                        $set: {
+                          "generalDifficulty": {
+                            "level": { $ifNull: [ "$attackDifficulty", "MEDIUM" ] },
+                            "bonus": { $ifNull: [ "$attackBonus", 0 ] }
+                          },
+                          "skillDifficulties": {}
+                        }
+                      },
+                      { $unset: [ "attackDifficulty", "attackBonus" ] }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

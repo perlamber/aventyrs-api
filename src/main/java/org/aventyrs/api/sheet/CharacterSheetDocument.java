@@ -67,6 +67,7 @@ public class CharacterSheetDocument {
 
     private List<LifeStealEntry> lifeSteals;
 
+
     /** Every {@code org.aventyrs.core.item.Item} this sheet carries, embedded — see {@link InventoryItemEntry}.
      * {@code null} on a document persisted before structured inventory existed (was {@code List<String>}). */
     private List<InventoryItemEntry> inventory;
@@ -82,4 +83,14 @@ public class CharacterSheetDocument {
      * existed, which reads correctly as "in no Campanha".
      */
     private String campaignId;
+
+    /**
+     * Temporary Ego points owed back by the hour (Frenesi's Autocontrole). Written only by the live
+     * combat-status path, never by the full-overwrite PUT, so a PUT built by a client that predates it
+     * cannot wipe it. {@code null} on every document written before it existed.
+     */
+    private List<HourlyEgoRecoveryEntry> hourlyEgoRecoveries;
+
+    /** Uno com a Ira's exhaustion, waiting for a Descanso Curto Verdadeiro. Boxed: absent on older documents. */
+    private Boolean exhausted;
 }

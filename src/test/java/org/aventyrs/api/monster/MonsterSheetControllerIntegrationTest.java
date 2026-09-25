@@ -1,5 +1,7 @@
 package org.aventyrs.api.monster;
 
+import org.aventyrs.core.skill.SkillType;
+import org.aventyrs.core.monster.SkillDifficulty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.api.monster.dto.MonsterSheetCreateRequest;
 import org.aventyrs.api.monster.dto.MonsterSheetUpdateRequest;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -28,6 +31,9 @@ import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
+import org.aventyrs.core.item.ItemCategory;
+import org.aventyrs.core.item.ItemRarity;
+import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.core.modifier.ModifierType;
 import org.aventyrs.core.rest.RestType;
 import org.aventyrs.core.skill.DifficultyLevel;
@@ -79,11 +85,36 @@ class MonsterSheetControllerIntegrationTest {
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
+    static InventoryItemDto roupaPesada() {
+        return new InventoryItemDto("ROUPA_PESADA", "Roupa Pesada", null, ItemCategory.ARMOR, ItemRarity.COMMON,
+                ItemWeightClass.HEAVY, 0, 2, 0, 0, 0, 0, null, null, List.of(), null, null, null, false);
+    }
+
+    /** A foe authored with loot keeps it, for a Saquear to take. */
+    @Test
+    void storesTheInventoryGivenAtCreation() throws Exception {
+        MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
+                goblinCharacter(), gmId, 12, 9, null, null, null, null, null, List.of(roupaPesada()));
+
+        String created = mockMvc.perform(post("/api/monster-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String id = objectMapper.readTree(created).get("id").asText();
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.inventory", hasSize(1)))
+                .andExpect(jsonPath("$.inventory[0].name").value("Roupa Pesada"))
+                .andExpect(jsonPath("$.inventory[0].category").value("ARMOR"));
+    }
+
     @Test
     void performsFullCrudLifecycle() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, DifficultyLevel.HARD, 2, true, Set.of(CriticalEffectType.SANGRAMENTO),
-                null);
+                goblinCharacter(), gmId, 12, 9, SkillDifficulty.of(DifficultyLevel.HARD, 2),
+                Map.of(SkillType.FURTIVIDADE, SkillDifficulty.of(DifficultyLevel.MEDIUM, 1)), true, Set.of(CriticalEffectType.SANGRAMENTO),
+                null, null);
 
         String createResponse = mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,8 +127,10 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.playerId").value(gmId))
                 .andExpect(jsonPath("$.physicalDefense").value(12))
                 .andExpect(jsonPath("$.magicDefense").value(9))
-                .andExpect(jsonPath("$.attackDifficulty").value("HARD"))
-                .andExpect(jsonPath("$.attackBonus").value(2))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("HARD"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(2))
+                .andExpect(jsonPath("$.skillDifficulties.FURTIVIDADE.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.skillDifficulties.FURTIVIDADE.bonus").value(1))
                 .andExpect(jsonPath("$.undead").value(true))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(1)))
                 .andExpect(jsonPath("$.criticalEffectImmunities[0]").value("SANGRAMENTO"))
@@ -137,8 +170,8 @@ class MonsterSheetControllerIntegrationTest {
                 gmId,
                 14,
                 10,
-                DifficultyLevel.MEDIUM,
-                3,
+                SkillDifficulty.of(DifficultyLevel.MEDIUM, 3),
+                Map.of(),
                 false,
                 Set.of(),
                 10,
@@ -152,7 +185,7 @@ class MonsterSheetControllerIntegrationTest {
                 List.of(new WitheringDto(1, 2)),
                 List.of(new PendingEgoRecoveryDto(EgoDomain.SORTE, 1, RestType.LONGO)),
                 List.of(new LifeStealDto(2, null)),
-                List.of("ROUPA_PESADA"),
+                List.of(roupaPesada()),
                 "https://images.aventyrs.test/tokens/goblin.png");
 
         mockMvc.perform(put("/api/monster-sheets/{id}", id)
@@ -163,8 +196,9 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.playerId").value(gmId))
                 .andExpect(jsonPath("$.physicalDefense").value(14))
                 .andExpect(jsonPath("$.magicDefense").value(10))
-                .andExpect(jsonPath("$.attackDifficulty").value("MEDIUM"))
-                .andExpect(jsonPath("$.attackBonus").value(3))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(3))
+                .andExpect(jsonPath("$.skillDifficulties").isEmpty())
                 .andExpect(jsonPath("$.undead").value(false))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(0)))
                 .andExpect(jsonPath("$.damageTaken").value(10))
@@ -180,7 +214,8 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.pendingEgoRecoveries", hasSize(1)))
                 .andExpect(jsonPath("$.lifeSteals", hasSize(1)))
                 .andExpect(jsonPath("$.inventory", hasSize(1)))
-                .andExpect(jsonPath("$.inventory[0]").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].templateName").value("ROUPA_PESADA"))
+                .andExpect(jsonPath("$.inventory[0].name").value("Roupa Pesada"))
                 .andExpect(jsonPath("$.tokenImageUrl").value("https://images.aventyrs.test/tokens/goblin.png"));
 
         mockMvc.perform(get("/api/monster-sheets/{id}", id))
@@ -195,15 +230,17 @@ class MonsterSheetControllerIntegrationTest {
     }
 
     @Test
-    void defaultsAttackDifficultyUndeadAndImmunitiesWhenOmitted() throws Exception {
+    void defaultsDifficultiesUndeadAndImmunitiesWhenOmitted() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, null, 2, null, null, null);
+                goblinCharacter(), gmId, 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.attackDifficulty").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.level").value("MEDIUM"))
+                .andExpect(jsonPath("$.generalDifficulty.bonus").value(0))
+                .andExpect(jsonPath("$.skillDifficulties").isEmpty())
                 .andExpect(jsonPath("$.undead").value(false))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(0)));
     }
@@ -213,8 +250,8 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void storesTheTokenImageUrlGivenAtCreation() throws Exception {
         MonsterSheetCreateRequest createRequest = new MonsterSheetCreateRequest(
-                goblinCharacter(), gmId, 12, 9, null, 2, null, null,
-                "https://images.aventyrs.test/tokens/zumbi.png");
+                goblinCharacter(), gmId, 12, 9, null, null, null, null,
+                "https://images.aventyrs.test/tokens/zumbi.png", null);
 
         String created = mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -232,7 +269,7 @@ class MonsterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(
-                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, 2, null, null, null);
+                goblinCharacter(), UUID.randomUUID().toString(), 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -245,7 +282,7 @@ class MonsterSheetControllerIntegrationTest {
         CharacterDto blankNamed = new CharacterDto(
                 "", MONSTER_RACE, null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, 2, null, null, null);
+        MonsterSheetCreateRequest request = new MonsterSheetCreateRequest(blankNamed, gmId, 12, 9, null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)

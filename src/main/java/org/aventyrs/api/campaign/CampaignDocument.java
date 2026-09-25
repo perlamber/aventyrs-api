@@ -35,6 +35,13 @@ public class CampaignDocument {
 
     private List<SessionEntry> sessions;
 
+    /**
+     * The shared bag: loot the GM added or a Saquear took, waiting to be claimed by a participant.
+     * {@code null} on a Campanha written before the bag existed. Every change re-reads and saves
+     * under {@code version}, so two players cannot both claim the same entry.
+     */
+    private List<CampaignBagEntry> bag;
+
     private Instant createdAt;
 
     @Version

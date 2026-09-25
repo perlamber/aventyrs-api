@@ -1,5 +1,8 @@
 package org.aventyrs.api.monster.dto;
 
+import org.aventyrs.api.item.dto.InventoryItemDto;
+import org.aventyrs.core.monster.SkillDifficulty;
+import org.aventyrs.core.skill.SkillType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -16,15 +19,14 @@ import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
-import org.aventyrs.core.skill.DifficultyLevel;
 
 public record MonsterSheetUpdateRequest(
         @NotNull @Valid CharacterDto character,
         @NotBlank String playerId,
         int physicalDefense,
         int magicDefense,
-        DifficultyLevel attackDifficulty,
-        int attackBonus,
+        SkillDifficulty generalDifficulty,
+        Map<SkillType, SkillDifficulty> skillDifficulties,
         Boolean undead,
         Set<CriticalEffectType> criticalEffectImmunities,
         @Min(0) int hitPointsSpent,
@@ -38,7 +40,7 @@ public record MonsterSheetUpdateRequest(
         List<@Valid WitheringDto> witheringEffects,
         List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<@Valid LifeStealDto> lifeSteals,
-        List<String> inventory,
+        List<@Valid InventoryItemDto> inventory,
         String tokenImageUrl
 ) {
 }

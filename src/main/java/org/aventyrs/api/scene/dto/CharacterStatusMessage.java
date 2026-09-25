@@ -15,5 +15,17 @@ import org.aventyrs.core.character.CharacterStatus;
  */
 public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
                                      int magicPointsSpent, int determinationPointsSpent,
-                                     CharacterStatus status) {
+                                     CharacterStatus status,
+                                     java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+                                     java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries,
+                                     Boolean exhausted) {
+
+    /**
+     * The damage and pools alone — what every client sent before a Frenesi could spend Autocontrole.
+     * The three Ego fields ({@code null}) are then left as stored.
+     */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, null, null, null);
+    }
 }

@@ -24,7 +24,8 @@ public record SceneAbilityEntry(
         List<BlessingDto> blessings,
         String enchanterCharacterSheetId,
         List<String> boundCharacterSheetIds,
-        Integer enchantmentRounds) {
+        Integer enchantmentRounds,
+        org.aventyrs.api.scene.dto.TitleEffectsDto effects) {
 
     /**
      * Boxed, not primitive, and every read of one goes through {@link #orZero}.
