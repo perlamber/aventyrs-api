@@ -37,8 +37,13 @@ public record MonsterBlueprintEntry(
         int famaNegativa
 ) {
 
-    /** A held Habilidade Monstruosa — see {@link org.aventyrs.api.monster.dto.MonstrousAbilityDto}. */
-    public record MonstrousAbilityEntry(MonsterModel model, String ability, String choice) {
+    /**
+     * A held Habilidade Monstruosa — see {@link org.aventyrs.api.monster.dto.MonstrousAbilityDto}.
+     * {@code choice} is only ever read (documents written before core 0.0.60); new writes carry
+     * {@code choices}.
+     */
+    public record MonstrousAbilityEntry(MonsterModel model, String ability, String choice,
+                                        Map<String, List<String>> choices) {
     }
 
     /** The Mestre's deltas — see {@link org.aventyrs.api.monster.dto.MonsterAdjustmentsDto}. */

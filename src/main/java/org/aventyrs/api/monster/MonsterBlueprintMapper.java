@@ -67,7 +67,7 @@ public final class MonsterBlueprintMapper {
                 orEmpty(dto.progressionUpgrades()),
                 dto.models() == null ? List.of() : List.copyOf(dto.models()),
                 dto.abilities() == null ? List.of() : dto.abilities().stream()
-                        .map(a -> new MonstrousAbilityEntry(a.model(), a.ability(), a.choice()))
+                        .map(a -> new MonstrousAbilityEntry(a.model(), a.ability(), null, picksOf(a.choice(), a.choices(), a.model(), a.ability())))
                         .toList(),
                 dto.feats() == null ? List.of() : dto.feats().stream().map(MonsterBlueprintMapper::toFeatEntry).toList(),
                 orEmpty(dto.egoAllocation()),
@@ -91,7 +91,7 @@ public final class MonsterBlueprintMapper {
                 orEmpty(entry.progressionUpgrades()),
                 entry.models() == null ? List.of() : entry.models(),
                 entry.abilities() == null ? List.of() : entry.abilities().stream()
-                        .map(a -> new MonstrousAbilityDto(a.model(), a.ability(), a.choice()))
+                        .map(a -> new MonstrousAbilityDto(a.model(), a.ability(), null, picksOf(a.choice(), a.choices(), a.model(), a.ability())))
                         .toList(),
                 entry.feats() == null ? List.of() : entry.feats().stream().map(MonsterBlueprintMapper::toFeatDto).toList(),
                 orEmpty(entry.egoAllocation()),
@@ -146,7 +146,9 @@ public final class MonsterBlueprintMapper {
                         .build());
         if (entry.abilities() != null) {
             for (MonstrousAbilityEntry ability : entry.abilities()) {
-                builder.ability(MonstrousAbilitySelection.of(resolveAbility(ability), ability.choice()));
+                MonstrousAbility resolved = resolveAbility(ability);
+                builder.ability(MonstrousAbilitySelection.of(resolved,
+                        picksOf(ability.choice(), ability.choices(), ability.model(), ability.ability())));
             }
         }
         if (entry.feats() != null) {
@@ -155,6 +157,24 @@ public final class MonsterBlueprintMapper {
             }
         }
         return builder.build();
+    }
+
+    /**
+     * A Habilidade's picks: its {@code choices} when present, else a legacy single {@code choice}
+     * read as the pick for the Habilidade's one spec (core's own {@code MonstrousAbilitySelection#of(
+     * MonstrousAbility, String)} decides which spec that is), else none.
+     */
+    private static Map<String, List<String>> picksOf(String choice, Map<String, List<String>> choices,
+                                                     org.aventyrs.core.monster.model.MonsterModel model, String abilityName) {
+        if (choices != null && !choices.isEmpty()) {
+            return choices;
+        }
+        if (choice == null || model == null) {
+            return Map.of();
+        }
+        return model.findAbility(abilityName)
+                .map(ability -> MonstrousAbilitySelection.of(ability, choice).choices())
+                .orElse(Map.of());
     }
 
     private static MonstrousAbility resolveAbility(MonstrousAbilityEntry entry) {

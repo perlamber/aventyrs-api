@@ -93,8 +93,8 @@ class MonsterSheetControllerIntegrationTest {
                 Set.of(SkillType.ATAQUE_CORPO_A_CORPO, SkillType.FURTIVIDADE),
                 Map.of(SkillType.ESQUIVA_E_APARAR, 1),
                 List.of(MonsterModel.ASPECTO_HUMANOIDE),
-                List.of(new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "CORPO_HUMANOIDE", null),
-                        new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "MASCARA_SOCIAL", null)),
+                List.of(new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "CORPO_HUMANOIDE", null, Map.of("skills", List.of("ATAQUE_CORPO_A_CORPO"))),
+                        new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "MASCARA_SOCIAL", null, null)),
                 null, null, null, null, null, 0, 0);
     }
 
@@ -109,11 +109,11 @@ class MonsterSheetControllerIntegrationTest {
                 Set.of(SkillType.ATAQUE_CORPO_A_CORPO, SkillType.ESQUIVA_E_APARAR),
                 Map.of(SkillType.ATAQUE_CORPO_A_CORPO, 3, SkillType.ESQUIVA_E_APARAR, 2, SkillType.FURTIVIDADE, 2),
                 List.of(cireneia),
-                List.of(new MonstrousAbilityDto(cireneia, "ATRIBUTOS_APRIMORADOS", null),
-                        new MonstrousAbilityDto(cireneia, "MOVIMENTO_APRIMORADO", null),
-                        new MonstrousAbilityDto(cireneia, "CELERIDADE", null),
-                        new MonstrousAbilityDto(cireneia, "RELAMPEJANTE", "REACTIONS"),
-                        new MonstrousAbilityDto(cireneia, "LIBERDADE_SELVAGEM", null)),
+                List.of(new MonstrousAbilityDto(cireneia, "ATRIBUTOS_APRIMORADOS", null, null),
+                        new MonstrousAbilityDto(cireneia, "MOVIMENTO_APRIMORADO", null, null),
+                        new MonstrousAbilityDto(cireneia, "CELERIDADE", null, null),
+                        new MonstrousAbilityDto(cireneia, "RELAMPEJANTE", "REACTIONS", null),
+                        new MonstrousAbilityDto(cireneia, "LIBERDADE_SELVAGEM", null, null)),
                 null,
                 Map.of(EgoDomain.INICIATIVA, 3, EgoDomain.SORTE, 3),
                 null, null, null, 0, 0);
@@ -206,7 +206,7 @@ class MonsterSheetControllerIntegrationTest {
         MonsterBlueprintDto unknown = new MonsterBlueprintDto(
                 "Goblin", 5, null, null, null, null, null, null,
                 List.of(MonsterModel.ALMA_ELEMENTAL),
-                List.of(new MonstrousAbilityDto(MonsterModel.ALMA_ELEMENTAL, "CELERIDADE", null)),
+                List.of(new MonstrousAbilityDto(MonsterModel.ALMA_ELEMENTAL, "CELERIDADE", null, null)),
                 null, null, null, null, null, 0, 0);
 
         mockMvc.perform(post("/api/monster-sheets")
@@ -256,7 +256,11 @@ class MonsterSheetControllerIntegrationTest {
         MonsterBlueprintDto grown = new MonsterBlueprintDto(
                 "Goblin Chefe", 12, null, SizeCategory.MINUS_ONE,
                 goblin("x").attributeBases(), goblin("x").trainedSkills(), goblin("x").gnoseUpgrades(),
-                goblin("x").progressionUpgrades(), goblin("x").models(), goblin("x").abilities(),
+                goblin("x").progressionUpgrades(), goblin("x").models(),
+                // A Deviante's Corpo Humanoide mimics two Perícias, not one.
+                List.of(new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "CORPO_HUMANOIDE", null,
+                                Map.of("skills", List.of("ATAQUE_CORPO_A_CORPO", "FURTIVIDADE"))),
+                        new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "MASCARA_SOCIAL", null, null)),
                 null, null,
                 new MonsterAdjustmentsDto(null, null, 2, 0, 0, 0, 0, 0),
                 true, Set.of(CriticalEffectType.SANGRAMENTO), 0, 0);
@@ -351,5 +355,50 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.damageTaken").value(7))
                 .andExpect(jsonPath("$.determinationSpent").value(3))
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(1));
+    }
+
+    /** A Habilidade with several picks round-trips them, and the wrong number of picks is a 400. */
+    @Test
+    void storesAHabilidadesMultiplePicks() throws Exception {
+        MonsterModel alma = MonsterModel.ALMA_ELEMENTAL;
+        MonsterBlueprintDto conjurador = new MonsterBlueprintDto(
+                "Conjurador Elemental", 12, null, null, null, null, null, null,
+                List.of(alma),
+                List.of(new MonstrousAbilityDto(alma, "SANGUE_ELEMENTAL", null, Map.of("element", List.of("FOGO"))),
+                        new MonstrousAbilityDto(alma, "CONJURACAO_ELEMENTAL", null,
+                                Map.of("trees", List.of("VOO", "IRA_DE_VULCANO")))),
+                null, null, null, null, null, 0, 0);
+
+        mockMvc.perform(post("/api/monster-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MonsterSheetCreateRequest(conjurador, gmId, null, null))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.blueprint.abilities[1].choices.trees", hasSize(2)))
+                .andExpect(jsonPath("$.blueprint.abilities[1].choices.trees[0]").value("VOO"))
+                .andExpect(jsonPath("$.character.attributes.FOCUS.racialBonus").value(2));
+
+        MonsterBlueprintDto oneTree = new MonsterBlueprintDto(
+                "Conjurador Elemental", 12, null, null, null, null, null, null,
+                List.of(alma),
+                List.of(new MonstrousAbilityDto(alma, "SANGUE_ELEMENTAL", null, Map.of("element", List.of("FOGO"))),
+                        new MonstrousAbilityDto(alma, "CONJURACAO_ELEMENTAL", null, Map.of("trees", List.of("VOO")))),
+                null, null, null, null, null, 0, 0);
+        mockMvc.perform(post("/api/monster-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MonsterSheetCreateRequest(oneTree, gmId, null, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]").value("INVALID_ABILITY_CHOICE:CONJURACAO_ELEMENTAL:1:2"));
+    }
+
+    /** A pre-0.0.60 single {@code choice} is still read — as the Habilidade's one pick — and answered as {@code choices}. */
+    @Test
+    void readsALegacySingleChoice() throws Exception {
+        mockMvc.perform(post("/api/monster-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new MonsterSheetCreateRequest(pantera(), gmId, null, null))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.blueprint.abilities[3].ability").value("RELAMPEJANTE"))
+                .andExpect(jsonPath("$.blueprint.abilities[3].choice").doesNotExist())
+                .andExpect(jsonPath("$.blueprint.abilities[3].choices.bonus[0]").value("REACTIONS"));
     }
 }
