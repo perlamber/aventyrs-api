@@ -1,0 +1,42 @@
+# Monster sheets are rebuilt around core 0.0.59's MonsterBlueprint: a monster is now the Mestre's
+# choices (Grau de Poder, Atributos, Modelos, Habilidades Monstruosas …) and core derives every GD
+# and Defesa from them. The old documents carried hand-authored physicalDefense/magicDefense/
+# generalDifficulty/skillDifficulties and no blueprint, and there is no faithful way to guess a Grau
+# de Poder and Habilidades from them — so, as agreed, they are dropped and the GM recreates them.
+#
+# Order matters: a Scene lists its foes by id among its participants, so every participant that
+# names a monster sheet is removed from its Scene first (a $lookup against monsterSheets, merged
+# back into scenes), then the monster sheets themselves are deleted. A Scene with no foes is left
+# exactly as it was.
+databaseChangeLog:
+  - changeSet:
+      id: 001-remove-monster-participants-from-scenes
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                aggregate: "scenes",
+                pipeline: [
+                  { $lookup: { from: "monsterSheets", localField: "participants.characterSheetId", foreignField: "_id", as: "_foes" } },
+                  { $match: { "_foes.0": { $exists: true } } },
+                  { $set: { participants: { $filter: {
+                      input: "$participants",
+                      as: "p",
+                      cond: { $not: { $in: [ "$$p.characterSheetId", "$_foes._id" ] } }
+                  } } } },
+                  { $unset: "_foes" },
+                  { $merge: { into: "scenes", on: "_id", whenMatched: "replace", whenNotMatched: "discard" } }
+                ],
+                cursor: {}
+              }
+  - changeSet:
+      id: 002-drop-authored-monster-sheets
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                delete: "monsterSheets",
+                deletes: [ { q: {}, limit: 0 } ]
+              }

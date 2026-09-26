@@ -19,6 +19,7 @@ import org.aventyrs.api.campaign.dto.BagLootRequest;
 import org.aventyrs.api.campaign.dto.CampaignCreateRequest;
 import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.api.monster.MonsterSheetService;
+import org.aventyrs.api.monster.dto.MonsterBlueprintDto;
 import org.aventyrs.api.monster.dto.MonsterSheetCreateRequest;
 import org.aventyrs.api.player.PlayerService;
 import org.aventyrs.api.player.dto.PlayerRequest;
@@ -98,11 +99,10 @@ class CampaignBagIntegrationTest {
     }
 
     private String newGoblin(List<InventoryItemDto> inventory) {
-        CharacterDto goblin = new CharacterDto("Goblin", new RaceDto("MONSTRUOSO", null, null, null, null, null),
-                null, null, null, null, ActionProfile.REFLEXOS_RAPIDOS,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
-        return monsterSheetService.create(new MonsterSheetCreateRequest(
-                goblin, playerId, 12, 9, null, null, null, null, null, inventory)).id();
+        // The least legal blueprint: a name, GP 0, every Atributo at base 1.
+        MonsterBlueprintDto goblin = new MonsterBlueprintDto("Goblin", 0, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, 0, 0);
+        return monsterSheetService.create(new MonsterSheetCreateRequest(goblin, playerId, null, inventory)).id();
     }
 
     private static InventoryItemDto item(String name) {

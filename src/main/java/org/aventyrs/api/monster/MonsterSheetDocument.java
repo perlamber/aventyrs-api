@@ -1,10 +1,7 @@
 package org.aventyrs.api.monster;
 
-import org.aventyrs.core.monster.SkillDifficulty;
-import org.aventyrs.core.skill.SkillType;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import lombok.AllArgsConstructor;
 import org.aventyrs.api.item.InventoryItemEntry;
 import lombok.Getter;
@@ -18,7 +15,6 @@ import org.aventyrs.api.sheet.PendingEgoRecoveryEntry;
 import org.aventyrs.api.sheet.TemporaryBonusEntry;
 import org.aventyrs.api.sheet.WitheringEntry;
 import org.aventyrs.core.character.EgoDomain;
-import org.aventyrs.core.effect.CriticalEffectType;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -33,9 +29,13 @@ import org.springframework.data.mongodb.core.mapping.Document;
  * character, but this API doesn't enforce that distinction any harder than {@code PlayerRole}
  * enforces anything else here (see that enum's own javadoc). Unlike {@code CharacterSheetDocument}
  * there's still no experience/Fama fields: a foe never spends XP (see core's {@code MonsterSheet}
- * javadoc for why). {@code physicalDefense}/{@code magicDefense}/{@code generalDifficulty}/{@code
- * skillDifficulties}/{@code undead}/{@code criticalEffectImmunities} mirror core's {@code MonsterSheet}'s
- * own fields, authored on the stat block rather than derived.
+ * javadoc for why).
+ *
+ * <p><b>{@code blueprint} is the source of truth</b> (core 0.0.59): the Mestre's choices, from which
+ * core's {@code MonsterRules} derives every GD, Defesa, PA and PV/PD/PM on each read. {@code
+ * character} is <i>derived</i> from it too — rewritten on every create and update, never edited on
+ * its own — and kept only so the readers that predate blueprints (a Scene's participant lookup,
+ * the Campanha's bag) find the same shape a character sheet has.
  */
 @Document(collection = "monsterSheets")
 @Getter
@@ -47,23 +47,13 @@ public class MonsterSheetDocument {
     @Id
     private String id;
 
+    /** The Mestre's choices — core derives every number from this. */
+    private MonsterBlueprintEntry blueprint;
+
+    /** Derived from {@link #blueprint} on every write; see the class javadoc. */
     private CharacterEntry character;
 
     private String playerId;
-
-    private int physicalDefense;
-
-    private int magicDefense;
-
-    /** core's {@code MonsterTemplate#getGeneralDifficulty()} — the GD on every Perícia without an entry below. */
-    private SkillDifficulty generalDifficulty;
-
-    /** core's {@code MonsterTemplate#getSkillDifficulties()} — the GD per Perícia the foe knows. */
-    private Map<SkillType, SkillDifficulty> skillDifficulties;
-
-    private boolean undead;
-
-    private Set<CriticalEffectType> criticalEffectImmunities;
 
     private int hitPointsSpent;
 

@@ -29,6 +29,7 @@ import org.aventyrs.core.item.ItemCategory;
 import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.MimetizedSpellDto;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
@@ -468,6 +469,52 @@ class CharacterSheetControllerIntegrationTest {
                 // An update carries the whole build state, so omitting attributeAbilities clears
                 // them, exactly like the Perícia dropped above.
                 .andExpect(jsonPath("$.character.attributeAbilities").isEmpty());
+    }
+
+    /**
+     * An Arcanista's Magias are chosen in the creation wizard and grow in the hub, so both the
+     * create and every later PUT author the whole list — the free picks and known Árvores are
+     * derived from it by core, so nothing else about them is persisted.
+     */
+    @Test
+    void spellsAndMimetizedSpellsRoundTripThroughCreateAndUpdate() throws Exception {
+        List<FeatDto> arcanista = List.of(new FeatDto("ARCANISTA", List.of(), null));
+        CharacterDto created = new CharacterDto(
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
+                List.of("Aliviar a Dor", "Luz de Vela"),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
+
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.character.spells.length()").value(2))
+                .andExpect(jsonPath("$.character.spells[0]").value("Aliviar a Dor"))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].spellName").value("Golpe de Fogo"))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].determinationPointCost").value(2))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        CharacterDto grown = new CharacterDto(
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
+                List.of("Aliviar a Dor", "Luz de Vela", "Revigorar"),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
+        CharacterSheetUpdateRequest update = new CharacterSheetUpdateRequest(
+                grown, playerId, BigDecimal.ONE, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.spells.length()").value(3));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.spells[2]").value("Revigorar"))
+                .andExpect(jsonPath("$.character.feats[0].type").value("ARCANISTA"))
+                .andExpect(jsonPath("$.character.mimetizedSpells.length()").value(1));
     }
 
     @Test
