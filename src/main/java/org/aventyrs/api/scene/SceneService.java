@@ -592,7 +592,9 @@ public class SceneService {
                 message.turnNumber(),
                 toOutcome(message),
                 message.dice() == null ? null : List.copyOf(message.dice()),
-                message.total());
+                message.total(),
+                message.targetCharacterSheetId(),
+                message.activatedFeats() == null ? null : List.copyOf(message.activatedFeats()));
 
         List<SceneActionEntry> history = new ArrayList<>(actionHistoryOf(document));
         history.add(entry);
@@ -794,7 +796,9 @@ public class SceneService {
                 outcome == null ? null : outcome.criticalResult(),
                 outcome == null ? null : outcome.reachedDifficultyLevel(),
                 entry.dice(),
-                entry.total());
+                entry.total(),
+                entry.targetCharacterSheetId(),
+                entry.activatedFeats());
     }
 
     /** How many of participants are in the turn rotation at round — the length of the list's prefix. */

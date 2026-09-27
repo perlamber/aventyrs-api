@@ -58,7 +58,9 @@ public class CharacterSheetService {
                 null,
                 null,
                 List.of(),
-                false);
+                false,
+                0,
+                0);
         return toResponse(repository.save(document));
     }
 
@@ -122,16 +124,33 @@ public class CharacterSheetService {
         updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, null, null, null);
     }
 
-    /**
-     * {@link #updateCombatStatus(String, int, int, int, CharacterStatus)}, plus the Ego state a live
-     * Cena changes — the temporary Ego spent, the hourly Ego debt, and the exhaustion. Each is written
-     * only when sent: {@code null} means "this client did not report it", never "clear it", so an
-     * older client's status frames leave them alone.
-     */
+    /** The Ego-taking form with no PV locks reported — both left as stored. */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, null, null);
+    }
+
+    /**
+     * {@link #updateCombatStatus(String, int, int, int, CharacterStatus)}, plus the Ego state a live
+     * Cena changes — the temporary Ego spent, the hourly Ego debt, and the exhaustion — and the PV only
+     * a Descanso Verdadeiro recovers (core 0.0.70's two locks). Each is written only when sent: {@code
+     * null} means "this client did not report it", never "clear it", so an older client's status
+     * frames leave them alone.
+     */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints) {
         CharacterSheetDocument document = findOrThrow(id);
+        // The PV only a Descanso Verdadeiro (or Roubo de Vida) recovers — same "null leaves it alone".
+        if (lockedHitPoints != null) {
+            document.setLockedHitPoints(Math.max(0, lockedHitPoints));
+        }
+        if (lifeStealLockedHitPoints != null) {
+            document.setLifeStealLockedHitPoints(Math.max(0, lifeStealLockedHitPoints));
+        }
         if (temporaryEgoPoints != null) {
             document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
         }
@@ -245,6 +264,8 @@ public class CharacterSheetService {
                 document.getCampaignId(),
                 progressionLocked,
                 CombatantSheetMapper.toHourlyEgoRecoveryDtos(document.getHourlyEgoRecoveries()),
-                Boolean.TRUE.equals(document.getExhausted()));
+                Boolean.TRUE.equals(document.getExhausted()),
+                document.getLockedHitPoints() == null ? 0 : document.getLockedHitPoints(),
+                document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints());
     }
 }

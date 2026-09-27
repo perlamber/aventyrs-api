@@ -848,6 +848,48 @@ class SceneServiceIntegrationTest {
         assertEquals(4, after.damageTaken());
     }
 
+    // --- core 0.0.70: the PV only a Descanso Verdadeiro recovers --------------------------------
+
+    @Test
+    void combatStatusPersistsBothPvLocksWhenSentAndLeavesThemAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 6, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, 2, 3);
+        characterSheetService.updateCombatStatus(characterSheetId1, 7, 0, 0, CharacterStatus.HIGH_LIFE);
+
+        CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
+        assertEquals(2, after.lockedHitPoints());
+        assertEquals(3, after.lifeStealLockedHitPoints());
+        assertEquals(7, after.damageTaken());
+    }
+
+    @Test
+    void aSheetThatNeverLockedAnyReadsZero() {
+        CharacterSheetResponse response = characterSheetService.get(characterSheetId2);
+
+        assertEquals(0, response.lockedHitPoints());
+        assertEquals(0, response.lifeStealLockedHitPoints());
+    }
+
+    // --- core 0.0.70: an action names its target and the Talentos it spent ---------------------
+
+    @Test
+    void aRecordedActionKeepsItsTargetAndTheTalentosItSpent() {
+        String sceneId = newScene("Duelo");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 10, UUID.randomUUID()));
+
+        var event = sceneService.recordAction(sceneId, new org.aventyrs.api.scene.dto.RecordActionMessage(
+                characterSheetId1, SkillType.ATAQUE_CORPO_A_CORPO, null, AttackSourceKind.WEAPON,
+                org.aventyrs.core.sheet.ActionCost.Kind.FIXED, 3, 1, true, 2, null, null, List.of(1, 4, 4), 12,
+                characterSheetId2, List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO")));
+
+        assertEquals(characterSheetId2, event.targetCharacterSheetId());
+        assertEquals(List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO"), event.activatedFeats());
+        var replayed = sceneService.get(sceneId).actionHistory().get(0);
+        assertEquals(characterSheetId2, replayed.targetCharacterSheetId());
+        assertEquals(List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO"), replayed.activatedFeats());
+    }
+
     @Test
     void aSheetWrittenBeforeTheEgoStateExistedStillReads() {
         var document = characterSheetRepository.findById(characterSheetId2).orElseThrow();

@@ -17,6 +17,11 @@ import org.aventyrs.core.skill.SkillType;
  * <p>{@code dice}/{@code total} are the 3d6 faces and the final total the rolling client showed its
  * own player — what lets every other client's log render the same card, dice and all, instead of
  * a bare verdict. Both are {@code null} from a client that predates them.
+ *
+ * <p>{@code targetCharacterSheetId} is the attack's primary target and {@code activatedFeats} the
+ * {@code Feat#name()}s of the Talentos the roll spent (Lutador Nato, Ataque Rápido, …) — core
+ * 0.0.70's {@code CombatantAction#targetId}/{@code #activatedFeats}, carried so every client's log
+ * can name them. {@code null} from a client that predates them.
  */
 public record SceneActionEvent(
         String characterSheetId,
@@ -31,5 +36,7 @@ public record SceneActionEvent(
         CriticalResult criticalResult,
         DifficultyLevel reachedDifficultyLevel,
         List<Integer> dice,
-        Integer total) {
+        Integer total,
+        String targetCharacterSheetId,
+        List<String> activatedFeats) {
 }

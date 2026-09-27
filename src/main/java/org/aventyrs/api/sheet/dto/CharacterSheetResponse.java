@@ -11,6 +11,9 @@ import org.aventyrs.core.character.EgoDomain;
  * while that Campanha has an ONGOING Sessão, and the client disables progression (Talentos,
  * Graduações, Títulos, Especializações, Habilidades, Atributos) while it holds. That check is
  * client-only by design: {@code PUT /character-sheets/{id}} does not refuse progression changes.
+ *
+ * <p>{@code lockedHitPoints}/{@code lifeStealLockedHitPoints} — see {@code
+ * CharacterSheetDocument#getLockedHitPoints()}; 0 on a sheet that never locked any.
  */
 public record CharacterSheetResponse(
         String id,
@@ -37,6 +40,8 @@ public record CharacterSheetResponse(
         String campaignId,
         boolean progressionLocked,
         List<HourlyEgoRecoveryDto> hourlyEgoRecoveries,
-        boolean exhausted
+        boolean exhausted,
+        int lockedHitPoints,
+        int lifeStealLockedHitPoints
 ) {
 }
