@@ -117,7 +117,9 @@ public final class CombatantSheetMapper {
                 toTitleEntry(character.secondaryTitle()),
                 toTitleEntry(character.tertiaryTitle()),
                 character.spells() == null ? List.of() : character.spells(),
-                toMimetizedSpellEntries(character.mimetizedSpells()));
+                toMimetizedSpellEntries(character.mimetizedSpells()),
+                character.quickLearningSkills() == null ? null : Set.copyOf(character.quickLearningSkills()),
+                character.centelhas());
     }
 
     private static List<MimetizedSpellEntry> toMimetizedSpellEntries(List<MimetizedSpellDto> mimetizedSpells) {
@@ -125,7 +127,8 @@ public final class CombatantSheetMapper {
             return List.of();
         }
         return mimetizedSpells.stream()
-                .map(spell -> new MimetizedSpellEntry(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .map(spell -> new MimetizedSpellEntry(spell.spellName(), spell.determinationPointCost(), spell.selfOnly(),
+                        spell.requiredForm()))
                 .toList();
     }
 
@@ -134,7 +137,8 @@ public final class CombatantSheetMapper {
             return List.of();
         }
         return mimetizedSpells.stream()
-                .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly(),
+                        spell.requiredForm()))
                 .toList();
     }
 
@@ -460,6 +464,8 @@ public final class CombatantSheetMapper {
                 toTitleResponse(character.secondaryTitle()),
                 toTitleResponse(character.tertiaryTitle()),
                 character.spells() == null ? List.of() : character.spells(),
-                toMimetizedSpellResponses(character.mimetizedSpells()));
+                toMimetizedSpellResponses(character.mimetizedSpells()),
+                character.quickLearningSkills() == null ? Set.of() : Set.copyOf(character.quickLearningSkills()),
+                character.centelhas());
     }
 }

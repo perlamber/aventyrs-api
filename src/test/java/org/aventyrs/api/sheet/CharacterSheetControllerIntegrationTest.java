@@ -517,6 +517,35 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.mimetizedSpells.length()").value(1));
     }
 
+    /**
+     * The state core 0.0.66–0.0.68 added to a Character: Aprendizado Rápido's two Perícias, the
+     * Centelhas left after a Regalia donation, and a mimetized Magia's Forma lock — each must survive
+     * the save, or the reloaded character plays by different rules.
+     */
+    @Test
+    void aprendizadoRapidoCentelhasAndAFormaLockRoundTrip() throws Exception {
+        CharacterDto created = new CharacterDto(
+                "Nimue Character", HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 0, false, "FEERICA")),
+                java.util.Set.of(SkillType.ATTENTION, SkillType.ATLETISMO),
+                2);
+
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.quickLearningSkills.length()").value(2))
+                .andExpect(jsonPath("$.character.centelhas").value(2))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].requiredForm").value("FEERICA"));
+    }
+
     @Test
     void defaultsAlignmentWhenOmitted() throws Exception {
         CharacterDto character = new CharacterDto(

@@ -359,7 +359,8 @@ public class SceneRealtimeController {
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/state",
                     new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
-                            message.frenzyRounds(), message.frenzyModes(), message.compelled()));
+                            message.frenzyRounds(), message.frenzyModes(), message.compelled(),
+                            message.riding(), message.ferocious()));
         } catch (RuntimeException ex) {
             log.warn("Rejected state change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());

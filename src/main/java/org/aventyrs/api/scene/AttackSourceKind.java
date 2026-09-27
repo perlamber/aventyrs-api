@@ -14,5 +14,7 @@ package org.aventyrs.api.scene;
  * log entry has no need for either identity, only the category.
  */
 public enum AttackSourceKind {
-    WEAPON, SPELL
+    WEAPON, SPELL,
+    /** A racial attack that is neither — the Górgona's Olhar de Lacerto (core {@code race.OlharDeLacerto}). */
+    RACIAL
 }
