@@ -60,7 +60,8 @@ public class CharacterSheetService {
                 List.of(),
                 false,
                 0,
-                0);
+                0,
+                Map.of());
         return toResponse(repository.save(document));
     }
 
@@ -129,7 +130,16 @@ public class CharacterSheetService {
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted) {
         updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
-                hourlyEgoRecoveries, exhausted, null, null);
+                hourlyEgoRecoveries, exhausted, null, null, null);
+    }
+
+    /** The PV-lock-taking form with no rest-scoped uses reported — left as stored. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, null);
     }
 
     /**
@@ -142,8 +152,17 @@ public class CharacterSheetService {
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
-            Integer lifeStealLockedHitPoints) {
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses) {
         CharacterSheetDocument document = findOrThrow(id);
+        if (restScopedUses != null) {
+            Map<String, Integer> kept = new java.util.HashMap<>();
+            restScopedUses.forEach((source, uses) -> {
+                if (source != null && uses != null && uses > 0) {
+                    kept.put(source, uses);
+                }
+            });
+            document.setRestScopedUses(kept);
+        }
         // The PV only a Descanso Verdadeiro (or Roubo de Vida) recovers — same "null leaves it alone".
         if (lockedHitPoints != null) {
             document.setLockedHitPoints(Math.max(0, lockedHitPoints));
@@ -266,6 +285,7 @@ public class CharacterSheetService {
                 CombatantSheetMapper.toHourlyEgoRecoveryDtos(document.getHourlyEgoRecoveries()),
                 Boolean.TRUE.equals(document.getExhausted()),
                 document.getLockedHitPoints() == null ? 0 : document.getLockedHitPoints(),
-                document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints());
+                document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints(),
+                document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()));
     }
 }

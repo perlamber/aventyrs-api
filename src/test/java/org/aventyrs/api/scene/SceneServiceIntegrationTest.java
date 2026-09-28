@@ -863,6 +863,20 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void combatStatusPersistsRestScopedUsesAndDropsSpentOut() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, Map.of("CRIAR_REFUGIO", 2));
+        assertEquals(Map.of("CRIAR_REFUGIO", 2), characterSheetService.get(characterSheetId1).restScopedUses());
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN);
+        assertEquals(Map.of("CRIAR_REFUGIO", 2), characterSheetService.get(characterSheetId1).restScopedUses());
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, Map.of());
+        assertEquals(Map.of(), characterSheetService.get(characterSheetId1).restScopedUses());
+    }
+
+    @Test
     void aSheetThatNeverLockedAnyReadsZero() {
         CharacterSheetResponse response = characterSheetService.get(characterSheetId2);
 

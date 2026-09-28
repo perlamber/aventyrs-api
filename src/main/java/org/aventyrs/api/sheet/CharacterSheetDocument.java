@@ -103,4 +103,7 @@ public class CharacterSheetDocument {
     private Integer lockedHitPoints;
 
     private Integer lifeStealLockedHitPoints;
+
+    /** Uses spent per source until a Descanso Longo Verdadeiro — Criar Refúgio's. {@code null} on older documents. */
+    private Map<String, Integer> restScopedUses;
 }

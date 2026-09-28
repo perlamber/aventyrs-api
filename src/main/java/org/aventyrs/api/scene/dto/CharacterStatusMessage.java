@@ -17,6 +17,10 @@ import org.aventyrs.core.character.CharacterStatus;
  * only a Descanso Verdadeiro recovers — core's {@code CombatantSheet#payWithVitality} lock
  * (Transferir Vitalidade, Força Excessiva) and its {@code lockDamage(n, true)} lock that Roubo de Vida
  * may also recover (Feridas Ardentes). {@code null} means "not reported", never "clear it".
+ *
+ * <p>{@code restScopedUses} is core's {@code CombatantSheet#getRestScopedUses} per source name — uses
+ * spent until a Descanso Longo Verdadeiro clears them (Criar Refúgio's negations). {@code null} leaves
+ * the stored map alone; a map replaces it, so a source cleared by a rest is sent as absent.
  */
 public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
                                      int magicPointsSpent, int determinationPointsSpent,
@@ -25,7 +29,18 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
                                      java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries,
                                      Boolean exhausted,
                                      Integer lockedHitPoints,
-                                     Integer lifeStealLockedHitPoints) {
+                                     Integer lifeStealLockedHitPoints,
+                                     java.util.Map<String, Integer> restScopedUses) {
+
+    /** A frame from before rest-scoped uses were carried — the stored map is left alone. */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status,
+            java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted,
+            Integer lockedHitPoints, Integer lifeStealLockedHitPoints) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
+                temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, null);
+    }
 
     /** A status frame from before core 0.0.70's PV locks — both left as stored. */
     public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,

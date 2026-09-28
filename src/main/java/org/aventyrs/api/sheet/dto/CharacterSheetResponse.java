@@ -13,7 +13,8 @@ import org.aventyrs.core.character.EgoDomain;
  * client-only by design: {@code PUT /character-sheets/{id}} does not refuse progression changes.
  *
  * <p>{@code lockedHitPoints}/{@code lifeStealLockedHitPoints} — see {@code
- * CharacterSheetDocument#getLockedHitPoints()}; 0 on a sheet that never locked any.
+ * CharacterSheetDocument#getLockedHitPoints()}; 0 on a sheet that never locked any. {@code
+ * restScopedUses} — see {@code CharacterSheetDocument#getRestScopedUses()}; empty when none.
  */
 public record CharacterSheetResponse(
         String id,
@@ -42,6 +43,7 @@ public record CharacterSheetResponse(
         List<HourlyEgoRecoveryDto> hourlyEgoRecoveries,
         boolean exhausted,
         int lockedHitPoints,
-        int lifeStealLockedHitPoints
+        int lifeStealLockedHitPoints,
+        Map<String, Integer> restScopedUses
 ) {
 }
