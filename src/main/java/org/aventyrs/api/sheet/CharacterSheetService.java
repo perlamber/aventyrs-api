@@ -217,7 +217,10 @@ public class CharacterSheetService {
                 stored.secondaryTitle(),
                 stored.tertiaryTitle(),
                 stored.spells(),
-                stored.mimetizedSpells()));
+                stored.mimetizedSpells(),
+                stored.quickLearningSkills(),
+                stored.centelhas(),
+                stored.backgrounds()));
 
         repository.save(document);
     }

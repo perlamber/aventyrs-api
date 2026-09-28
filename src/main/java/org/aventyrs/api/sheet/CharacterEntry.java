@@ -133,8 +133,46 @@ public record CharacterEntry(
         // Aprendizado Rápido's two Perícias (core Character#getQuickLearningSkills) and the Centelhas
         // the character still has (Character#getCentelhas) — null reads as "none recorded" / 3.
         Set<SkillType> quickLearningSkills,
-        Integer centelhas
+        Integer centelhas,
+        // The two Antecedentes (core Character#getBackgrounds) — null reads as none chosen.
+        List<BackgroundEntry> backgrounds
 ) {
+    /** The shape before core 0.0.71 added the Antecedentes. */
+    public CharacterEntry(String characterId,
+            String name,
+            RaceEntry race,
+            Sexo sexo,
+            Deity deity,
+            Alignment alignment,
+            SizeCategory sizeCategory,
+            ActionProfile actionProfile,
+            Map<AttributeDomain, AttributeValueEntry> attributes,
+            Map<EgoDomain, EgoValueEntry> egos,
+            Map<SkillType, CharacterSkillEntry> skills,
+            List<String> attributeAbilities,
+            Map<EgoDomain, String> egoAdvantages,
+            List<String> activeAbilities,
+            Integer actionPoints,
+            Integer temporaryActionPointsBonus,
+            CharacterStatus status,
+            Integer reactions,
+            Integer freeActions,
+            Integer manaMultiplier,
+            Integer lifeMultiplier,
+            Integer determinationMultiplier,
+            Boolean centelhaSuperiorSelected,
+            List<FeatEntry> feats,
+            List<InventoryItemEntry> equipment,
+            TitleEntry primaryTitle,
+            TitleEntry secondaryTitle,
+            TitleEntry tertiaryTitle,
+            List<String> spells,
+            List<MimetizedSpellEntry> mimetizedSpells,
+            Set<SkillType> quickLearningSkills,
+            Integer centelhas) {
+        this(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, null);
+    }
+
     /** The shape before core 0.0.67/0.0.68 added Aprendizado Rápido and Centelhas. */
     public CharacterEntry(String characterId,
                           String name,

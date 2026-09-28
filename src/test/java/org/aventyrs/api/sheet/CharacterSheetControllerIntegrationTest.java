@@ -82,6 +82,9 @@ class CharacterSheetControllerIntegrationTest {
     @Autowired
     private MongoTemplate mongoTemplate;
 
+    @Autowired
+    private CharacterSheetService characterSheetService;
+
     private String playerId;
 
     @BeforeEach
@@ -544,6 +547,89 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.quickLearningSkills.length()").value(2))
                 .andExpect(jsonPath("$.character.centelhas").value(2))
                 .andExpect(jsonPath("$.character.mimetizedSpells[0].requiredForm").value("FEERICA"));
+    }
+
+    private CharacterDto withBackgrounds(final String name, final List<org.aventyrs.api.sheet.dto.BackgroundDto> backgrounds) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), java.util.Set.of(SkillType.ATTENTION, SkillType.ATLETISMO), 3, backgrounds);
+    }
+
+    private static final List<org.aventyrs.api.sheet.dto.BackgroundDto> OFI_ESCUDEIRO = List.of(
+            new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", List.of(SkillType.ATTENTION, SkillType.PROFISSAO),
+                    List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.ATTENTION,
+                                    org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "SENTIDOS_APURADOS"),
+                            new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.PROFISSAO,
+                                    org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "METALURGIA")),
+                    null),
+            new org.aventyrs.api.sheet.dto.BackgroundDto("ESCUDEIRO", List.of(SkillType.CONHECIMENTOS, SkillType.DIRIGIR_E_CAVALGAR),
+                    List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.CONHECIMENTOS,
+                            org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "GEO_HISTORIA")),
+                    List.of("ESQUIVA_E_APARAR")));
+
+    private String create(final CharacterDto character) throws Exception {
+        String response = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(character, playerId))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("id").asText();
+    }
+
+    /** Core 0.0.71's Antecedentes — both, with their picks, survive the save. */
+    @Test
+    void theAntecedentesRoundTrip() throws Exception {
+        String id = create(withBackgrounds("Lancelot", OFI_ESCUDEIRO));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(2))
+                .andExpect(jsonPath("$.character.backgrounds[0].type").value("OFI"))
+                .andExpect(jsonPath("$.character.backgrounds[0].kind").value("ORIGIN"))
+                .andExpect(jsonPath("$.character.backgrounds[0].traits[1].name").value("METALURGIA"))
+                .andExpect(jsonPath("$.character.backgrounds[1].kind").value("CAREER"))
+                .andExpect(jsonPath("$.character.backgrounds[1].benefitChoices[0]").value("ESQUIVA_E_APARAR"));
+    }
+
+    @Test
+    void aCharacterWithoutAntecedentesReadsAsEmpty() throws Exception {
+        String id = create(withBackgrounds("Nobody", null));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(0));
+    }
+
+    @Test
+    void anUnknownAntecedenteOrASecondOfTheSameKindIsABadRequest() throws Exception {
+        for (List<org.aventyrs.api.sheet.dto.BackgroundDto> invalid : List.of(
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("ATLANTE", null, null, null)),
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", null, null, null),
+                        new org.aventyrs.api.sheet.dto.BackgroundDto("VASTARE", null, null, null)),
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", null,
+                        List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.ARTES,
+                                org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "METALURGIA")), null)))) {
+            mockMvc.perform(post("/api/character-sheets")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    new CharacterSheetCreateRequest(withBackgrounds("Bad", invalid), playerId))))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    /** A vitals save rebuilds the stored entry — it must keep every field, not only the pre-0.0.67 ones. */
+    @Test
+    void aCombatStatusUpdateKeepsTheAntecedentesAprendizadoRapidoAndCentelhas() throws Exception {
+        String id = create(withBackgrounds("Percival", OFI_ESCUDEIRO));
+
+        characterSheetService.updateCombatStatus(id, 3, 0, 0, org.aventyrs.core.character.CharacterStatus.CLEAN);
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(2))
+                .andExpect(jsonPath("$.character.quickLearningSkills.length()").value(2))
+                .andExpect(jsonPath("$.character.centelhas").value(3));
     }
 
     @Test

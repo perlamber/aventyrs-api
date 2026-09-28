@@ -1,5 +1,13 @@
 package org.aventyrs.api.sheet;
 
+import org.aventyrs.api.sheet.dto.BackgroundDto;
+import org.aventyrs.api.sheet.dto.BackgroundResponse;
+import org.aventyrs.api.sheet.dto.BackgroundTraitDto;
+import org.aventyrs.core.background.Background;
+import org.aventyrs.core.background.BackgroundKind;
+import org.aventyrs.core.background.Backgrounds;
+import org.aventyrs.core.skill.SkillTraitCatalog;
+
 import org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto;
 import java.util.EnumMap;
 import java.util.List;
@@ -119,7 +127,60 @@ public final class CombatantSheetMapper {
                 character.spells() == null ? List.of() : character.spells(),
                 toMimetizedSpellEntries(character.mimetizedSpells()),
                 character.quickLearningSkills() == null ? null : Set.copyOf(character.quickLearningSkills()),
-                character.centelhas());
+                character.centelhas(),
+                toBackgroundEntries(character.backgrounds()));
+    }
+
+    /**
+     * The Antecedentes as sent — each {@code type} a known core {@code Background}, at most one per
+     * {@code BackgroundKind}, and each trait a real constant of its Perícia and kind. Nothing checks
+     * the picks against what the Antecedente offers: the client applied them through core's {@code
+     * CharacterCreationService#applyBackground}, and this API, like the rest of the sheet, stores what
+     * it is handed.
+     */
+    static List<BackgroundEntry> toBackgroundEntries(List<BackgroundDto> backgrounds) {
+        if (backgrounds == null) {
+            return List.of();
+        }
+        java.util.Set<BackgroundKind> seen = java.util.EnumSet.noneOf(BackgroundKind.class);
+        List<BackgroundEntry> entries = new java.util.ArrayList<>();
+        for (BackgroundDto background : backgrounds) {
+            Background resolved = Backgrounds.byName(background.type())
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown Antecedente: " + background.type()));
+            if (!seen.add(resolved.getKind())) {
+                throw new IllegalArgumentException("More than one Antecedente of kind " + resolved.getKind());
+            }
+            List<BackgroundTraitEntry> traits = background.traits() == null ? List.of() : background.traits().stream()
+                    .map(trait -> {
+                        boolean known = SkillTraitCatalog.traitsOf(trait.skill(), trait.kind()).stream()
+                                .anyMatch(candidate -> ((Enum<?>) candidate).name().equals(trait.name()));
+                        if (!known) {
+                            throw new IllegalArgumentException("Unknown " + trait.kind() + " of " + trait.skill() + ": " + trait.name());
+                        }
+                        return new BackgroundTraitEntry(trait.skill(), trait.kind(), trait.name());
+                    })
+                    .toList();
+            entries.add(new BackgroundEntry(resolved.name(),
+                    background.graduationSkills() == null ? List.of() : List.copyOf(background.graduationSkills()),
+                    traits,
+                    background.benefitChoices() == null ? List.of() : List.copyOf(background.benefitChoices())));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static List<BackgroundResponse> toBackgroundResponses(List<BackgroundEntry> backgrounds) {
+        if (backgrounds == null) {
+            return List.of();
+        }
+        return backgrounds.stream()
+                .map(background -> new BackgroundResponse(background.type(),
+                        Backgrounds.byName(background.type()).map(found -> found.getKind().name()).orElse(null),
+                        background.graduationSkills() == null ? List.of() : background.graduationSkills(),
+                        background.traits() == null ? List.of() : background.traits().stream()
+                                .map(trait -> new BackgroundTraitDto(trait.skill(), trait.kind(), trait.name()))
+                                .toList(),
+                        background.benefitChoices() == null ? List.of() : background.benefitChoices()))
+                .toList();
     }
 
     private static List<MimetizedSpellEntry> toMimetizedSpellEntries(List<MimetizedSpellDto> mimetizedSpells) {
@@ -466,6 +527,7 @@ public final class CombatantSheetMapper {
                 character.spells() == null ? List.of() : character.spells(),
                 toMimetizedSpellResponses(character.mimetizedSpells()),
                 character.quickLearningSkills() == null ? Set.of() : Set.copyOf(character.quickLearningSkills()),
-                character.centelhas());
+                character.centelhas(),
+                toBackgroundResponses(character.backgrounds()));
     }
 }
