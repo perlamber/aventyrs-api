@@ -500,16 +500,18 @@ public final class CombatantSheetMapper {
     /** A sent ledger as stored — each map filled for all four Egos. {@code null} stays {@code null}. */
     public static EgoLedgerEntry toEgoLedgerEntry(org.aventyrs.api.sheet.dto.EgoLedgerDto provided) {
         return provided == null ? null : new EgoLedgerEntry(normalizeTemporaryEgoPoints(provided.permanentSpent()),
-                normalizeTemporaryEgoPoints(provided.extras()), normalizeTemporaryEgoPoints(provided.overflowReceived()));
+                normalizeTemporaryEgoPoints(provided.extras()), normalizeTemporaryEgoPoints(provided.overflowReceived()),
+                normalizeTemporaryEgoPoints(provided.setbacks()));
     }
 
     /** The stored ledger on the wire — all zeros for a document written before it existed. */
     public static org.aventyrs.api.sheet.dto.EgoLedgerDto toEgoLedgerDto(EgoLedgerEntry stored) {
         return stored == null
                 ? new org.aventyrs.api.sheet.dto.EgoLedgerDto(defaultTemporaryEgoPoints(), defaultTemporaryEgoPoints(),
-                        defaultTemporaryEgoPoints())
+                        defaultTemporaryEgoPoints(), defaultTemporaryEgoPoints())
                 : new org.aventyrs.api.sheet.dto.EgoLedgerDto(normalizeTemporaryEgoPoints(stored.permanentSpent()),
-                        normalizeTemporaryEgoPoints(stored.extras()), normalizeTemporaryEgoPoints(stored.overflowReceived()));
+                        normalizeTemporaryEgoPoints(stored.extras()), normalizeTemporaryEgoPoints(stored.overflowReceived()),
+                        normalizeTemporaryEgoPoints(stored.setbacks()));
     }
 
     public static Map<EgoDomain, Integer> normalizeTemporaryEgoPoints(Map<EgoDomain, Integer> provided) {

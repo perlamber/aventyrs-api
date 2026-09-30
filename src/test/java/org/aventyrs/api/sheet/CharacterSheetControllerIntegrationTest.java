@@ -569,7 +569,8 @@ class CharacterSheetControllerIntegrationTest {
         String id = objectMapper.readTree(createResponse).get("id").asText();
 
         org.aventyrs.api.sheet.dto.EgoLedgerDto ledger = new org.aventyrs.api.sheet.dto.EgoLedgerDto(
-                Map.of(EgoDomain.RECURSOS, 1), Map.of(EgoDomain.SORTE, 2), Map.of(EgoDomain.RECURSOS, 2));
+                Map.of(EgoDomain.RECURSOS, 1), Map.of(EgoDomain.SORTE, 2), Map.of(EgoDomain.RECURSOS, 2),
+                Map.of(EgoDomain.INICIATIVA, 4));
         CharacterSheetUpdateRequest withLedger = new CharacterSheetUpdateRequest(
                 created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),
                 List.of(), List.of(), List.of(), List.of(), List.of(), null, ledger);
@@ -580,7 +581,9 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(1))
                 .andExpect(jsonPath("$.egoLedger.permanentSpent.SORTE").value(0))
                 .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(2))
-                .andExpect(jsonPath("$.egoLedger.overflowReceived.RECURSOS").value(2));
+                .andExpect(jsonPath("$.egoLedger.overflowReceived.RECURSOS").value(2))
+                .andExpect(jsonPath("$.egoLedger.setbacks.INICIATIVA").value(4))
+                .andExpect(jsonPath("$.egoLedger.setbacks.SORTE").value(0));
 
         CharacterSheetUpdateRequest older = new CharacterSheetUpdateRequest(
                 created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),

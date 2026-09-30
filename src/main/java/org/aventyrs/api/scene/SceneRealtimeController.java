@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.InitiativeOverriddenEvent;
+import org.aventyrs.api.scene.dto.InitiativeOverrideMessage;
 import org.aventyrs.api.scene.dto.SceneTimeMessage;
 import org.aventyrs.api.scene.dto.CombatantStateMessage;
 import org.aventyrs.api.scene.dto.CombatantStateChangedEvent;
@@ -343,6 +345,23 @@ public class SceneRealtimeController {
                             message.difficultyLevel(), message.bonus()));
         } catch (RuntimeException ex) {
             log.warn("Rejected hidden-status change in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * An Iniciativa Ego point changing a participant's place in the order (core 0.0.79). Persisted, because this
+     * server owns the order ({@link SceneService#advanceTurn}), and broadcast so every board shows it. Membership
+     * is asserted by the lookup. Rejected silently like {@link #hidden}.
+     */
+    @MessageMapping("/scenes/{sceneId}/initiative")
+    public void initiative(@DestinationVariable String sceneId, @Payload InitiativeOverrideMessage message) {
+        try {
+            sceneService.setInitiativeOverride(sceneId, message.characterSheetId(), message.value(), message.rodadas());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/initiative",
+                    new InitiativeOverriddenEvent(message.characterSheetId(), message.value(), message.rodadas()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Iniciativa change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
         }
     }

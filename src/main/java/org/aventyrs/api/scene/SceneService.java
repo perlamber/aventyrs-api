@@ -246,13 +246,7 @@ public class SceneService {
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int index = indexOfParticipant(participants, characterSheetId);
-        SceneParticipantEntry moved = new SceneParticipantEntry(
-                characterSheetId,
-                participants.get(index).initiativeValue(),
-                participants.get(index).group(),
-                newPosition,
-                participants.get(index).joinedAtRound(),
-                participants.get(index).concealment());
+        SceneParticipantEntry moved = participants.get(index).withPosition(newPosition);
         participants.set(index, moved);
         requireDistinctPositions(participants, permittedShared);
 
@@ -320,9 +314,7 @@ public class SceneService {
             SceneParticipantEntry entry = participants.get(i);
             GridPosition position = placed.get(entry.characterSheetId());
             if (position != null) {
-                participants.set(i, new SceneParticipantEntry(entry.characterSheetId(),
-                        entry.initiativeValue(), entry.group(), position, entry.joinedAtRound(),
-                        entry.concealment()));
+                participants.set(i, entry.withPosition(position));
             }
         }
         requireDistinctPositions(participants, sharedPositions(document.getParticipants()));
@@ -558,10 +550,14 @@ public class SceneService {
      * already there, which is the same tie behavior {@link #rotationInsertionIndex} preserves.
      */
     private List<SceneParticipantEntry> mergeAndSortRotation(List<SceneParticipantEntry> participants, int round) {
+        // Each Iniciativa override one boundary on before the sort (SceneInitiativeOverrideEntry), so it governs
+        // exactly the Rodadas it was bought for.
         List<SceneParticipantEntry> rotation = new ArrayList<>(participants.stream()
                 .filter(entry -> entry.joinedAtRound() <= round)
+                .map(entry -> entry.initiativeOverride() == null ? entry
+                        : entry.withInitiativeOverride(entry.initiativeOverride().advanced()))
                 .toList());
-        rotation.sort(Comparator.comparingInt(SceneParticipantEntry::initiativeValue).reversed());
+        rotation.sort(Comparator.comparingInt(SceneParticipantEntry::effectiveInitiative).reversed());
 
         List<SceneParticipantEntry> merged = new ArrayList<>(rotation);
         participants.stream().filter(entry -> entry.joinedAtRound() > round).forEach(merged::add);
@@ -815,7 +811,7 @@ public class SceneService {
     private int rotationInsertionIndex(List<SceneParticipantEntry> participants, int round, SceneParticipantEntry entry) {
         int rotationSize = rotationSize(participants, round);
         for (int i = 0; i < rotationSize; i++) {
-            if (participants.get(i).initiativeValue() < entry.initiativeValue()) {
+            if (participants.get(i).effectiveInitiative() < entry.effectiveInitiative()) {
                 return i;
             }
         }
@@ -847,6 +843,25 @@ public class SceneService {
         List<String> resting = message.characterSheetIds() == null ? List.of() : List.copyOf(message.characterSheetIds());
         resting.forEach(sheetId -> indexOfParticipant(document.getParticipants(), sheetId));
         return new SceneTimeEvent(message.hours(), message.restType(), resting);
+    }
+
+    /**
+     * Puts an Iniciativa Ego point's value in place of a participant's rolled Iniciativa (core 0.0.79) —
+     * {@code rodadas} Rodadas of the order ({@code null}: the rest of the Cena), taking hold at the next Rodada
+     * boundary. Replaces an override already there. The client resolved and paid it through core; this persists
+     * what it decided, as {@link #setConcealment} does.
+     */
+    public void setInitiativeOverride(String id, String characterSheetId, int value, Integer rodadas) {
+        if (rodadas != null && rodadas < 1) {
+            throw new IllegalArgumentException("An Iniciativa override governs at least one Rodada: " + rodadas);
+        }
+        SceneDocument document = findOrThrow(id);
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        int index = indexOfParticipant(participants, characterSheetId);
+        participants.set(index, participants.get(index)
+                .withInitiativeOverride(new SceneInitiativeOverrideEntry(value, rodadas, false)));
+        document.setParticipants(participants);
+        repository.save(document);
     }
 
     public void requireParticipant(String id, String characterSheetId) {
@@ -1069,7 +1084,10 @@ public class SceneService {
                 entry.group(),
                 new GridPositionDto(entry.position().x(), entry.position().y()),
                 entry.joinedAtRound(),
-                toConcealmentDto(entry.concealment()));
+                toConcealmentDto(entry.concealment()),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().value(),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().rodadas(),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().started());
     }
 
     private static SceneConcealmentEntry toConcealmentEntry(ConcealmentDto dto) {

@@ -692,6 +692,34 @@ class SceneServiceIntegrationTest {
         assertEquals(0, wrapped.currentIndex());
     }
 
+    /**
+     * Core 0.0.79's Iniciativa override: set during Rodada 0 for one Rodada, it reorders exactly Rodada 1 — the
+     * next wrap puts the rolled order back — and the participant response reports it while it holds.
+     */
+    @Test
+    void anInitiativeOverrideReordersExactlyTheRodadasItWasBoughtFor() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+        sceneService.startCombat(sceneId);
+        sceneService.advanceTurn(sceneId);
+
+        sceneService.setInitiativeOverride(sceneId, characterSheetId1, 20, 1);
+        assertEquals(20, sceneService.get(sceneId).participants().get(1).initiativeOverride());
+
+        sceneService.advanceTurn(sceneId);
+        TurnAdvancedEvent rodadaOne = sceneService.advanceTurn(sceneId);
+        assertEquals(1, rodadaOne.currentRound());
+        assertEquals(characterSheetId1, rodadaOne.characterSheetId());
+
+        sceneService.advanceTurn(sceneId);
+        TurnAdvancedEvent rodadaTwo = sceneService.advanceTurn(sceneId);
+        assertEquals(2, rodadaTwo.currentRound());
+        assertEquals(characterSheetId2, rodadaTwo.characterSheetId());
+        assertNull(sceneService.get(sceneId).participants().get(1).initiativeOverride());
+    }
+
     @Test
     void advanceTurnBeforeCombatCyclesTheCursorButLeavesTheRoundAtZero() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
