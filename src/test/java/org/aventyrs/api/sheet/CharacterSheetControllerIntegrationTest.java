@@ -632,6 +632,96 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.centelhas").value(3));
     }
 
+    private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,
+                                     final List<org.aventyrs.api.sheet.dto.QualityDto> qualities) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), null, 3, null, defects, qualities);
+    }
+
+    /** A Deficiência Física (arms) taken at creation for Radiante Menor, one overcome during play, and a Fobia imposed. */
+    private static final List<org.aventyrs.api.sheet.dto.DefectDto> THREE_DEFECTS = List.of(
+            new org.aventyrs.api.sheet.dto.DefectDto("DEFICIENCIA_FISICA", "LEVE", List.of("BRACOS"), true,
+                    "QUALIDADE_MENOR", null, false),
+            new org.aventyrs.api.sheet.dto.DefectDto("CORPO_FRAGIL", "MODERADO", null, false, null, null, true),
+            new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "GRAVE", List.of("aranhas"), false, null, null, false));
+
+    private static final List<org.aventyrs.api.sheet.dto.QualityDto> RADIANTE = List.of(
+            new org.aventyrs.api.sheet.dto.QualityDto("RADIANTE", "MENOR", null, "SUPERACAO"));
+
+    /** Core 0.0.72–0.0.75's Defeitos e Qualidades — every field, choices and the overcome flag, survive the save. */
+    @Test
+    void theDefeitosAndQualidadesRoundTrip() throws Exception {
+        String id = create(withDefects("Tristão", THREE_DEFECTS, RADIANTE));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(3))
+                .andExpect(jsonPath("$.character.defects[0].type").value("DEFICIENCIA_FISICA"))
+                .andExpect(jsonPath("$.character.defects[0].levelName").value("Dano Permanente"))
+                .andExpect(jsonPath("$.character.defects[0].choices[0]").value("BRACOS"))
+                .andExpect(jsonPath("$.character.defects[0].superacao").value("QUALIDADE_MENOR"))
+                .andExpect(jsonPath("$.character.defects[1].overcome").value(true))
+                .andExpect(jsonPath("$.character.defects[1].fromCreation").value(false))
+                .andExpect(jsonPath("$.character.defects[2].choices[0]").value("aranhas"))
+                .andExpect(jsonPath("$.character.qualities.length()").value(1))
+                .andExpect(jsonPath("$.character.qualities[0].levelName").value("Amigável"))
+                .andExpect(jsonPath("$.character.qualities[0].source").value("SUPERACAO"));
+    }
+
+    @Test
+    void aCharacterWithoutDefeitosReadsAsEmpty() throws Exception {
+        String id = create(withDefects("Nobody", null, null));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(0))
+                .andExpect(jsonPath("$.character.qualities.length()").value(0));
+    }
+
+    @Test
+    void anInconsistentDefeitoOrQualidadeIsABadRequest() throws Exception {
+        org.aventyrs.api.sheet.dto.DefectDto creationLeve = new org.aventyrs.api.sheet.dto.DefectDto(
+                "MEMORIA_FRACA", "LEVE", null, true, "QUALIDADE_MENOR", null, false);
+        List<List<org.aventyrs.api.sheet.dto.DefectDto>> badDefects = List.of(
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("ALERGIA", "LEVE", null, false, null, null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, true, null, null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, true, "TALENTO_GERAL", null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, false, "QUALIDADE_MENOR", null, false)),
+                List.of(creationLeve, new org.aventyrs.api.sheet.dto.DefectDto(
+                        "FOBIA", "LEVE", null, true, "TREINAMENTO_ADICIONAL", null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, false, null, null, false),
+                        new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "GRAVE", null, false, null, null, false)));
+        for (List<org.aventyrs.api.sheet.dto.DefectDto> invalid : badDefects) {
+            postBad(withDefects("Bad", invalid, null));
+        }
+        // A Qualidade without a creation Defeito, one opposing it, and one held twice.
+        postBad(withDefects("Bad", null, RADIANTE));
+        postBad(withDefects("Bad", List.of(new org.aventyrs.api.sheet.dto.DefectDto(
+                "COMPORTAMENTO_EXCENTRICO", "LEVE", null, true, "QUALIDADE_MENOR", null, false)), RADIANTE));
+        postBad(withDefects("Bad", List.of(creationLeve), List.of(RADIANTE.get(0), RADIANTE.get(0))));
+    }
+
+    private void postBad(final CharacterDto character) throws Exception {
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(character, playerId))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void aCombatStatusUpdateKeepsTheDefeitosAndQualidades() throws Exception {
+        String id = create(withDefects("Isolda", THREE_DEFECTS, RADIANTE));
+
+        characterSheetService.updateCombatStatus(id, 3, 0, 0, org.aventyrs.core.character.CharacterStatus.CLEAN);
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(3))
+                .andExpect(jsonPath("$.character.qualities.length()").value(1));
+    }
+
     @Test
     void defaultsAlignmentWhenOmitted() throws Exception {
         CharacterDto character = new CharacterDto(

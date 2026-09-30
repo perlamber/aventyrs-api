@@ -220,7 +220,9 @@ public class CharacterSheetService {
                 stored.mimetizedSpells(),
                 stored.quickLearningSkills(),
                 stored.centelhas(),
-                stored.backgrounds()));
+                stored.backgrounds(),
+                stored.defects(),
+                stored.qualities()));
 
         repository.save(document);
     }

@@ -50,8 +50,48 @@ public record CharacterResponse(
         Set<SkillType> quickLearningSkills,
         Integer centelhas,
         // The two Antecedentes (core Character#getBackgrounds) — empty when none chosen.
-        List<BackgroundResponse> backgrounds
+        List<BackgroundResponse> backgrounds,
+        // Defeitos (in force and overcome) and Qualidades — empty when none.
+        List<DefectResponse> defects,
+        List<QualityResponse> qualities
 ) {
+    /** The shape before core 0.0.72 added the Defeitos e Qualidades. */
+    public CharacterResponse(String id,
+            String name,
+            RaceResponse race,
+            Sexo sexo,
+            Deity deity,
+            Alignment alignment,
+            SizeCategory sizeCategory,
+            ActionProfile actionProfile,
+            Map<AttributeDomain, AttributeValueResponse> attributes,
+            Map<EgoDomain, EgoValueResponse> egos,
+            Map<SkillType, CharacterSkillResponse> skills,
+            List<String> attributeAbilities,
+            Map<EgoDomain, String> egoAdvantages,
+            List<String> activeAbilities,
+            int actionPoints,
+            int temporaryActionPointsBonus,
+            CharacterStatus status,
+            int reactions,
+            int freeActions,
+            int manaMultiplier,
+            int lifeMultiplier,
+            int determinationMultiplier,
+            boolean centelhaSuperiorSelected,
+            List<FeatResponse> feats,
+            List<InventoryItemDto> equipment,
+            TitleResponse primaryTitle,
+            TitleResponse secondaryTitle,
+            TitleResponse tertiaryTitle,
+            List<String> spells,
+            List<MimetizedSpellResponse> mimetizedSpells,
+            Set<SkillType> quickLearningSkills,
+            Integer centelhas,
+            List<BackgroundResponse> backgrounds) {
+        this(id, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, List.of(), List.of());
+    }
+
     /** The shape before core 0.0.71 added the Antecedentes. */
     public CharacterResponse(String id,
             String name,
