@@ -61,7 +61,8 @@ public class CharacterSheetService {
                 false,
                 0,
                 0,
-                Map.of());
+                Map.of(),
+                null);
         return toResponse(repository.save(document));
     }
 
@@ -101,6 +102,9 @@ public class CharacterSheetService {
         document.setLifeSteals(CombatantSheetMapper.toLifeStealEntries(request.lifeSteals()));
         document.setInventory(InventoryItemMapper.toEntries(request.inventory()));
         document.setTokenImageUrl(request.tokenImageUrl());
+        if (request.egoLedger() != null) {
+            document.setEgoLedger(CombatantSheetMapper.toEgoLedgerEntry(request.egoLedger()));
+        }
 
         return toResponse(repository.save(document));
     }
@@ -153,7 +157,20 @@ public class CharacterSheetService {
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
             Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, null);
+    }
+
+    /** …plus the Ego ledger (core 0.0.76) — written only when sent, like the rest. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
         CharacterSheetDocument document = findOrThrow(id);
+        if (egoLedger != null) {
+            document.setEgoLedger(CombatantSheetMapper.toEgoLedgerEntry(egoLedger));
+        }
         if (restScopedUses != null) {
             Map<String, Integer> kept = new java.util.HashMap<>();
             restScopedUses.forEach((source, uses) -> {
@@ -291,6 +308,7 @@ public class CharacterSheetService {
                 Boolean.TRUE.equals(document.getExhausted()),
                 document.getLockedHitPoints() == null ? 0 : document.getLockedHitPoints(),
                 document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints(),
-                document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()));
+                document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()),
+                CombatantSheetMapper.toEgoLedgerDto(document.getEgoLedger()));
     }
 }

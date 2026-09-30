@@ -21,6 +21,9 @@ import org.aventyrs.core.character.CharacterStatus;
  * <p>{@code restScopedUses} is core's {@code CombatantSheet#getRestScopedUses} per source name — uses
  * spent until a Descanso Longo Verdadeiro clears them (Criar Refúgio's negations). {@code null} leaves
  * the stored map alone; a map replaces it, so a source cleared by a rest is sent as absent.
+ *
+ * <p>{@code egoLedger} is the Ego state beyond {@code temporaryEgoPoints} (core 0.0.76: permanent spent, extras,
+ * overflow received). {@code null} leaves the stored one alone.
  */
 public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
                                      int magicPointsSpent, int determinationPointsSpent,
@@ -30,7 +33,19 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
                                      Boolean exhausted,
                                      Integer lockedHitPoints,
                                      Integer lifeStealLockedHitPoints,
-                                     java.util.Map<String, Integer> restScopedUses) {
+                                     java.util.Map<String, Integer> restScopedUses,
+                                     org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
+
+    /** A frame from before the Ego ledger (core 0.0.76) — the stored one is left alone. */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status,
+            java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted,
+            Integer lockedHitPoints, Integer lifeStealLockedHitPoints, java.util.Map<String, Integer> restScopedUses) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
+                temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints,
+                restScopedUses, null);
+    }
 
     /** A frame from before rest-scoped uses were carried — the stored map is left alone. */
     public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,

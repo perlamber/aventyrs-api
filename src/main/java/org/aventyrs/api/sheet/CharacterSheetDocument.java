@@ -106,4 +106,11 @@ public class CharacterSheetDocument {
 
     /** Uses spent per source until a Descanso Longo Verdadeiro — Criar Refúgio's. {@code null} on older documents. */
     private Map<String, Integer> restScopedUses;
+
+    /**
+     * Permanent Ego spent, extras held and overflow received (core 0.0.76) — see {@link EgoLedgerEntry}.
+     * Written by the PUT and the live status path only when sent. {@code null} on older documents, read as
+     * nothing spent, no extras and no overflow received.
+     */
+    private EgoLedgerEntry egoLedger;
 }

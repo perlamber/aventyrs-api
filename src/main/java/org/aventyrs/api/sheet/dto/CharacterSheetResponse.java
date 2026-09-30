@@ -14,7 +14,8 @@ import org.aventyrs.core.character.EgoDomain;
  *
  * <p>{@code lockedHitPoints}/{@code lifeStealLockedHitPoints} — see {@code
  * CharacterSheetDocument#getLockedHitPoints()}; 0 on a sheet that never locked any. {@code
- * restScopedUses} — see {@code CharacterSheetDocument#getRestScopedUses()}; empty when none.
+ * restScopedUses} — see {@code CharacterSheetDocument#getRestScopedUses()}; empty when none. {@code
+ * egoLedger} — see {@code EgoLedgerEntry}; all zeros on a sheet that never stored one.
  */
 public record CharacterSheetResponse(
         String id,
@@ -44,6 +45,7 @@ public record CharacterSheetResponse(
         boolean exhausted,
         int lockedHitPoints,
         int lifeStealLockedHitPoints,
-        Map<String, Integer> restScopedUses
+        Map<String, Integer> restScopedUses,
+        EgoLedgerDto egoLedger
 ) {
 }

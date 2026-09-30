@@ -549,6 +549,50 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.mimetizedSpells[0].requiredForm").value("FEERICA"));
     }
 
+    /**
+     * Core 0.0.76's Ego ledger (permanent spent, extras, overflow received) survives a PUT, reads as all zeros
+     * before one is stored, and a PUT without it leaves the stored one alone.
+     */
+    @Test
+    void theEgoLedgerRoundTripsAndAnOlderPutLeavesItAlone() throws Exception {
+        CharacterDto created = new CharacterDto(
+                "Midas Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, List.of(), List.of());
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(0))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(0))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        org.aventyrs.api.sheet.dto.EgoLedgerDto ledger = new org.aventyrs.api.sheet.dto.EgoLedgerDto(
+                Map.of(EgoDomain.RECURSOS, 1), Map.of(EgoDomain.SORTE, 2), Map.of(EgoDomain.RECURSOS, 2));
+        CharacterSheetUpdateRequest withLedger = new CharacterSheetUpdateRequest(
+                created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, ledger);
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(withLedger)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(1))
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.SORTE").value(0))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(2))
+                .andExpect(jsonPath("$.egoLedger.overflowReceived.RECURSOS").value(2));
+
+        CharacterSheetUpdateRequest older = new CharacterSheetUpdateRequest(
+                created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null);
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(older)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(1))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(2));
+    }
+
     private CharacterDto withBackgrounds(final String name, final List<org.aventyrs.api.sheet.dto.BackgroundDto> backgrounds) {
         return new CharacterDto(
                 name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,

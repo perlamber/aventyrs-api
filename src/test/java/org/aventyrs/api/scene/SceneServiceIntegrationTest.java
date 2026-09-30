@@ -38,6 +38,7 @@ import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import java.util.Map;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
+import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.scene.Direction;
 import org.aventyrs.core.scene.grid.GridPosition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -874,6 +875,19 @@ class SceneServiceIntegrationTest {
         characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
                 null, null, null, null, null, Map.of());
         assertEquals(Map.of(), characterSheetService.get(characterSheetId1).restScopedUses());
+    }
+
+    /** The live status path writes the Ego ledger when sent and leaves it alone when not. */
+    @Test
+    void combatStatusPersistsTheEgoLedgerOnlyWhenSent() {
+        org.aventyrs.api.sheet.dto.EgoLedgerDto ledger = new org.aventyrs.api.sheet.dto.EgoLedgerDto(
+                Map.of(EgoDomain.AUTOCONTROLE, 1), Map.of(), Map.of());
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, null, ledger);
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN);
+
+        assertEquals(1, characterSheetService.get(characterSheetId1).egoLedger().permanentSpent()
+                .get(EgoDomain.AUTOCONTROLE));
     }
 
     @Test
