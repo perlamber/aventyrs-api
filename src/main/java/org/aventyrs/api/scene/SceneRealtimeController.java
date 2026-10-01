@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.scene.dto.EgoGrantMessage;
+import org.aventyrs.api.scene.dto.EgoGrantedEvent;
 import org.aventyrs.api.scene.dto.InitiativeOverriddenEvent;
 import org.aventyrs.api.scene.dto.InitiativeOverrideMessage;
 import org.aventyrs.api.scene.dto.SceneTimeMessage;
@@ -364,6 +366,19 @@ public class SceneRealtimeController {
             log.warn("Rejected Iniciativa change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
         }
+    }
+
+    /**
+     * A PdN's Efeito de Ego owed to every PJ as a temporary point (core 0.0.83) — relayed to every client, which grants
+     * it to the PJs it controls and saves them through their own status frames. Not persisted here; a domain-less
+     * message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/ego-grants")
+    public void egoGrant(@DestinationVariable String sceneId, @Payload EgoGrantMessage message) {
+        if (message == null || message.domain() == null) {
+            return;
+        }
+        messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/ego-grants", new EgoGrantedEvent(message.domain()));
     }
 
     /**
