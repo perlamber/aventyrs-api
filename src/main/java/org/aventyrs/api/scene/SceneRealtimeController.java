@@ -123,7 +123,8 @@ public class SceneRealtimeController {
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
                         message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints(),
                         message.hourlyEgoRecoveries(), message.exhausted(), message.lockedHitPoints(),
-                        message.lifeStealLockedHitPoints(), message.restScopedUses(), message.egoLedger());
+                        message.lifeStealLockedHitPoints(), message.restScopedUses(), message.egoLedger(),
+                        message.restLockedHitPoints());
             }
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",

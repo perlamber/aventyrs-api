@@ -24,6 +24,9 @@ import org.aventyrs.core.character.CharacterStatus;
  *
  * <p>{@code egoLedger} is the Ego state beyond {@code temporaryEgoPoints} (core 0.0.76: permanent spent, extras,
  * overflow received). {@code null} leaves the stored one alone.
+ *
+ * <p>{@code restLockedHitPoints} is the part of {@code hitPointsSpent} only a Descanso recovers — core's {@code
+ * CombatantSheet#lockDamageUntilRest} (Ferida Infecciosa, core 0.0.85). {@code null} leaves it as stored.
  */
 public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
                                      int magicPointsSpent, int determinationPointsSpent,
@@ -34,7 +37,20 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
                                      Integer lockedHitPoints,
                                      Integer lifeStealLockedHitPoints,
                                      java.util.Map<String, Integer> restScopedUses,
-                                     org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
+                                     org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger,
+                                     Integer restLockedHitPoints) {
+
+    /** A frame from before the rest-only lock (core 0.0.85) — the stored one is left alone. */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status,
+            java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted,
+            Integer lockedHitPoints, Integer lifeStealLockedHitPoints, java.util.Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
+                temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints,
+                restScopedUses, egoLedger, null);
+    }
 
     /** A frame from before the Ego ledger (core 0.0.76) — the stored one is left alone. */
     public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,

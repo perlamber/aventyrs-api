@@ -113,4 +113,7 @@ public class CharacterSheetDocument {
      * nothing spent, no extras and no overflow received.
      */
     private EgoLedgerEntry egoLedger;
+
+    /** The part of {@link #hitPointsSpent} only a Descanso recovers (core 0.0.85's Ferida Infecciosa). Boxed: absent on older documents. */
+    private Integer restLockedHitPoints;
 }

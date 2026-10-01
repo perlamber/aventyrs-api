@@ -924,6 +924,18 @@ class SceneServiceIntegrationTest {
 
         assertEquals(0, response.lockedHitPoints());
         assertEquals(0, response.lifeStealLockedHitPoints());
+        assertEquals(0, response.restLockedHitPoints());
+    }
+
+    /** Core 0.0.85's Ferida Infecciosa lock — written when sent, left alone when not. */
+    @Test
+    void combatStatusPersistsTheRestOnlyLockWhenSentAndLeavesItAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 5, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, null, null, null, null, 3);
+        characterSheetService.updateCombatStatus(characterSheetId1, 6, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, null, null, null, null);
+
+        assertEquals(3, characterSheetService.get(characterSheetId1).restLockedHitPoints());
     }
 
     // --- core 0.0.70: an action names its target and the Talentos it spent ---------------------
