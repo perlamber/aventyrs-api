@@ -139,8 +139,15 @@ public record CharacterEntry(
         // Defeitos (in force and overcome) and Qualidades (core Character#getDefects/getQualities) — null
         // reads as none.
         List<DefectEntry> defects,
-        List<QualityEntry> qualities
+        List<QualityEntry> qualities,
+        org.aventyrs.core.character.DevotionTier devotionTier,
+        List<DevotionPickEntry> devotionPicks
 ) {
+    /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
+    public CharacterEntry(String characterId, String name, RaceEntry race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueEntry> attributes, Map<EgoDomain, EgoValueEntry> egos, Map<SkillType, CharacterSkillEntry> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatEntry> feats, List<InventoryItemEntry> equipment, TitleEntry primaryTitle, TitleEntry secondaryTitle, TitleEntry tertiaryTitle, List<String> spells, List<MimetizedSpellEntry> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundEntry> backgrounds, List<DefectEntry> defects, List<QualityEntry> qualities) {
+        this(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
+    }
+
     /** The shape before core 0.0.72 added the Defeitos e Qualidades. */
     public CharacterEntry(String characterId,
             String name,
@@ -250,5 +257,11 @@ public record CharacterEntry(
                 temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier,
                 determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle,
                 secondaryTitle, tertiaryTitle, spells, mimetizedSpells, null, null);
+    }
+
+
+    /** This character with its devotion tier set to tier — the Narrador's change (core 0.0.86); picks kept. */
+    public CharacterEntry withDevotionTier(org.aventyrs.core.character.DevotionTier tier) {
+        return new CharacterEntry(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, tier, devotionPicks);
     }
 }

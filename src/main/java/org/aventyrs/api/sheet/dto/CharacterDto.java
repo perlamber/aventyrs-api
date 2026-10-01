@@ -84,8 +84,15 @@ public record CharacterDto(
         List<@Valid BackgroundDto> backgrounds,
         // Defeitos (in force and overcome) and Qualidades — null reads as none. See DefectEntry/QualityEntry.
         List<@Valid DefectDto> defects,
-        List<@Valid QualityDto> qualities
+        List<@Valid QualityDto> qualities,
+        org.aventyrs.core.character.DevotionTier devotionTier,
+        List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks
 ) {
+    /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
+    public CharacterDto(String name, RaceDto race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities) {
+        this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
+    }
+
     /** The shape before core 0.0.72 added the Defeitos e Qualidades. */
     public CharacterDto(String name,
             RaceDto race,

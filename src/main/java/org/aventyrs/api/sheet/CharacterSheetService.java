@@ -67,6 +67,13 @@ public class CharacterSheetService {
         return toResponse(repository.save(document));
     }
 
+    /** Sets the stored character's devotion tier — see {@code CharacterSheetController#setDevotionTier}. */
+    public CharacterSheetResponse setDevotionTier(String id, org.aventyrs.core.character.DevotionTier tier) {
+        CharacterSheetDocument document = findOrThrow(id);
+        document.setCharacter(document.getCharacter().withDevotionTier(tier));
+        return toResponse(repository.save(document));
+    }
+
     public CharacterSheetResponse get(String id) {
         return toResponse(findOrThrow(id));
     }
@@ -253,7 +260,9 @@ public class CharacterSheetService {
                 stored.centelhas(),
                 stored.backgrounds(),
                 stored.defects(),
-                stored.qualities()));
+                stored.qualities(),
+                stored.devotionTier(),
+                stored.devotionPicks()));
 
         repository.save(document);
     }

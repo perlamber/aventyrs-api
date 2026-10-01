@@ -53,8 +53,15 @@ public record CharacterResponse(
         List<BackgroundResponse> backgrounds,
         // Defeitos (in force and overcome) and Qualidades — empty when none.
         List<DefectResponse> defects,
-        List<QualityResponse> qualities
+        List<QualityResponse> qualities,
+        org.aventyrs.core.character.DevotionTier devotionTier,
+        List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks
 ) {
+    /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
+    public CharacterResponse(String id, String name, RaceResponse race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueResponse> attributes, Map<EgoDomain, EgoValueResponse> egos, Map<SkillType, CharacterSkillResponse> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, int actionPoints, int temporaryActionPointsBonus, CharacterStatus status, int reactions, int freeActions, int manaMultiplier, int lifeMultiplier, int determinationMultiplier, boolean centelhaSuperiorSelected, List<FeatResponse> feats, List<InventoryItemDto> equipment, TitleResponse primaryTitle, TitleResponse secondaryTitle, TitleResponse tertiaryTitle, List<String> spells, List<MimetizedSpellResponse> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundResponse> backgrounds, List<DefectResponse> defects, List<QualityResponse> qualities) {
+        this(id, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
+    }
+
     /** The shape before core 0.0.72 added the Defeitos e Qualidades. */
     public CharacterResponse(String id,
             String name,

@@ -679,6 +679,43 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.centelhas").value(3));
     }
 
+    private CharacterDto devoted(final String name, final org.aventyrs.core.character.DevotionTier tier,
+                                 final List<org.aventyrs.api.sheet.dto.DevotionPickDto> picks) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(), List.of(), null, 3, null, null, null, tier, picks);
+    }
+
+    /** Core 0.0.86's devotion — the tier and every rung pick survive the save; the GM's endpoint moves only the tier. */
+    @Test
+    void theDevotionTierAndItsPicksRoundTripAndTheGmMovesTheTier() throws Exception {
+        String id = create(devoted("Bryn", org.aventyrs.core.character.DevotionTier.FUNDAMENTALISTA, List.of(
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("IMPACTO_YMIRIANO",
+                        org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"),
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("IMPACTO_YMIRIANO",
+                        org.aventyrs.core.character.DevotionTier.FUNDAMENTALISTA, "STRENGTH"))));
+
+        mockMvc.perform(put("/api/character-sheets/{id}/devotion-tier", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tier\":\"ADEPTO\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.devotionTier").value("ADEPTO"))
+                .andExpect(jsonPath("$.character.devotionPicks.length()").value(2))
+                .andExpect(jsonPath("$.character.devotionPicks[1].rung").value("FUNDAMENTALISTA"))
+                .andExpect(jsonPath("$.character.devotionPicks[1].value").value("STRENGTH"));
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.devotionTier").value("ADEPTO"))
+                .andExpect(jsonPath("$.character.devotionPicks[0].talento").value("IMPACTO_YMIRIANO"));
+    }
+
+    @Test
+    void aDevotionPickNamingNoTalentoDeDevocaoIsRefused() throws Exception {
+        postBad(devoted("Bryn", org.aventyrs.core.character.DevotionTier.ADEPTO, List.of(
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("NOT_A_TALENTO",
+                        org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"))));
+    }
+
     private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,
                                      final List<org.aventyrs.api.sheet.dto.QualityDto> qualities) {
         return new CharacterDto(

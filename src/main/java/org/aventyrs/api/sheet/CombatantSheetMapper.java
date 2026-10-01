@@ -2,6 +2,7 @@ package org.aventyrs.api.sheet;
 
 import org.aventyrs.api.sheet.dto.BackgroundDto;
 import org.aventyrs.api.sheet.dto.DefectDto;
+import org.aventyrs.api.sheet.dto.DevotionPickDto;
 import org.aventyrs.api.sheet.dto.DefectResponse;
 import org.aventyrs.api.sheet.dto.QualityDto;
 import org.aventyrs.api.sheet.dto.QualityResponse;
@@ -141,7 +142,37 @@ public final class CombatantSheetMapper {
                 character.centelhas(),
                 toBackgroundEntries(character.backgrounds()),
                 toDefectEntries(character.defects()),
-                toQualityEntries(character.qualities(), character.defects()));
+                toQualityEntries(character.qualities(), character.defects()),
+                character.devotionTier(),
+                toDevotionPickEntries(character.devotionPicks()));
+    }
+
+    /**
+     * The Talento de Devoção rung picks as sent (core 0.0.86) — each naming a known {@code DevotoFeat} and a rung,
+     * the value kept verbatim (the client's encoding). {@code null} reads as none.
+     *
+     * @throws IllegalArgumentException for a Talento this core doesn't know, or a pick missing its rung or value
+     */
+    static List<DevotionPickEntry> toDevotionPickEntries(List<DevotionPickDto> picks) {
+        if (picks == null) {
+            return List.of();
+        }
+        List<DevotionPickEntry> entries = new java.util.ArrayList<>();
+        for (DevotionPickDto pick : picks) {
+            if (pick == null || pick.rung() == null || pick.value() == null || pick.value().isBlank()) {
+                throw new IllegalArgumentException("A devotion pick needs its rung and value");
+            }
+            org.aventyrs.core.feat.DevotoFeat.valueOf(pick.talento());
+            entries.add(new DevotionPickEntry(pick.talento(), pick.rung(), pick.value()));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static List<DevotionPickDto> toDevotionPickResponses(List<DevotionPickEntry> picks) {
+        if (picks == null) {
+            return List.of();
+        }
+        return picks.stream().map(pick -> new DevotionPickDto(pick.talento(), pick.rung(), pick.value())).toList();
     }
 
     /**
@@ -686,6 +717,8 @@ public final class CombatantSheetMapper {
                 character.centelhas(),
                 toBackgroundResponses(character.backgrounds()),
                 toDefectResponses(character.defects()),
-                toQualityResponses(character.qualities()));
+                toQualityResponses(character.qualities()),
+                character.devotionTier(),
+                toDevotionPickResponses(character.devotionPicks()));
     }
 }
