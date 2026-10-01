@@ -101,7 +101,7 @@ class CampaignBagIntegrationTest {
     private String newGoblin(List<InventoryItemDto> inventory) {
         // The least legal blueprint: a name, GP 0, every Atributo at base 1.
         MonsterBlueprintDto goblin = new MonsterBlueprintDto("Goblin", 0, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, null, null, 0, 0);
         return monsterSheetService.create(new MonsterSheetCreateRequest(goblin, playerId, null, inventory)).id();
     }
 

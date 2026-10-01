@@ -32,6 +32,7 @@ public record MonsterBlueprintEntry(
         Map<EgoDomain, Integer> egoAllocation,
         MonsterAdjustmentsEntry adjustments,
         boolean undead,
+        boolean intelligent,
         Set<CriticalEffectType> criticalEffectImmunities,
         int famaPositiva,
         int famaNegativa

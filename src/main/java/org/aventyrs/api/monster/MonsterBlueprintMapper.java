@@ -73,6 +73,7 @@ public final class MonsterBlueprintMapper {
                 orEmpty(dto.egoAllocation()),
                 toAdjustmentsEntry(dto.adjustments()),
                 dto.undead() != null && dto.undead(),
+                dto.intelligent() != null && dto.intelligent(),
                 orEmpty(dto.criticalEffectImmunities()),
                 dto.famaPositiva(),
                 dto.famaNegativa());
@@ -105,6 +106,7 @@ public final class MonsterBlueprintMapper {
                         adjustments.manaMultiplier(),
                         adjustments.determinationMultiplier()),
                 entry.undead(),
+                entry.intelligent(),
                 orEmpty(entry.criticalEffectImmunities()),
                 entry.famaPositiva(),
                 entry.famaNegativa());
@@ -131,6 +133,7 @@ public final class MonsterBlueprintMapper {
                 .models(entry.models() == null ? List.of() : entry.models())
                 .egoAllocation(orEmpty(entry.egoAllocation()))
                 .undead(entry.undead())
+                .intelligent(entry.intelligent())
                 .criticalEffectImmunities(orEmpty(entry.criticalEffectImmunities()))
                 .famaPositiva(entry.famaPositiva())
                 .famaNegativa(entry.famaNegativa())

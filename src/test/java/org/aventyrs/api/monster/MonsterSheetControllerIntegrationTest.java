@@ -95,7 +95,7 @@ class MonsterSheetControllerIntegrationTest {
                 List.of(MonsterModel.ASPECTO_HUMANOIDE),
                 List.of(new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "CORPO_HUMANOIDE", null, Map.of("skills", List.of("ATAQUE_CORPO_A_CORPO"))),
                         new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "MASCARA_SOCIAL", null, null)),
-                null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, 0, 0);
     }
 
     /** Mirrors core's {@code SampleMonster.PANTERA_DE_CIRENEIA} — legal, Predador, GP 30, Cireneia. */
@@ -116,7 +116,7 @@ class MonsterSheetControllerIntegrationTest {
                         new MonstrousAbilityDto(cireneia, "LIBERDADE_SELVAGEM", null, null)),
                 null,
                 Map.of(EgoDomain.INICIATIVA, 3, EgoDomain.SORTE, 3),
-                null, null, null, 0, 0);
+                null, null, null, null, 0, 0);
     }
 
     private String create(MonsterSheetCreateRequest request) throws Exception {
@@ -191,7 +191,7 @@ class MonsterSheetControllerIntegrationTest {
         MonsterBlueprintDto overBudget = new MonsterBlueprintDto(
                 "Goblin", 5, null, null,
                 Map.of(AttributeDomain.STRENGTH, 5, AttributeDomain.VIGOR, 5, AttributeDomain.DEXTERITY, 5),
-                null, null, null, null, null, null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, null, null, null, null, null, 0, 0);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -207,7 +207,7 @@ class MonsterSheetControllerIntegrationTest {
                 "Goblin", 5, null, null, null, null, null, null,
                 List.of(MonsterModel.ALMA_ELEMENTAL),
                 List.of(new MonstrousAbilityDto(MonsterModel.ALMA_ELEMENTAL, "CELERIDADE", null, null)),
-                null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, 0, 0);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -225,6 +225,7 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.id").exists())
                 .andExpect(jsonPath("$.playerId").value(gmId))
                 .andExpect(jsonPath("$.undead").value(false))
+                .andExpect(jsonPath("$.blueprint.intelligent").value(false))
                 .andExpect(jsonPath("$.criticalEffectImmunities", hasSize(0)))
                 .andExpect(jsonPath("$.damageTaken").value(0))
                 .andExpect(jsonPath("$.manaSpent").value(0))
@@ -263,7 +264,7 @@ class MonsterSheetControllerIntegrationTest {
                         new MonstrousAbilityDto(MonsterModel.ASPECTO_HUMANOIDE, "MASCARA_SOCIAL", null, null)),
                 null, null,
                 new MonsterAdjustmentsDto(null, null, 2, 0, 0, 0, 0, 0),
-                true, Set.of(CriticalEffectType.SANGRAMENTO), 0, 0);
+                true, true, Set.of(CriticalEffectType.SANGRAMENTO), 0, 0);
         MonsterSheetUpdateRequest updateRequest = new MonsterSheetUpdateRequest(
                 grown,
                 gmId,
@@ -291,6 +292,7 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.lifeMultiplier").value(6))
                 .andExpect(jsonPath("$.physicalDefense").value(18))
                 .andExpect(jsonPath("$.undead").value(true))
+                .andExpect(jsonPath("$.blueprint.intelligent").value(true))
                 .andExpect(jsonPath("$.criticalEffectImmunities[0]").value("SANGRAMENTO"))
                 .andExpect(jsonPath("$.damageTaken").value(10))
                 .andExpect(jsonPath("$.manaSpent").value(4))
@@ -367,7 +369,7 @@ class MonsterSheetControllerIntegrationTest {
                 List.of(new MonstrousAbilityDto(alma, "SANGUE_ELEMENTAL", null, Map.of("element", List.of("FOGO"))),
                         new MonstrousAbilityDto(alma, "CONJURACAO_ELEMENTAL", null,
                                 Map.of("trees", List.of("VOO", "IRA_DE_VULCANO")))),
-                null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, 0, 0);
 
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -382,7 +384,7 @@ class MonsterSheetControllerIntegrationTest {
                 List.of(alma),
                 List.of(new MonstrousAbilityDto(alma, "SANGUE_ELEMENTAL", null, Map.of("element", List.of("FOGO"))),
                         new MonstrousAbilityDto(alma, "CONJURACAO_ELEMENTAL", null, Map.of("trees", List.of("VOO")))),
-                null, null, null, null, null, 0, 0);
+                null, null, null, null, null, null, 0, 0);
         mockMvc.perform(post("/api/monster-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new MonsterSheetCreateRequest(oneTree, gmId, null, null))))
