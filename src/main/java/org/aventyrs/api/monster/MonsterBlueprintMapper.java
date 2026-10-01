@@ -251,7 +251,7 @@ public final class MonsterBlueprintMapper {
                 character.getLifeMultiplier(),
                 character.getDeterminationMultiplier(),
                 false,
-                blueprint.feats() == null ? List.of() : blueprint.feats().stream().map(MonsterBlueprintMapper::toFeatDto).toList(),
+                blueprint == null || blueprint.feats() == null ? List.of() : blueprint.feats().stream().map(MonsterBlueprintMapper::toFeatDto).toList(),
                 List.of(),
                 null,
                 null,

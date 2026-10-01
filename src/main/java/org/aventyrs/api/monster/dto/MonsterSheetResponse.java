@@ -57,6 +57,7 @@ public record MonsterSheetResponse(
         List<PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<LifeStealDto> lifeSteals,
         List<InventoryItemDto> inventory,
-        String tokenImageUrl
+        String tokenImageUrl,
+        SummonDto summon
 ) {
 }

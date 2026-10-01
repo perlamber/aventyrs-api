@@ -27,6 +27,7 @@ import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
+import org.aventyrs.api.scene.dto.SpellLandedMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -151,8 +152,13 @@ public class SceneRealtimeController {
     @MessageMapping("/scenes/{sceneId}/turn")
     public void advanceTurn(@DestinationVariable String sceneId) {
         try {
-            TurnAdvancedEvent event = sceneService.advanceTurn(sceneId);
-            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", event);
+            SceneService.TurnAdvance advance = sceneService.advanceTurnReporting(sceneId);
+            // Invocations joining (a Totem's) or leaving (a spent Duração) change the roster too.
+            if (advance.rosterChanged()) {
+                messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/participants",
+                        sceneService.get(sceneId));
+            }
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", advance.event());
         } catch (RuntimeException ex) {
             log.warn("Rejected turn advance in scene {}: {}", sceneId, ex.getMessage());
         }
@@ -374,6 +380,18 @@ public class SceneRealtimeController {
      * it to the PJs it controls and saves them through their own status frames. Not persisted here; a domain-less
      * message is dropped.
      */
+    /**
+     * A Magia landing on someone another client owns (client 0.0.94) — relayed, never persisted; see {@link
+     * SpellLandedMessage}.
+     */
+    @MessageMapping("/scenes/{sceneId}/spells")
+    public void spellLanded(@DestinationVariable String sceneId, @Payload SpellLandedMessage message) {
+        if (message == null || message.spellKey() == null || message.targetCharacterSheetId() == null) {
+            return;
+        }
+        messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/spells", message);
+    }
+
     @MessageMapping("/scenes/{sceneId}/ego-grants")
     public void egoGrant(@DestinationVariable String sceneId, @Payload EgoGrantMessage message) {
         if (message == null || message.domain() == null) {

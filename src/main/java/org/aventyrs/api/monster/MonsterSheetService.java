@@ -71,8 +71,42 @@ public class MonsterSheetService {
                 List.of(),
                 List.of(),
                 InventoryItemMapper.toEntries(request.inventory()),
-                request.tokenImageUrl());
+                request.tokenImageUrl(),
+                null);
         return toResponse(repository.save(document));
+    }
+
+    /**
+     * Stores an invoked creature under id, run by playerId — its caster's player (client 0.0.95). Its {@code
+     * character} is derived from the creature core rebuilds from summon, as a foe's is from its blueprint.
+     */
+    public MonsterSheetResponse createSummon(String id, SummonEntry summon, String playerId) {
+        MonsterSheet sheet = summonTemplate(summon).spawn(new Player());
+        MonsterSheetDocument document = new MonsterSheetDocument(
+                id,
+                null,
+                MonsterBlueprintMapper.toCharacterEntry(UUID.randomUUID().toString(), sheet.getCharacter(), null),
+                playerId,
+                0,
+                0,
+                0,
+                0,
+                CombatantSheetMapper.defaultTemporaryEgoPoints(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                null,
+                summon);
+        return toResponse(repository.save(document));
+    }
+
+    private static org.aventyrs.core.monster.summon.NatureSummon summonTemplate(SummonEntry summon) {
+        return org.aventyrs.core.monster.summon.NatureSummon.restore(summon.kind(), summon.conjuradorManaGraduation(),
+                summon.powers());
     }
 
     public MonsterSheetResponse get(String id) {
@@ -168,15 +202,17 @@ public class MonsterSheetService {
     }
 
     private MonsterSheetResponse toResponse(MonsterSheetDocument document) {
-        MonsterBlueprint blueprint = MonsterBlueprintMapper.toCore(document.getBlueprint());
-        MonsterSheet sheet = blueprint.spawn(new Player());
+        // An invoked creature has no blueprint: core rebuilds it from its summon descriptor.
+        SummonEntry summon = document.getSummon();
+        MonsterBlueprint blueprint = summon == null ? MonsterBlueprintMapper.toCore(document.getBlueprint()) : null;
+        MonsterSheet sheet = summon == null ? blueprint.spawn(new Player()) : summonTemplate(summon).spawn(new Player());
         Character character = sheet.getCharacter();
         return new MonsterSheetResponse(
                 document.getId(),
-                MonsterBlueprintMapper.toDto(document.getBlueprint()),
+                summon == null ? MonsterBlueprintMapper.toDto(document.getBlueprint()) : null,
                 CombatantSheetMapper.toCharacterResponse(document.getCharacter()),
                 document.getPlayerId(),
-                blueprint.getCategory(),
+                blueprint == null ? null : blueprint.getCategory(),
                 sheet.getDefense(DefenseType.PHYSICAL),
                 sheet.getDefense(DefenseType.MAGIC),
                 sheet.getGeneralDifficulty(),
@@ -185,9 +221,9 @@ public class MonsterSheetService {
                 determinationPointsService.getMaxDeterminationPoints(character, sheet),
                 magicPointsService.getMaxMagicPoints(character, sheet),
                 actionPointsService.getMaxActionPoints(sheet, AT_REST_TURN),
-                blueprint.isUndead(),
-                blueprint.getCriticalEffectImmunities(),
-                MonsterRules.validate(blueprint),
+                sheet.isUndead(),
+                blueprint == null ? sheet.getCriticalEffectImmunities() : blueprint.getCriticalEffectImmunities(),
+                blueprint == null ? List.of() : MonsterRules.validate(blueprint),
                 document.getHitPointsSpent(),
                 document.getMagicPointsSpent(),
                 document.getDeterminationPointsSpent(),
@@ -200,6 +236,8 @@ public class MonsterSheetService {
                 CombatantSheetMapper.toPendingEgoRecoveryDtos(document.getPendingEgoRecoveries()),
                 CombatantSheetMapper.toLifeStealDtos(document.getLifeSteals()),
                 InventoryItemMapper.toDtos(document.getInventory()),
-                document.getTokenImageUrl());
+                document.getTokenImageUrl(),
+                summon == null ? null : new org.aventyrs.api.monster.dto.SummonDto(summon.kind(),
+                        summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId()));
     }
 }

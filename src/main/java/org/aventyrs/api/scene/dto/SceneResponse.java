@@ -25,6 +25,8 @@ public record SceneResponse(
         List<RollRespondedEvent> rollResponses,
         ItemRarity itemStoreMaxRarity,
         Map<Direction, SceneConnectionResponse> connections,
-        List<GridPositionDto> difficultTerrain
+        List<GridPositionDto> difficultTerrain,
+        List<org.aventyrs.api.scene.SceneSummonEntry> summons,
+        List<org.aventyrs.api.scene.SceneSummonSpawnerEntry> summonSpawners
 ) {
 }

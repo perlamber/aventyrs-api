@@ -88,4 +88,7 @@ public class MonsterSheetDocument {
     /** Null until set via update; the image itself is uploaded separately through {@code /api/images},
      * same convention as {@code SceneDocument#getImageUrl()}. */
     private String tokenImageUrl;
+
+    /** What an invoked creature is — {@code null} for a foe, whose {@link #blueprint} is its source instead. */
+    private SummonEntry summon;
 }

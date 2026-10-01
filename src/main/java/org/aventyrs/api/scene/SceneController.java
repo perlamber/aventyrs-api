@@ -79,6 +79,41 @@ public class SceneController {
         return ResponseEntity.status(HttpStatus.CREATED).body(added);
     }
 
+    /** An invoked creature joins as its caster's participant (client 0.0.95) — see {@link SceneService#addSummon}. */
+    @PostMapping("/{id}/summons")
+    public ResponseEntity<SceneParticipantResponse> addSummon(@PathVariable String id,
+            @RequestBody org.aventyrs.api.scene.dto.SummonCreateRequest request) {
+        SceneParticipantResponse added = service.addSummon(id, request);
+        broadcastRoster(id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(added);
+    }
+
+    /** An invocation leaves — it fell, or was dismissed (client 0.0.95). */
+    @DeleteMapping("/{id}/summons/{summonId}")
+    public ResponseEntity<Void> dismissSummon(@PathVariable String id, @PathVariable String summonId) {
+        service.dismissSummon(id, summonId);
+        broadcastRoster(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** casterId's Concentração broke — the summons it held start their trailing Rodadas (client 0.0.95). */
+    @PostMapping("/{id}/summons/release/{casterId}")
+    public ResponseEntity<Void> releaseConcentration(@PathVariable String id, @PathVariable String casterId) {
+        if (service.releaseConcentration(id, casterId)) {
+            broadcastRoster(id);
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Totem de Gaea: one creature now, one per Rodada (client 0.0.95). */
+    @PostMapping("/{id}/summon-spawners")
+    public ResponseEntity<SceneParticipantResponse> addSummonSpawner(@PathVariable String id,
+            @RequestBody org.aventyrs.api.scene.dto.SummonSpawnerCreateRequest request) {
+        SceneParticipantResponse first = service.addSummonSpawner(id, request);
+        broadcastRoster(id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(first);
+    }
+
     @DeleteMapping("/{id}/participants/{characterSheetId}")
     public ResponseEntity<Void> removeParticipant(@PathVariable String id, @PathVariable String characterSheetId) {
         service.removeParticipant(id, characterSheetId);
