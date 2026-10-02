@@ -38,7 +38,20 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
                                      Integer lifeStealLockedHitPoints,
                                      java.util.Map<String, Integer> restScopedUses,
                                      org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger,
-                                     Integer restLockedHitPoints) {
+                                     Integer restLockedHitPoints,
+                                     java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
+
+    /** A frame from before the Subordinados (core 0.0.98) — the stored ones are left alone. */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status,
+            java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted,
+            Integer lockedHitPoints, Integer lifeStealLockedHitPoints, java.util.Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
+                temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints,
+                restScopedUses, egoLedger, restLockedHitPoints, null);
+    }
 
     /** A frame from before the rest-only lock (core 0.0.85) — the stored one is left alone. */
     public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
@@ -49,7 +62,7 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
             org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
         this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
                 temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints,
-                restScopedUses, egoLedger, null);
+                restScopedUses, egoLedger, null, null);
     }
 
     /** A frame from before the Ego ledger (core 0.0.76) — the stored one is left alone. */

@@ -48,6 +48,7 @@ public record CharacterSheetResponse(
         int lifeStealLockedHitPoints,
         Map<String, Integer> restScopedUses,
         EgoLedgerDto egoLedger,
-        int restLockedHitPoints
+        int restLockedHitPoints,
+        List<SubordinateDto> subordinates
 ) {
 }

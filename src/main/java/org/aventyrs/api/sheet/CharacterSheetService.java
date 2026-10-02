@@ -63,7 +63,8 @@ public class CharacterSheetService {
                 0,
                 Map.of(),
                 null,
-                0);
+                0,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -185,7 +186,22 @@ public class CharacterSheetService {
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
             Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
             org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, egoLedger,
+                restLockedHitPoints, null);
+    }
+
+    /** …plus the Subordinados commanded (core 0.0.98) — written only when sent, like the rest. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints,
+            List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
         CharacterSheetDocument document = findOrThrow(id);
+        if (subordinates != null) {
+            document.setSubordinates(List.copyOf(subordinates));
+        }
         if (restLockedHitPoints != null) {
             document.setRestLockedHitPoints(Math.max(0, restLockedHitPoints));
         }
@@ -333,6 +349,7 @@ public class CharacterSheetService {
                 document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints(),
                 document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()),
                 CombatantSheetMapper.toEgoLedgerDto(document.getEgoLedger()),
-                document.getRestLockedHitPoints() == null ? 0 : document.getRestLockedHitPoints());
+                document.getRestLockedHitPoints() == null ? 0 : document.getRestLockedHitPoints(),
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
     }
 }

@@ -125,7 +125,7 @@ public class SceneRealtimeController {
                         message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints(),
                         message.hourlyEgoRecoveries(), message.exhausted(), message.lockedHitPoints(),
                         message.lifeStealLockedHitPoints(), message.restScopedUses(), message.egoLedger(),
-                        message.restLockedHitPoints());
+                        message.restLockedHitPoints(), message.subordinates());
             }
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",

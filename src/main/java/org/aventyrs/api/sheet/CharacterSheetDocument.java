@@ -116,4 +116,10 @@ public class CharacterSheetDocument {
 
     /** The part of {@link #hitPointsSpent} only a Descanso recovers (core 0.0.85's Ferida Infecciosa). Boxed: absent on older documents. */
     private Integer restLockedHitPoints;
+
+    /**
+     * The Subordinados this character commands (core 0.0.98) — written by the live status path only when sent. {@code
+     * null} on older documents, read as none.
+     */
+    private java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
 }
