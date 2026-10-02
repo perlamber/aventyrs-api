@@ -250,7 +250,9 @@ class CharacterSheetControllerIntegrationTest {
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
                 Map.of(EgoDomain.SORTE, new EgoValueDto(3, 2)),
-                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), List.of("DOM_BARDICO"), 2)),
+                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"),
+                        // A choice-carrying ability travels as CONSTANT:CHOICE, stored as is.
+                        List.of("DOM_BARDICO", "APRIMORAR_COM_ARTE:ATAQUE_CORPO_A_CORPO"), 2)),
                 List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
                 Map.of(EgoDomain.SORTE, "IMPETO", EgoDomain.RECURSOS, "MORAL_HERDADA"),
                 List.of("CONCENTRACAO_PROFUNDA"),
@@ -302,6 +304,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.total").value(2))
                 .andExpect(jsonPath("$.character.skills.ARTES.specializations[0]").value("PINTURA"))
                 .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[0]").value("DOM_BARDICO"))
+                .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[1]")
+                        .value("APRIMORAR_COM_ARTE:ATAQUE_CORPO_A_CORPO"))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
                 .andExpect(jsonPath("$.character.skills.ATLETISMO").doesNotExist())
                 .andExpect(jsonPath("$.character.attributeAbilities[0]").value("SOBRE_HUMANO"))

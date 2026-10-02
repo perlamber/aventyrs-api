@@ -25,7 +25,10 @@ public record SceneAbilityEntry(
         String enchanterCharacterSheetId,
         List<String> boundCharacterSheetIds,
         Integer enchantmentRounds,
-        org.aventyrs.api.scene.dto.TitleEffectsDto effects) {
+        org.aventyrs.api.scene.dto.TitleEffectsDto effects,
+        // The Perícia a Habilidade de Competência rode on, when this is one (abilityId is then its
+        // constant, titleType null); null for a Título's activation.
+        String skillType) {
 
     /**
      * Boxed, not primitive, and every read of one goes through {@link #orZero}.
