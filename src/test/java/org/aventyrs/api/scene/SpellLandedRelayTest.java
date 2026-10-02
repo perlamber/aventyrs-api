@@ -1,5 +1,7 @@
 package org.aventyrs.api.scene;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -37,5 +39,17 @@ class SpellLandedRelayTest {
                 null, List.of(), List.of()));
 
         verify(template, never()).convertAndSend(anyString(), any(Object.class));
+    }
+
+    /** Ogrificar's "Força ou Destreza" pick survives the JSON the server reads the message from (client 0.0.99). */
+    @Test
+    void theAtributoPickSurvivesTheWire() {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        SpellLandedMessage sent = new SpellLandedMessage("caster", "POLIMORFISMO:OGRIFICAR", false, "ally", false, 0,
+                null, List.of(2, 3, 4), List.of(1, 1), null, "DEXTERITY");
+
+        SpellLandedMessage read = mapper.readValue(mapper.writeValueAsString(sent), SpellLandedMessage.class);
+
+        assertEquals("DEXTERITY", read.chosenAttribute());
     }
 }
