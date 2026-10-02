@@ -1,5 +1,25 @@
 package org.aventyrs.api.sheet;
 
+import org.aventyrs.api.sheet.dto.BackgroundDto;
+import org.aventyrs.api.sheet.dto.DefectDto;
+import org.aventyrs.api.sheet.dto.DevotionPickDto;
+import org.aventyrs.api.sheet.dto.DefectResponse;
+import org.aventyrs.api.sheet.dto.QualityDto;
+import org.aventyrs.api.sheet.dto.QualityResponse;
+import org.aventyrs.core.character.services.CharacterCreationService;
+import org.aventyrs.core.defect.Defect;
+import org.aventyrs.core.defect.DefectSeverity;
+import org.aventyrs.core.defect.Quality;
+import org.aventyrs.core.defect.QualityClass;
+import org.aventyrs.core.defect.QualitySource;
+import org.aventyrs.core.defect.SuperacaoBenefit;
+import org.aventyrs.api.sheet.dto.BackgroundResponse;
+import org.aventyrs.api.sheet.dto.BackgroundTraitDto;
+import org.aventyrs.core.background.Background;
+import org.aventyrs.core.background.BackgroundKind;
+import org.aventyrs.core.background.Backgrounds;
+import org.aventyrs.core.skill.SkillTraitCatalog;
+
 import org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto;
 import java.util.EnumMap;
 import java.util.List;
@@ -117,7 +137,220 @@ public final class CombatantSheetMapper {
                 toTitleEntry(character.secondaryTitle()),
                 toTitleEntry(character.tertiaryTitle()),
                 character.spells() == null ? List.of() : character.spells(),
-                toMimetizedSpellEntries(character.mimetizedSpells()));
+                toMimetizedSpellEntries(character.mimetizedSpells()),
+                character.quickLearningSkills() == null ? null : Set.copyOf(character.quickLearningSkills()),
+                character.centelhas(),
+                toBackgroundEntries(character.backgrounds()),
+                toDefectEntries(character.defects()),
+                toQualityEntries(character.qualities(), character.defects()),
+                character.devotionTier(),
+                toDevotionPickEntries(character.devotionPicks()));
+    }
+
+    /**
+     * The Talento de Devoção rung picks as sent (core 0.0.86) — each naming a known {@code DevotoFeat} and a rung,
+     * the value kept verbatim (the client's encoding). {@code null} reads as none.
+     *
+     * @throws IllegalArgumentException for a Talento this core doesn't know, or a pick missing its rung or value
+     */
+    static List<DevotionPickEntry> toDevotionPickEntries(List<DevotionPickDto> picks) {
+        if (picks == null) {
+            return List.of();
+        }
+        List<DevotionPickEntry> entries = new java.util.ArrayList<>();
+        for (DevotionPickDto pick : picks) {
+            if (pick == null || pick.rung() == null || pick.value() == null || pick.value().isBlank()) {
+                throw new IllegalArgumentException("A devotion pick needs its rung and value");
+            }
+            org.aventyrs.core.feat.DevotoFeat.valueOf(pick.talento());
+            entries.add(new DevotionPickEntry(pick.talento(), pick.rung(), pick.value()));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static List<DevotionPickDto> toDevotionPickResponses(List<DevotionPickEntry> picks) {
+        if (picks == null) {
+            return List.of();
+        }
+        return picks.stream().map(pick -> new DevotionPickDto(pick.talento(), pick.rung(), pick.value())).toList();
+    }
+
+    /**
+     * The Defeitos as sent — each a known core {@code Defect}/{@code DefectSeverity}, a creation one with its
+     * {@code SuperacaoBenefit} of the same gravidade and at most one creation Defeito per gravidade, a Defeito
+     * imposed during play with none, and never two entries of one Defeito in force (an overcome one may sit
+     * beside a new one). The choices and picks are stored as sent: the client resolved them through core, and
+     * this API, like the rest of the sheet, stores what it is handed.
+     */
+    static List<DefectEntry> toDefectEntries(List<DefectDto> defects) {
+        if (defects == null) {
+            return List.of();
+        }
+        java.util.Set<DefectSeverity> creationSeverities = java.util.EnumSet.noneOf(DefectSeverity.class);
+        java.util.Set<Defect> inForce = java.util.EnumSet.noneOf(Defect.class);
+        List<DefectEntry> entries = new java.util.ArrayList<>();
+        for (DefectDto defect : defects) {
+            Defect type = constant(Defect.class, defect.type(), "Defeito");
+            DefectSeverity severity = constant(DefectSeverity.class, defect.severity(), "gravidade");
+            SuperacaoBenefit superacao = defect.superacao() == null ? null
+                    : constant(SuperacaoBenefit.class, defect.superacao(), "Benefício de Superação");
+            if (defect.fromCreation() != (superacao != null)) {
+                throw new IllegalArgumentException("A creation Defeito has a Benefício de Superação, and only it: " + type);
+            }
+            if (superacao != null && superacao.getSeverity() != severity) {
+                throw new IllegalArgumentException("Benefício de Superação " + superacao + " is not of gravidade " + severity);
+            }
+            if (defect.fromCreation() && !creationSeverities.add(severity)) {
+                throw new IllegalArgumentException("More than one creation Defeito of gravidade " + severity);
+            }
+            if (!defect.overcome() && !inForce.add(type)) {
+                throw new IllegalArgumentException("Defeito held twice: " + type);
+            }
+            entries.add(new DefectEntry(type.name(), severity.name(), strings(defect.choices()), defect.fromCreation(),
+                    superacao == null ? null : superacao.name(), strings(defect.superacaoPicks()), defect.overcome()));
+        }
+        return List.copyOf(entries);
+    }
+
+    /**
+     * The Qualidades as sent — each a known {@code Quality}/{@code QualityClass}/{@code QualitySource}, none
+     * twice, at most {@code CharacterCreationService.MAX_QUALITIES}, none opposing a creation Defeito, and none
+     * at all without a creation Defeito (a table ruling: "no Qualidade without a Defeito").
+     */
+    static List<QualityEntry> toQualityEntries(List<QualityDto> qualities, List<DefectDto> defects) {
+        if (qualities == null || qualities.isEmpty()) {
+            return List.of();
+        }
+        if (qualities.size() > CharacterCreationService.MAX_QUALITIES) {
+            throw new IllegalArgumentException("At most " + CharacterCreationService.MAX_QUALITIES + " Qualidades");
+        }
+        java.util.Set<Defect> creationDefects = defects == null ? java.util.Set.of() : defects.stream()
+                .filter(DefectDto::fromCreation)
+                .map(defect -> constant(Defect.class, defect.type(), "Defeito"))
+                .collect(java.util.stream.Collectors.toSet());
+        if (creationDefects.isEmpty()) {
+            throw new IllegalArgumentException("A Qualidade needs a creation Defeito");
+        }
+        java.util.Set<Quality> seen = java.util.EnumSet.noneOf(Quality.class);
+        List<QualityEntry> entries = new java.util.ArrayList<>();
+        for (QualityDto quality : qualities) {
+            Quality type = constant(Quality.class, quality.type(), "Qualidade");
+            QualityClass qualityClass = constant(QualityClass.class, quality.qualityClass(), "classe de Qualidade");
+            QualitySource source = constant(QualitySource.class, quality.source(), "origem de Qualidade");
+            if (!seen.add(type)) {
+                throw new IllegalArgumentException("Qualidade held twice: " + type);
+            }
+            if (creationDefects.contains(type.getOpposes())) {
+                throw new IllegalArgumentException("Qualidade " + type + " opposes the Defeito " + type.getOpposes());
+            }
+            entries.add(new QualityEntry(type.name(), qualityClass.name(), strings(quality.choices()), source.name()));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static <E extends Enum<E>> E constant(final Class<E> type, final String name, final String what) {
+        try {
+            return Enum.valueOf(type, name);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            throw new IllegalArgumentException("Unknown " + what + ": " + name);
+        }
+    }
+
+    private static List<String> strings(final List<String> values) {
+        return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private static List<DefectResponse> toDefectResponses(List<DefectEntry> defects) {
+        if (defects == null) {
+            return List.of();
+        }
+        return defects.stream()
+                .map(defect -> new DefectResponse(defect.type(), defect.severity(), defectLevelName(defect),
+                        strings(defect.choices()), defect.fromCreation(), defect.superacao(),
+                        strings(defect.superacaoPicks()), defect.overcome()))
+                .toList();
+    }
+
+    private static List<QualityResponse> toQualityResponses(List<QualityEntry> qualities) {
+        if (qualities == null) {
+            return List.of();
+        }
+        return qualities.stream()
+                .map(quality -> new QualityResponse(quality.type(), quality.qualityClass(), qualityLevelName(quality),
+                        strings(quality.choices()), quality.source()))
+                .toList();
+    }
+
+    /** Null for a constant this core no longer knows — a stored name is never fatal on read. */
+    private static String defectLevelName(final DefectEntry defect) {
+        try {
+            return Defect.valueOf(defect.type()).effectAt(DefectSeverity.valueOf(defect.severity())).getLevelName();
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            return null;
+        }
+    }
+
+    /** The level's own name — a Maior's, not the Menor it also holds. */
+    private static String qualityLevelName(final QualityEntry quality) {
+        try {
+            List<org.aventyrs.core.feat.QualidadeFeat> effects =
+                    Quality.valueOf(quality.type()).effectsAt(QualityClass.valueOf(quality.qualityClass()));
+            return effects.get(effects.size() - 1).getLevelName();
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            return null;
+        }
+    }
+
+    /**
+     * The Antecedentes as sent — each {@code type} a known core {@code Background}, at most one per
+     * {@code BackgroundKind}, and each trait a real constant of its Perícia and kind. Nothing checks
+     * the picks against what the Antecedente offers: the client applied them through core's {@code
+     * CharacterCreationService#applyBackground}, and this API, like the rest of the sheet, stores what
+     * it is handed.
+     */
+    static List<BackgroundEntry> toBackgroundEntries(List<BackgroundDto> backgrounds) {
+        if (backgrounds == null) {
+            return List.of();
+        }
+        java.util.Set<BackgroundKind> seen = java.util.EnumSet.noneOf(BackgroundKind.class);
+        List<BackgroundEntry> entries = new java.util.ArrayList<>();
+        for (BackgroundDto background : backgrounds) {
+            Background resolved = Backgrounds.byName(background.type())
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown Antecedente: " + background.type()));
+            if (!seen.add(resolved.getKind())) {
+                throw new IllegalArgumentException("More than one Antecedente of kind " + resolved.getKind());
+            }
+            List<BackgroundTraitEntry> traits = background.traits() == null ? List.of() : background.traits().stream()
+                    .map(trait -> {
+                        boolean known = SkillTraitCatalog.traitsOf(trait.skill(), trait.kind()).stream()
+                                .anyMatch(candidate -> ((Enum<?>) candidate).name().equals(trait.name()));
+                        if (!known) {
+                            throw new IllegalArgumentException("Unknown " + trait.kind() + " of " + trait.skill() + ": " + trait.name());
+                        }
+                        return new BackgroundTraitEntry(trait.skill(), trait.kind(), trait.name());
+                    })
+                    .toList();
+            entries.add(new BackgroundEntry(resolved.name(),
+                    background.graduationSkills() == null ? List.of() : List.copyOf(background.graduationSkills()),
+                    traits,
+                    background.benefitChoices() == null ? List.of() : List.copyOf(background.benefitChoices())));
+        }
+        return List.copyOf(entries);
+    }
+
+    private static List<BackgroundResponse> toBackgroundResponses(List<BackgroundEntry> backgrounds) {
+        if (backgrounds == null) {
+            return List.of();
+        }
+        return backgrounds.stream()
+                .map(background -> new BackgroundResponse(background.type(),
+                        Backgrounds.byName(background.type()).map(found -> found.getKind().name()).orElse(null),
+                        background.graduationSkills() == null ? List.of() : background.graduationSkills(),
+                        background.traits() == null ? List.of() : background.traits().stream()
+                                .map(trait -> new BackgroundTraitDto(trait.skill(), trait.kind(), trait.name()))
+                                .toList(),
+                        background.benefitChoices() == null ? List.of() : background.benefitChoices()))
+                .toList();
     }
 
     private static List<MimetizedSpellEntry> toMimetizedSpellEntries(List<MimetizedSpellDto> mimetizedSpells) {
@@ -125,7 +358,8 @@ public final class CombatantSheetMapper {
             return List.of();
         }
         return mimetizedSpells.stream()
-                .map(spell -> new MimetizedSpellEntry(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .map(spell -> new MimetizedSpellEntry(spell.spellName(), spell.determinationPointCost(), spell.selfOnly(),
+                        spell.requiredForm()))
                 .toList();
     }
 
@@ -134,7 +368,8 @@ public final class CombatantSheetMapper {
             return List.of();
         }
         return mimetizedSpells.stream()
-                .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly()))
+                .map(spell -> new MimetizedSpellResponse(spell.spellName(), spell.determinationPointCost(), spell.selfOnly(),
+                        spell.requiredForm()))
                 .toList();
     }
 
@@ -291,6 +526,23 @@ public final class CombatantSheetMapper {
             pools.put(domain, 0);
         }
         return pools;
+    }
+
+    /** A sent ledger as stored — each map filled for all four Egos. {@code null} stays {@code null}. */
+    public static EgoLedgerEntry toEgoLedgerEntry(org.aventyrs.api.sheet.dto.EgoLedgerDto provided) {
+        return provided == null ? null : new EgoLedgerEntry(normalizeTemporaryEgoPoints(provided.permanentSpent()),
+                normalizeTemporaryEgoPoints(provided.extras()), normalizeTemporaryEgoPoints(provided.overflowReceived()),
+                normalizeTemporaryEgoPoints(provided.setbacks()));
+    }
+
+    /** The stored ledger on the wire — all zeros for a document written before it existed. */
+    public static org.aventyrs.api.sheet.dto.EgoLedgerDto toEgoLedgerDto(EgoLedgerEntry stored) {
+        return stored == null
+                ? new org.aventyrs.api.sheet.dto.EgoLedgerDto(defaultTemporaryEgoPoints(), defaultTemporaryEgoPoints(),
+                        defaultTemporaryEgoPoints(), defaultTemporaryEgoPoints())
+                : new org.aventyrs.api.sheet.dto.EgoLedgerDto(normalizeTemporaryEgoPoints(stored.permanentSpent()),
+                        normalizeTemporaryEgoPoints(stored.extras()), normalizeTemporaryEgoPoints(stored.overflowReceived()),
+                        normalizeTemporaryEgoPoints(stored.setbacks()));
     }
 
     public static Map<EgoDomain, Integer> normalizeTemporaryEgoPoints(Map<EgoDomain, Integer> provided) {
@@ -460,6 +712,13 @@ public final class CombatantSheetMapper {
                 toTitleResponse(character.secondaryTitle()),
                 toTitleResponse(character.tertiaryTitle()),
                 character.spells() == null ? List.of() : character.spells(),
-                toMimetizedSpellResponses(character.mimetizedSpells()));
+                toMimetizedSpellResponses(character.mimetizedSpells()),
+                character.quickLearningSkills() == null ? Set.of() : Set.copyOf(character.quickLearningSkills()),
+                character.centelhas(),
+                toBackgroundResponses(character.backgrounds()),
+                toDefectResponses(character.defects()),
+                toQualityResponses(character.qualities()),
+                character.devotionTier(),
+                toDevotionPickResponses(character.devotionPicks()));
     }
 }

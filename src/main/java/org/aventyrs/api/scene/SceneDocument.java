@@ -138,4 +138,10 @@ public class SceneDocument {
      * element that exists, so an absent field is the only older shape there is.
      */
     private List<GridPosition> difficultTerrain;
+
+    /** The invocations standing here (client 0.0.95) — {@code null} on older documents, read as none. */
+    private List<SceneSummonEntry> summons;
+
+    /** What invokes a creature each Rodada (client 0.0.95) — {@code null} on older documents. */
+    private List<SceneSummonSpawnerEntry> summonSpawners;
 }

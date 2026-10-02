@@ -81,9 +81,13 @@ public class SceneService {
     /** Used <b>only</b> by the two roll-request appends — see {@link #respondToRoll} for why those
      * cannot go through {@code repository.save} like every other mutation here. */
     private final MongoTemplate mongoTemplate;
+    /** Stores and deletes an invoked creature's sheet (client 0.0.95). */
+    private final org.aventyrs.api.monster.MonsterSheetService monsterSheetService;
 
     public SceneService(SceneRepository repository, CharacterSheetRepository characterSheetRepository,
-            MonsterSheetRepository monsterSheetRepository, MongoTemplate mongoTemplate) {
+            MonsterSheetRepository monsterSheetRepository, MongoTemplate mongoTemplate,
+            org.aventyrs.api.monster.MonsterSheetService monsterSheetService) {
+        this.monsterSheetService = monsterSheetService;
         this.monsterSheetRepository = monsterSheetRepository;
         this.repository = repository;
         this.characterSheetRepository = characterSheetRepository;
@@ -96,7 +100,7 @@ public class SceneService {
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
                 // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
                 // follows field declaration order.
-                List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
         return toResponse(repository.save(document));
     }
 
@@ -204,7 +208,45 @@ public class SceneService {
 
     public void removeParticipant(String id, String characterSheetId) {
         SceneDocument document = findOrThrow(id);
+        removeFromDocument(document, characterSheetId);
+        repository.save(document);
+    }
 
+    /**
+     * Takes characterSheetId out of document in memory: its summon record and sheet go with it if it is an
+     * invocation, and a caster leaving takes its invocations and spawners along (client 0.0.95).
+     */
+    private void removeFromDocument(SceneDocument document, String characterSheetId) {
+        List<SceneSummonEntry> summons = new ArrayList<>(summonsOf(document));
+        boolean wasSummon = summons.removeIf(summon -> summon.summonId().equals(characterSheetId));
+        List<String> ownSummons = summons.stream()
+                .filter(summon -> summon.casterCharacterSheetId().equals(characterSheetId))
+                .map(SceneSummonEntry::summonId)
+                .toList();
+        summons.removeIf(summon -> summon.casterCharacterSheetId().equals(characterSheetId));
+        document.setSummons(summons);
+        document.setSummonSpawners(spawnersOf(document).stream()
+                .filter(spawner -> !spawner.casterCharacterSheetId().equals(characterSheetId))
+                .toList());
+        removeParticipantEntry(document, characterSheetId);
+        if (wasSummon) {
+            deleteSummonSheet(characterSheetId);
+        }
+        for (String summonId : ownSummons) {
+            if (document.getParticipants().stream().anyMatch(entry -> entry.characterSheetId().equals(summonId))) {
+                removeParticipantEntry(document, summonId);
+            }
+            deleteSummonSheet(summonId);
+        }
+    }
+
+    private void deleteSummonSheet(String summonId) {
+        if (monsterSheetRepository.existsById(summonId)) {
+            monsterSheetService.delete(summonId);
+        }
+    }
+
+    private void removeParticipantEntry(SceneDocument document, String characterSheetId) {
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int removedIndex = indexOfParticipant(participants, characterSheetId);
         boolean wasInRotation = participants.get(removedIndex).joinedAtRound() <= document.getCurrentRound();
@@ -222,7 +264,157 @@ public class SceneService {
 
         document.setParticipants(participants);
         document.setCurrentIndex(currentIndex);
+    }
+
+    // ---------- invocations (client 0.0.95) ----------
+
+    /** The invocations standing in document — none on a document older than them. */
+    private static List<SceneSummonEntry> summonsOf(SceneDocument document) {
+        return document.getSummons() == null ? List.of() : document.getSummons();
+    }
+
+    private static List<SceneSummonSpawnerEntry> spawnersOf(SceneDocument document) {
+        return document.getSummonSpawners() == null ? List.of() : document.getSummonSpawners();
+    }
+
+    /**
+     * Puts an invoked creature into the Scene as its caster's own participant — core's {@code Scene#addSummons}: its
+     * sheet stored for the caster's player, placed right after the caster (and their earlier summons) with the
+     * caster's Iniciativa, group and rotation, and an earlier summon of its group marked to leave as the caster's Turn
+     * ends.
+     */
+    public SceneParticipantResponse addSummon(String id, org.aventyrs.api.scene.dto.SummonCreateRequest request) {
+        SceneDocument document = findOrThrow(id);
+        SceneParticipantEntry entry = placeSummon(document, request.summonId(), request.casterCharacterSheetId(),
+                new org.aventyrs.api.monster.SummonEntry(request.kind(), request.conjuradorManaGraduation(),
+                        request.powers() == null ? List.of() : request.powers(), request.casterCharacterSheetId()),
+                request.exclusivityGroup(), request.rounds(), request.concentration(), request.position());
         repository.save(document);
+        return toParticipantResponse(entry);
+    }
+
+    private SceneParticipantEntry placeSummon(SceneDocument document, String summonId, String casterId,
+            org.aventyrs.api.monster.SummonEntry summon, String exclusivityGroup, Integer rounds,
+            boolean concentration, GridPosition requested) {
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        int casterIndex = indexOfParticipant(participants, casterId);
+        SceneParticipantEntry caster = participants.get(casterIndex);
+        List<SceneSummonEntry> summons = new ArrayList<>(summonsOf(document));
+        if (exclusivityGroup != null) {
+            summons.replaceAll(held -> held.casterCharacterSheetId().equals(casterId)
+                    && exclusivityGroup.equals(held.exclusivityGroup()) ? held.markedReplaced() : held);
+        }
+        monsterSheetService.createSummon(summonId, summon, playerOf(casterId));
+
+        GridPosition position = requested != null && isFree(participants, requested)
+                ? requested : freePositionNear(participants, caster.position());
+        SceneParticipantEntry entry = new SceneParticipantEntry(summonId, caster.effectiveInitiative(), caster.group(),
+                position, caster.joinedAtRound(), null);
+        // After the caster and the summons already behind it, in the order they were invoked.
+        Set<String> casterSummons = summons.stream()
+                .filter(held -> held.casterCharacterSheetId().equals(casterId))
+                .map(SceneSummonEntry::summonId)
+                .collect(Collectors.toSet());
+        int at = casterIndex + 1;
+        while (at < participants.size() && casterSummons.contains(participants.get(at).characterSheetId())) {
+            at++;
+        }
+        participants.add(at, entry);
+        boolean inRotation = caster.joinedAtRound() <= document.getCurrentRound();
+        if (inRotation && document.getCurrentIndex() >= at) {
+            document.setCurrentIndex(document.getCurrentIndex() + 1);
+        }
+        summons.add(new SceneSummonEntry(summonId, casterId, exclusivityGroup, concentration ? null : rounds,
+                concentration ? (rounds == null ? 0 : rounds) : null, false));
+        document.setParticipants(participants);
+        document.setSummons(summons);
+        return entry;
+    }
+
+    /** Sends an invocation away — it fell, or its caster dismissed it. */
+    public void dismissSummon(String id, String summonId) {
+        SceneDocument document = findOrThrow(id);
+        removeFromDocument(document, summonId);
+        repository.save(document);
+    }
+
+    /**
+     * casterId's Concentração broke (they cast another Magia or attacked): every summon it held starts its trailing
+     * Rodadas, and one with none leaves now. Returns whether anything changed.
+     */
+    public boolean releaseConcentration(String id, String casterId) {
+        SceneDocument document = findOrThrow(id);
+        List<SceneSummonEntry> summons = summonsOf(document);
+        if (summons.stream().noneMatch(held -> held.casterCharacterSheetId().equals(casterId)
+                && held.trailingRounds() != null)) {
+            return false;
+        }
+        List<SceneSummonEntry> released = summons.stream()
+                .map(held -> held.casterCharacterSheetId().equals(casterId) ? held.released() : held)
+                .toList();
+        document.setSummons(released);
+        released.stream().filter(SceneSummonEntry::isSpent).map(SceneSummonEntry::summonId).toList()
+                .forEach(summonId -> removeFromDocument(document, summonId));
+        repository.save(document);
+        return true;
+    }
+
+    /** Totem de Gaea: a creature for its caster now, and one at each Rodada boundary while it lasts. */
+    public SceneParticipantResponse addSummonSpawner(String id,
+            org.aventyrs.api.scene.dto.SummonSpawnerCreateRequest request) {
+        SceneDocument document = findOrThrow(id);
+        SceneSummonSpawnerEntry spawner = new SceneSummonSpawnerEntry(request.casterCharacterSheetId(),
+                request.rounds(), request.kind(), request.conjuradorManaGraduation(),
+                request.powers() == null ? List.of() : request.powers(), request.summonRounds());
+        List<SceneSummonSpawnerEntry> spawners = new ArrayList<>(spawnersOf(document));
+        spawners.add(spawner);
+        document.setSummonSpawners(spawners);
+        SceneParticipantEntry first = spawn(document, spawner);
+        repository.save(document);
+        return toParticipantResponse(first);
+    }
+
+    private SceneParticipantEntry spawn(SceneDocument document, SceneSummonSpawnerEntry spawner) {
+        return placeSummon(document, UUID.randomUUID().toString(), spawner.casterCharacterSheetId(),
+                new org.aventyrs.api.monster.SummonEntry(spawner.kind(), spawner.conjuradorManaGraduation(),
+                        spawner.powers(), spawner.casterCharacterSheetId()),
+                null, spawner.summonRounds(), false, null);
+    }
+
+    /** Whose player a combatant belongs to — the one who controls what they invoke. */
+    private String playerOf(String combatantSheetId) {
+        return characterSheetRepository.findById(combatantSheetId)
+                .map(org.aventyrs.api.sheet.CharacterSheetDocument::getPlayerId)
+                .or(() -> monsterSheetRepository.findById(combatantSheetId)
+                        .map(org.aventyrs.api.monster.MonsterSheetDocument::getPlayerId))
+                .orElseThrow(() -> new IllegalArgumentException("No CharacterSheet or MonsterSheet found: "
+                        + combatantSheetId));
+    }
+
+    private static boolean isFree(List<SceneParticipantEntry> participants, GridPosition position) {
+        return participants.stream().noneMatch(entry -> position.equals(entry.position()));
+    }
+
+    /** The free hex nearest centre, by ring — falling back to the first free one anywhere. */
+    private GridPosition freePositionNear(List<SceneParticipantEntry> participants, GridPosition centre) {
+        if (centre != null) {
+            for (int radius = 1; radius < GridPosition.GRID_SIZE; radius++) {
+                for (int dy = -radius; dy <= radius; dy++) {
+                    for (int dx = -radius; dx <= radius; dx++) {
+                        int x = centre.x() + dx;
+                        int y = centre.y() + dy;
+                        if (x < 0 || y < 0 || x >= GridPosition.GRID_SIZE || y >= GridPosition.GRID_SIZE) {
+                            continue;
+                        }
+                        GridPosition candidate = new GridPosition(x, y);
+                        if (isFree(participants, candidate)) {
+                            return candidate;
+                        }
+                    }
+                }
+            }
+        }
+        return firstFreePosition(participants);
     }
 
     public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition) {
@@ -246,13 +438,7 @@ public class SceneService {
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int index = indexOfParticipant(participants, characterSheetId);
-        SceneParticipantEntry moved = new SceneParticipantEntry(
-                characterSheetId,
-                participants.get(index).initiativeValue(),
-                participants.get(index).group(),
-                newPosition,
-                participants.get(index).joinedAtRound(),
-                participants.get(index).concealment());
+        SceneParticipantEntry moved = participants.get(index).withPosition(newPosition);
         participants.set(index, moved);
         requireDistinctPositions(participants, permittedShared);
 
@@ -320,9 +506,7 @@ public class SceneService {
             SceneParticipantEntry entry = participants.get(i);
             GridPosition position = placed.get(entry.characterSheetId());
             if (position != null) {
-                participants.set(i, new SceneParticipantEntry(entry.characterSheetId(),
-                        entry.initiativeValue(), entry.group(), position, entry.joinedAtRound(),
-                        entry.concealment()));
+                participants.set(i, entry.withPosition(position));
             }
         }
         requireDistinctPositions(participants, sharedPositions(document.getParticipants()));
@@ -524,30 +708,93 @@ public class SceneService {
      * @throws IllegalArgumentException if no participant is in the rotation yet
      */
     public TurnAdvancedEvent advanceTurn(String id) {
+        return advanceTurnReporting(id).event();
+    }
+
+    /** A turn advance, and whether invocations joined or left with it — the roster then needs a re-broadcast. */
+    public record TurnAdvance(TurnAdvancedEvent event, boolean rosterChanged) {
+    }
+
+    /**
+     * {@link #advanceTurn}, plus what core's {@code Scene#next()} does to invocations (client 0.0.95): a summon its
+     * group replaced leaves as its caster's Turn ends; at the Rodada boundary each summon's Duração ticks and a spent
+     * one leaves, and each spawner invokes its next creature.
+     */
+    public TurnAdvance advanceTurnReporting(String id) {
         SceneDocument document = findOrThrow(id);
+        boolean rosterChanged = false;
+        int round = document.getCurrentRound();
+
+        int finishingIndex = document.getCurrentIndex();
+        if (finishingIndex >= 0 && finishingIndex < rotationSize(document.getParticipants(), round)) {
+            String finishing = document.getParticipants().get(finishingIndex).characterSheetId();
+            List<String> replaced = summonsOf(document).stream()
+                    .filter(held -> held.replaced() && held.casterCharacterSheetId().equals(finishing))
+                    .map(SceneSummonEntry::summonId)
+                    .toList();
+            for (String summonId : replaced) {
+                removeFromDocument(document, summonId);
+                rosterChanged = true;
+            }
+        }
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
-        int round = document.getCurrentRound();
         int rotationSize = rotationSize(participants, round);
         if (rotationSize == 0) {
             throw new IllegalArgumentException("No participants in scene: " + id);
         }
 
         int index = document.getCurrentIndex() + 1;
+        boolean wrapped = false;
         if (index >= rotationSize) {
             index = 0;
             if (document.isCombatScene()) {
                 round++;
                 participants = mergeAndSortRotation(participants, round);
+                wrapped = true;
             }
         }
 
         document.setParticipants(participants);
         document.setCurrentRound(round);
         document.setCurrentIndex(index);
+        if (wrapped) {
+            rosterChanged |= runRoundBoundaryForSummons(document);
+            // A summon leaving at the boundary may have stood at the top of the order.
+            document.setCurrentIndex(hasRotationMember(document.getParticipants(), round) ? 0 : -1);
+        }
         repository.save(document);
 
-        return new TurnAdvancedEvent(participants.get(index).characterSheetId(), round, index);
+        int current = Math.max(0, document.getCurrentIndex());
+        return new TurnAdvance(new TurnAdvancedEvent(document.getParticipants().get(current).characterSheetId(),
+                round, document.getCurrentIndex()), rosterChanged);
+    }
+
+    /** The Rodada boundary for invocations — spent Durações leave, spawners invoke. Whether the roster changed. */
+    private boolean runRoundBoundaryForSummons(SceneDocument document) {
+        boolean changed = false;
+        List<SceneSummonEntry> ticked = summonsOf(document).stream().map(SceneSummonEntry::ticked).toList();
+        document.setSummons(ticked);
+        for (SceneSummonEntry spent : ticked.stream().filter(SceneSummonEntry::isSpent).toList()) {
+            removeFromDocument(document, spent.summonId());
+            changed = true;
+        }
+        List<SceneSummonSpawnerEntry> standing = new ArrayList<>();
+        for (SceneSummonSpawnerEntry spawner : spawnersOf(document)) {
+            SceneSummonSpawnerEntry next = spawner.ticked();
+            if (next.remainingRounds() > 0) {
+                standing.add(next);
+            }
+        }
+        document.setSummonSpawners(standing);
+        for (SceneSummonSpawnerEntry spawner : standing) {
+            if (document.getParticipants().stream()
+                    .anyMatch(entry -> entry.characterSheetId().equals(spawner.casterCharacterSheetId()))) {
+                spawn(document, spawner);
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     /**
@@ -558,10 +805,14 @@ public class SceneService {
      * already there, which is the same tie behavior {@link #rotationInsertionIndex} preserves.
      */
     private List<SceneParticipantEntry> mergeAndSortRotation(List<SceneParticipantEntry> participants, int round) {
+        // Each Iniciativa override one boundary on before the sort (SceneInitiativeOverrideEntry), so it governs
+        // exactly the Rodadas it was bought for.
         List<SceneParticipantEntry> rotation = new ArrayList<>(participants.stream()
                 .filter(entry -> entry.joinedAtRound() <= round)
+                .map(entry -> entry.initiativeOverride() == null ? entry
+                        : entry.withInitiativeOverride(entry.initiativeOverride().advanced()))
                 .toList());
-        rotation.sort(Comparator.comparingInt(SceneParticipantEntry::initiativeValue).reversed());
+        rotation.sort(Comparator.comparingInt(SceneParticipantEntry::effectiveInitiative).reversed());
 
         List<SceneParticipantEntry> merged = new ArrayList<>(rotation);
         participants.stream().filter(entry -> entry.joinedAtRound() > round).forEach(merged::add);
@@ -592,7 +843,9 @@ public class SceneService {
                 message.turnNumber(),
                 toOutcome(message),
                 message.dice() == null ? null : List.copyOf(message.dice()),
-                message.total());
+                message.total(),
+                message.targetCharacterSheetId(),
+                message.activatedFeats() == null ? null : List.copyOf(message.activatedFeats()));
 
         List<SceneActionEntry> history = new ArrayList<>(actionHistoryOf(document));
         history.add(entry);
@@ -794,7 +1047,9 @@ public class SceneService {
                 outcome == null ? null : outcome.criticalResult(),
                 outcome == null ? null : outcome.reachedDifficultyLevel(),
                 entry.dice(),
-                entry.total());
+                entry.total(),
+                entry.targetCharacterSheetId(),
+                entry.activatedFeats());
     }
 
     /** How many of participants are in the turn rotation at round — the length of the list's prefix. */
@@ -811,7 +1066,7 @@ public class SceneService {
     private int rotationInsertionIndex(List<SceneParticipantEntry> participants, int round, SceneParticipantEntry entry) {
         int rotationSize = rotationSize(participants, round);
         for (int i = 0; i < rotationSize; i++) {
-            if (participants.get(i).initiativeValue() < entry.initiativeValue()) {
+            if (participants.get(i).effectiveInitiative() < entry.effectiveInitiative()) {
                 return i;
             }
         }
@@ -843,6 +1098,25 @@ public class SceneService {
         List<String> resting = message.characterSheetIds() == null ? List.of() : List.copyOf(message.characterSheetIds());
         resting.forEach(sheetId -> indexOfParticipant(document.getParticipants(), sheetId));
         return new SceneTimeEvent(message.hours(), message.restType(), resting);
+    }
+
+    /**
+     * Puts an Iniciativa Ego point's value in place of a participant's rolled Iniciativa (core 0.0.79) —
+     * {@code rodadas} Rodadas of the order ({@code null}: the rest of the Cena), taking hold at the next Rodada
+     * boundary. Replaces an override already there. The client resolved and paid it through core; this persists
+     * what it decided, as {@link #setConcealment} does.
+     */
+    public void setInitiativeOverride(String id, String characterSheetId, int value, Integer rodadas) {
+        if (rodadas != null && rodadas < 1) {
+            throw new IllegalArgumentException("An Iniciativa override governs at least one Rodada: " + rodadas);
+        }
+        SceneDocument document = findOrThrow(id);
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        int index = indexOfParticipant(participants, characterSheetId);
+        participants.set(index, participants.get(index)
+                .withInitiativeOverride(new SceneInitiativeOverrideEntry(value, rodadas, false)));
+        document.setParticipants(participants);
+        repository.save(document);
     }
 
     public void requireParticipant(String id, String characterSheetId) {
@@ -1025,7 +1299,9 @@ public class SceneService {
                 resolveConnections(document),
                 difficultTerrainOf(document).stream()
                         .map(cell -> new GridPositionDto(cell.x(), cell.y()))
-                        .toList());
+                        .toList(),
+                summonsOf(document),
+                spawnersOf(document));
     }
 
     /** {@code null} on any document persisted before connections existed. */
@@ -1065,7 +1341,10 @@ public class SceneService {
                 entry.group(),
                 new GridPositionDto(entry.position().x(), entry.position().y()),
                 entry.joinedAtRound(),
-                toConcealmentDto(entry.concealment()));
+                toConcealmentDto(entry.concealment()),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().value(),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().rodadas(),
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().started());
     }
 
     private static SceneConcealmentEntry toConcealmentEntry(ConcealmentDto dto) {

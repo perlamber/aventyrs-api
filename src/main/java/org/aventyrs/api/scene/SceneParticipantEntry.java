@@ -23,6 +23,10 @@ import org.aventyrs.core.scene.grid.GridPosition;
  * <p>{@code concealment} is non-{@code null} exactly while the participant is Escondido — see {@link
  * SceneConcealmentEntry}. Documents written before it existed read it as {@code null}: nobody was
  * persisted hidden then, which is exactly right.
+ *
+ * <p>{@code initiativeOverride} is an Iniciativa Ego point's replacement for {@code initiativeValue} — see {@link
+ * SceneInitiativeOverrideEntry}; {@code null} (and on older documents) when none holds. The turn order sorts by
+ * {@link #effectiveInitiative()}.
  */
 public record SceneParticipantEntry(
         String characterSheetId,
@@ -30,11 +34,35 @@ public record SceneParticipantEntry(
         UUID group,
         GridPosition position,
         int joinedAtRound,
-        SceneConcealmentEntry concealment) {
+        SceneConcealmentEntry concealment,
+        SceneInitiativeOverrideEntry initiativeOverride) {
+
+    /** An entry with no Iniciativa override. */
+    public SceneParticipantEntry(String characterSheetId, int initiativeValue, UUID group, GridPosition position,
+                                 int joinedAtRound, SceneConcealmentEntry concealment) {
+        this(characterSheetId, initiativeValue, group, position, joinedAtRound, concealment, null);
+    }
+
+    /** What the turn order sorts by: the override's value while one holds, else the rolled one. */
+    public int effectiveInitiative() {
+        return initiativeOverride == null ? initiativeValue : initiativeOverride.value();
+    }
 
     /** This entry with its concealment replaced — {@code null} lifts it. */
     public SceneParticipantEntry withConcealment(SceneConcealmentEntry newConcealment) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
-                newConcealment);
+                newConcealment, initiativeOverride);
+    }
+
+    /** This entry with its Iniciativa override replaced — {@code null} lifts it. */
+    public SceneParticipantEntry withInitiativeOverride(SceneInitiativeOverrideEntry override) {
+        return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
+                concealment, override);
+    }
+
+    /** This entry moved to position. */
+    public SceneParticipantEntry withPosition(GridPosition newPosition) {
+        return new SceneParticipantEntry(characterSheetId, initiativeValue, group, newPosition, joinedAtRound,
+                concealment, initiativeOverride);
     }
 }

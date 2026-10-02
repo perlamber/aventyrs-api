@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Alignment;
@@ -74,6 +75,129 @@ public record CharacterDto(
         // "constant's own name()" way — see CharacterEntry. No screen grants a Magia yet, so these exist
         // purely so a PUT round-trips what CharacterSheetService last returned.
         List<String> spells,
-        List<@Valid MimetizedSpellDto> mimetizedSpells
+        List<@Valid MimetizedSpellDto> mimetizedSpells,
+        // Aprendizado Rápido's two Perícias (core Character#getQuickLearningSkills) and the Centelhas
+        // the character still has (Character#getCentelhas) — null reads as "none recorded" / 3.
+        Set<SkillType> quickLearningSkills,
+        Integer centelhas,
+        // The two Antecedentes (core Character#getBackgrounds) — null reads as none chosen.
+        List<@Valid BackgroundDto> backgrounds,
+        // Defeitos (in force and overcome) and Qualidades — null reads as none. See DefectEntry/QualityEntry.
+        List<@Valid DefectDto> defects,
+        List<@Valid QualityDto> qualities,
+        org.aventyrs.core.character.DevotionTier devotionTier,
+        List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks
 ) {
+    /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
+    public CharacterDto(String name, RaceDto race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities) {
+        this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
+    }
+
+    /** The shape before core 0.0.72 added the Defeitos e Qualidades. */
+    public CharacterDto(String name,
+            RaceDto race,
+            Sexo sexo,
+            Deity deity,
+            Alignment alignment,
+            SizeCategory sizeCategory,
+            ActionProfile actionProfile,
+            Map<AttributeDomain, AttributeValueDto> attributes,
+            Map<EgoDomain, EgoValueDto> egos,
+            Map<SkillType, CharacterSkillDto> skills,
+            List<String> attributeAbilities,
+            Map<EgoDomain, String> egoAdvantages,
+            List<String> activeAbilities,
+            Integer actionPoints,
+            Integer temporaryActionPointsBonus,
+            CharacterStatus status,
+            Integer reactions,
+            Integer freeActions,
+            Integer manaMultiplier,
+            Integer lifeMultiplier,
+            Integer determinationMultiplier,
+            Boolean centelhaSuperiorSelected,
+            List<FeatDto> feats,
+            List<InventoryItemDto> equipment,
+            TitleDto primaryTitle,
+            TitleDto secondaryTitle,
+            TitleDto tertiaryTitle,
+            List<String> spells,
+            List<MimetizedSpellDto> mimetizedSpells,
+            Set<SkillType> quickLearningSkills,
+            Integer centelhas,
+            List<BackgroundDto> backgrounds) {
+        this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, null, null);
+    }
+
+    /** The shape before core 0.0.71 added the Antecedentes. */
+    public CharacterDto(String name,
+            RaceDto race,
+            Sexo sexo,
+            Deity deity,
+            Alignment alignment,
+            SizeCategory sizeCategory,
+            ActionProfile actionProfile,
+            Map<AttributeDomain, AttributeValueDto> attributes,
+            Map<EgoDomain, EgoValueDto> egos,
+            Map<SkillType, CharacterSkillDto> skills,
+            List<String> attributeAbilities,
+            Map<EgoDomain, String> egoAdvantages,
+            List<String> activeAbilities,
+            Integer actionPoints,
+            Integer temporaryActionPointsBonus,
+            CharacterStatus status,
+            Integer reactions,
+            Integer freeActions,
+            Integer manaMultiplier,
+            Integer lifeMultiplier,
+            Integer determinationMultiplier,
+            Boolean centelhaSuperiorSelected,
+            List<FeatDto> feats,
+            List<InventoryItemDto> equipment,
+            TitleDto primaryTitle,
+            TitleDto secondaryTitle,
+            TitleDto tertiaryTitle,
+            List<String> spells,
+            List<MimetizedSpellDto> mimetizedSpells,
+            Set<SkillType> quickLearningSkills,
+            Integer centelhas) {
+        this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, null);
+    }
+
+    /** The shape before core 0.0.67/0.0.68 added Aprendizado Rápido and Centelhas. */
+    public CharacterDto(String name,
+                        RaceDto race,
+                        Sexo sexo,
+                        Deity deity,
+                        Alignment alignment,
+                        SizeCategory sizeCategory,
+                        ActionProfile actionProfile,
+                        Map<AttributeDomain, AttributeValueDto> attributes,
+                        Map<EgoDomain, EgoValueDto> egos,
+                        Map<SkillType, CharacterSkillDto> skills,
+                        List<String> attributeAbilities,
+                        Map<EgoDomain, String> egoAdvantages,
+                        List<String> activeAbilities,
+                        Integer actionPoints,
+                        Integer temporaryActionPointsBonus,
+                        CharacterStatus status,
+                        Integer reactions,
+                        Integer freeActions,
+                        Integer manaMultiplier,
+                        Integer lifeMultiplier,
+                        Integer determinationMultiplier,
+                        Boolean centelhaSuperiorSelected,
+                        List<FeatDto> feats,
+                        List<InventoryItemDto> equipment,
+                        TitleDto primaryTitle,
+                        TitleDto secondaryTitle,
+                        TitleDto tertiaryTitle,
+                        List<String> spells,
+                        List<MimetizedSpellDto> mimetizedSpells) {
+        this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills,
+                attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus,
+                status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier,
+                centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle,
+                spells, mimetizedSpells, null, null);
+    }
 }

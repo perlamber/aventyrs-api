@@ -93,4 +93,33 @@ public class CharacterSheetDocument {
 
     /** Uno com a Ira's exhaustion, waiting for a Descanso Curto Verdadeiro. Boxed: absent on older documents. */
     private Boolean exhausted;
+
+    /**
+     * The part of {@link #hitPointsSpent} only a Descanso Verdadeiro recovers (core's {@code
+     * payWithVitality} lock), and the part Roubo de Vida may also recover ({@code lockDamage(n, true)}).
+     * Written only by the live combat-status path, like {@link #hourlyEgoRecoveries}. Boxed: absent on
+     * older documents.
+     */
+    private Integer lockedHitPoints;
+
+    private Integer lifeStealLockedHitPoints;
+
+    /** Uses spent per source until a Descanso Longo Verdadeiro — Criar Refúgio's. {@code null} on older documents. */
+    private Map<String, Integer> restScopedUses;
+
+    /**
+     * Permanent Ego spent, extras held and overflow received (core 0.0.76) — see {@link EgoLedgerEntry}.
+     * Written by the PUT and the live status path only when sent. {@code null} on older documents, read as
+     * nothing spent, no extras and no overflow received.
+     */
+    private EgoLedgerEntry egoLedger;
+
+    /** The part of {@link #hitPointsSpent} only a Descanso recovers (core 0.0.85's Ferida Infecciosa). Boxed: absent on older documents. */
+    private Integer restLockedHitPoints;
+
+    /**
+     * The Subordinados this character commands (core 0.0.98) — written by the live status path only when sent. {@code
+     * null} on older documents, read as none.
+     */
+    private java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
 }

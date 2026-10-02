@@ -1,34 +1,23 @@
 package org.aventyrs.api.monster.dto;
 
 import org.aventyrs.api.item.dto.InventoryItemDto;
-import org.aventyrs.core.monster.SkillDifficulty;
-import org.aventyrs.core.skill.SkillType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.aventyrs.api.sheet.dto.BleedingDto;
-import org.aventyrs.api.sheet.dto.CharacterDto;
 import org.aventyrs.api.sheet.dto.LifeStealDto;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.character.EgoDomain;
-import org.aventyrs.core.effect.CriticalEffectType;
 
 public record MonsterSheetUpdateRequest(
-        @NotNull @Valid CharacterDto character,
+        @NotNull @Valid MonsterBlueprintDto blueprint,
         @NotBlank String playerId,
-        int physicalDefense,
-        int magicDefense,
-        SkillDifficulty generalDifficulty,
-        Map<SkillType, SkillDifficulty> skillDifficulties,
-        Boolean undead,
-        Set<CriticalEffectType> criticalEffectImmunities,
         @Min(0) int hitPointsSpent,
         @Min(0) int magicPointsSpent,
         @Min(0) int determinationPointsSpent,

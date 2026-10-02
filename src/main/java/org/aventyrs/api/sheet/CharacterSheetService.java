@@ -58,7 +58,20 @@ public class CharacterSheetService {
                 null,
                 null,
                 List.of(),
-                false);
+                false,
+                0,
+                0,
+                Map.of(),
+                null,
+                0,
+                List.of());
+        return toResponse(repository.save(document));
+    }
+
+    /** Sets the stored character's devotion tier — see {@code CharacterSheetController#setDevotionTier}. */
+    public CharacterSheetResponse setDevotionTier(String id, org.aventyrs.core.character.DevotionTier tier) {
+        CharacterSheetDocument document = findOrThrow(id);
+        document.setCharacter(document.getCharacter().withDevotionTier(tier));
         return toResponse(repository.save(document));
     }
 
@@ -98,6 +111,9 @@ public class CharacterSheetService {
         document.setLifeSteals(CombatantSheetMapper.toLifeStealEntries(request.lifeSteals()));
         document.setInventory(InventoryItemMapper.toEntries(request.inventory()));
         document.setTokenImageUrl(request.tokenImageUrl());
+        if (request.egoLedger() != null) {
+            document.setEgoLedger(CombatantSheetMapper.toEgoLedgerEntry(request.egoLedger()));
+        }
 
         return toResponse(repository.save(document));
     }
@@ -122,16 +138,92 @@ public class CharacterSheetService {
         updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, null, null, null);
     }
 
-    /**
-     * {@link #updateCombatStatus(String, int, int, int, CharacterStatus)}, plus the Ego state a live
-     * Cena changes — the temporary Ego spent, the hourly Ego debt, and the exhaustion. Each is written
-     * only when sent: {@code null} means "this client did not report it", never "clear it", so an
-     * older client's status frames leave them alone.
-     */
+    /** The Ego-taking form with no PV locks reported — both left as stored. */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
             List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, null, null, null);
+    }
+
+    /** The PV-lock-taking form with no rest-scoped uses reported — left as stored. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, null);
+    }
+
+    /**
+     * {@link #updateCombatStatus(String, int, int, int, CharacterStatus)}, plus the Ego state a live
+     * Cena changes — the temporary Ego spent, the hourly Ego debt, and the exhaustion — and the PV only
+     * a Descanso Verdadeiro recovers (core 0.0.70's two locks). Each is written only when sent: {@code
+     * null} means "this client did not report it", never "clear it", so an older client's status
+     * frames leave them alone.
+     */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, null);
+    }
+
+    /** …plus the Ego ledger (core 0.0.76) — written only when sent, like the rest. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, egoLedger, null);
+    }
+
+    /** …plus the PV only a Descanso recovers (core 0.0.85) — written only when sent, like the rest. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints) {
+        updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
+                hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, egoLedger,
+                restLockedHitPoints, null);
+    }
+
+    /** …plus the Subordinados commanded (core 0.0.98) — written only when sent, like the rest. */
+    public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,
+            List<HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted, Integer lockedHitPoints,
+            Integer lifeStealLockedHitPoints, Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints,
+            List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
         CharacterSheetDocument document = findOrThrow(id);
+        if (subordinates != null) {
+            document.setSubordinates(List.copyOf(subordinates));
+        }
+        if (restLockedHitPoints != null) {
+            document.setRestLockedHitPoints(Math.max(0, restLockedHitPoints));
+        }
+        if (egoLedger != null) {
+            document.setEgoLedger(CombatantSheetMapper.toEgoLedgerEntry(egoLedger));
+        }
+        if (restScopedUses != null) {
+            Map<String, Integer> kept = new java.util.HashMap<>();
+            restScopedUses.forEach((source, uses) -> {
+                if (source != null && uses != null && uses > 0) {
+                    kept.put(source, uses);
+                }
+            });
+            document.setRestScopedUses(kept);
+        }
+        // The PV only a Descanso Verdadeiro (or Roubo de Vida) recovers — same "null leaves it alone".
+        if (lockedHitPoints != null) {
+            document.setLockedHitPoints(Math.max(0, lockedHitPoints));
+        }
+        if (lifeStealLockedHitPoints != null) {
+            document.setLifeStealLockedHitPoints(Math.max(0, lifeStealLockedHitPoints));
+        }
         if (temporaryEgoPoints != null) {
             document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
         }
@@ -179,7 +271,14 @@ public class CharacterSheetService {
                 stored.secondaryTitle(),
                 stored.tertiaryTitle(),
                 stored.spells(),
-                stored.mimetizedSpells()));
+                stored.mimetizedSpells(),
+                stored.quickLearningSkills(),
+                stored.centelhas(),
+                stored.backgrounds(),
+                stored.defects(),
+                stored.qualities(),
+                stored.devotionTier(),
+                stored.devotionPicks()));
 
         repository.save(document);
     }
@@ -245,6 +344,12 @@ public class CharacterSheetService {
                 document.getCampaignId(),
                 progressionLocked,
                 CombatantSheetMapper.toHourlyEgoRecoveryDtos(document.getHourlyEgoRecoveries()),
-                Boolean.TRUE.equals(document.getExhausted()));
+                Boolean.TRUE.equals(document.getExhausted()),
+                document.getLockedHitPoints() == null ? 0 : document.getLockedHitPoints(),
+                document.getLifeStealLockedHitPoints() == null ? 0 : document.getLifeStealLockedHitPoints(),
+                document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()),
+                CombatantSheetMapper.toEgoLedgerDto(document.getEgoLedger()),
+                document.getRestLockedHitPoints() == null ? 0 : document.getRestLockedHitPoints(),
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
     }
 }

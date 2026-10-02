@@ -29,6 +29,7 @@ import org.aventyrs.core.item.ItemCategory;
 import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.api.sheet.dto.ManaDrainDto;
+import org.aventyrs.api.sheet.dto.MimetizedSpellDto;
 import org.aventyrs.api.sheet.dto.PendingEgoRecoveryDto;
 import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
@@ -80,6 +81,9 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private MongoTemplate mongoTemplate;
+
+    @Autowired
+    private CharacterSheetService characterSheetService;
 
     private String playerId;
 
@@ -468,6 +472,338 @@ class CharacterSheetControllerIntegrationTest {
                 // An update carries the whole build state, so omitting attributeAbilities clears
                 // them, exactly like the Perícia dropped above.
                 .andExpect(jsonPath("$.character.attributeAbilities").isEmpty());
+    }
+
+    /**
+     * An Arcanista's Magias are chosen in the creation wizard and grow in the hub, so both the
+     * create and every later PUT author the whole list — the free picks and known Árvores are
+     * derived from it by core, so nothing else about them is persisted.
+     */
+    @Test
+    void spellsAndMimetizedSpellsRoundTripThroughCreateAndUpdate() throws Exception {
+        List<FeatDto> arcanista = List.of(new FeatDto("ARCANISTA", List.of(), null));
+        CharacterDto created = new CharacterDto(
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
+                List.of("Aliviar a Dor", "Luz de Vela"),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
+
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.character.spells.length()").value(2))
+                .andExpect(jsonPath("$.character.spells[0]").value("Aliviar a Dor"))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].spellName").value("Golpe de Fogo"))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].determinationPointCost").value(2))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        CharacterDto grown = new CharacterDto(
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
+                List.of("Aliviar a Dor", "Luz de Vela", "Revigorar"),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
+        CharacterSheetUpdateRequest update = new CharacterSheetUpdateRequest(
+                grown, playerId, BigDecimal.ONE, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.spells.length()").value(3));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.spells[2]").value("Revigorar"))
+                .andExpect(jsonPath("$.character.feats[0].type").value("ARCANISTA"))
+                .andExpect(jsonPath("$.character.mimetizedSpells.length()").value(1));
+    }
+
+    /**
+     * The state core 0.0.66–0.0.68 added to a Character: Aprendizado Rápido's two Perícias, the
+     * Centelhas left after a Regalia donation, and a mimetized Magia's Forma lock — each must survive
+     * the save, or the reloaded character plays by different rules.
+     */
+    @Test
+    void aprendizadoRapidoCentelhasAndAFormaLockRoundTrip() throws Exception {
+        CharacterDto created = new CharacterDto(
+                "Nimue Character", HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(),
+                List.of(new MimetizedSpellDto("Golpe de Fogo", 0, false, "FEERICA")),
+                java.util.Set.of(SkillType.ATTENTION, SkillType.ATLETISMO),
+                2);
+
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.quickLearningSkills.length()").value(2))
+                .andExpect(jsonPath("$.character.centelhas").value(2))
+                .andExpect(jsonPath("$.character.mimetizedSpells[0].requiredForm").value("FEERICA"));
+    }
+
+    /**
+     * Core 0.0.76's Ego ledger (permanent spent, extras, overflow received) survives a PUT, reads as all zeros
+     * before one is stored, and a PUT without it leaves the stored one alone.
+     */
+    @Test
+    void theEgoLedgerRoundTripsAndAnOlderPutLeavesItAlone() throws Exception {
+        CharacterDto created = new CharacterDto(
+                "Midas Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, List.of(), List.of());
+        String createResponse = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(created, playerId))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(0))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(0))
+                .andReturn().getResponse().getContentAsString();
+        String id = objectMapper.readTree(createResponse).get("id").asText();
+
+        org.aventyrs.api.sheet.dto.EgoLedgerDto ledger = new org.aventyrs.api.sheet.dto.EgoLedgerDto(
+                Map.of(EgoDomain.RECURSOS, 1), Map.of(EgoDomain.SORTE, 2), Map.of(EgoDomain.RECURSOS, 2),
+                Map.of(EgoDomain.INICIATIVA, 4));
+        CharacterSheetUpdateRequest withLedger = new CharacterSheetUpdateRequest(
+                created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null, ledger);
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(withLedger)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(1))
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.SORTE").value(0))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(2))
+                .andExpect(jsonPath("$.egoLedger.overflowReceived.RECURSOS").value(2))
+                .andExpect(jsonPath("$.egoLedger.setbacks.INICIATIVA").value(4))
+                .andExpect(jsonPath("$.egoLedger.setbacks.SORTE").value(0));
+
+        CharacterSheetUpdateRequest older = new CharacterSheetUpdateRequest(
+                created, playerId, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 67, Map.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), null);
+        mockMvc.perform(put("/api/character-sheets/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(older)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.egoLedger.permanentSpent.RECURSOS").value(1))
+                .andExpect(jsonPath("$.egoLedger.extras.SORTE").value(2));
+    }
+
+    private CharacterDto withBackgrounds(final String name, final List<org.aventyrs.api.sheet.dto.BackgroundDto> backgrounds) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), java.util.Set.of(SkillType.ATTENTION, SkillType.ATLETISMO), 3, backgrounds);
+    }
+
+    private static final List<org.aventyrs.api.sheet.dto.BackgroundDto> OFI_ESCUDEIRO = List.of(
+            new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", List.of(SkillType.ATTENTION, SkillType.PROFISSAO),
+                    List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.ATTENTION,
+                                    org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "SENTIDOS_APURADOS"),
+                            new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.PROFISSAO,
+                                    org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "METALURGIA")),
+                    null),
+            new org.aventyrs.api.sheet.dto.BackgroundDto("ESCUDEIRO", List.of(SkillType.CONHECIMENTOS, SkillType.DIRIGIR_E_CAVALGAR),
+                    List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.CONHECIMENTOS,
+                            org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "GEO_HISTORIA")),
+                    List.of("ESQUIVA_E_APARAR")));
+
+    private String create(final CharacterDto character) throws Exception {
+        String response = mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(character, playerId))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(response).get("id").asText();
+    }
+
+    /** Core 0.0.71's Antecedentes — both, with their picks, survive the save. */
+    @Test
+    void theAntecedentesRoundTrip() throws Exception {
+        String id = create(withBackgrounds("Lancelot", OFI_ESCUDEIRO));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(2))
+                .andExpect(jsonPath("$.character.backgrounds[0].type").value("OFI"))
+                .andExpect(jsonPath("$.character.backgrounds[0].kind").value("ORIGIN"))
+                .andExpect(jsonPath("$.character.backgrounds[0].traits[1].name").value("METALURGIA"))
+                .andExpect(jsonPath("$.character.backgrounds[1].kind").value("CAREER"))
+                .andExpect(jsonPath("$.character.backgrounds[1].benefitChoices[0]").value("ESQUIVA_E_APARAR"));
+    }
+
+    @Test
+    void aCharacterWithoutAntecedentesReadsAsEmpty() throws Exception {
+        String id = create(withBackgrounds("Nobody", null));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(0));
+    }
+
+    @Test
+    void anUnknownAntecedenteOrASecondOfTheSameKindIsABadRequest() throws Exception {
+        for (List<org.aventyrs.api.sheet.dto.BackgroundDto> invalid : List.of(
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("ATLANTE", null, null, null)),
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", null, null, null),
+                        new org.aventyrs.api.sheet.dto.BackgroundDto("VASTARE", null, null, null)),
+                List.of(new org.aventyrs.api.sheet.dto.BackgroundDto("OFI", null,
+                        List.of(new org.aventyrs.api.sheet.dto.BackgroundTraitDto(SkillType.ARTES,
+                                org.aventyrs.core.skill.SkillTraitKind.SPECIALIZATION, "METALURGIA")), null)))) {
+            mockMvc.perform(post("/api/character-sheets")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    new CharacterSheetCreateRequest(withBackgrounds("Bad", invalid), playerId))))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    /** A vitals save rebuilds the stored entry — it must keep every field, not only the pre-0.0.67 ones. */
+    @Test
+    void aCombatStatusUpdateKeepsTheAntecedentesAprendizadoRapidoAndCentelhas() throws Exception {
+        String id = create(withBackgrounds("Percival", OFI_ESCUDEIRO));
+
+        characterSheetService.updateCombatStatus(id, 3, 0, 0, org.aventyrs.core.character.CharacterStatus.CLEAN);
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.backgrounds.length()").value(2))
+                .andExpect(jsonPath("$.character.quickLearningSkills.length()").value(2))
+                .andExpect(jsonPath("$.character.centelhas").value(3));
+    }
+
+    private CharacterDto devoted(final String name, final org.aventyrs.core.character.DevotionTier tier,
+                                 final List<org.aventyrs.api.sheet.dto.DevotionPickDto> picks) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(), List.of(), null, 3, null, null, null, tier, picks);
+    }
+
+    /** Core 0.0.86's devotion — the tier and every rung pick survive the save; the GM's endpoint moves only the tier. */
+    @Test
+    void theDevotionTierAndItsPicksRoundTripAndTheGmMovesTheTier() throws Exception {
+        String id = create(devoted("Bryn", org.aventyrs.core.character.DevotionTier.FUNDAMENTALISTA, List.of(
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("IMPACTO_YMIRIANO",
+                        org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"),
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("IMPACTO_YMIRIANO",
+                        org.aventyrs.core.character.DevotionTier.FUNDAMENTALISTA, "STRENGTH"))));
+
+        mockMvc.perform(put("/api/character-sheets/{id}/devotion-tier", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tier\":\"ADEPTO\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.devotionTier").value("ADEPTO"))
+                .andExpect(jsonPath("$.character.devotionPicks.length()").value(2))
+                .andExpect(jsonPath("$.character.devotionPicks[1].rung").value("FUNDAMENTALISTA"))
+                .andExpect(jsonPath("$.character.devotionPicks[1].value").value("STRENGTH"));
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.devotionTier").value("ADEPTO"))
+                .andExpect(jsonPath("$.character.devotionPicks[0].talento").value("IMPACTO_YMIRIANO"));
+    }
+
+    @Test
+    void aDevotionPickNamingNoTalentoDeDevocaoIsRefused() throws Exception {
+        postBad(devoted("Bryn", org.aventyrs.core.character.DevotionTier.ADEPTO, List.of(
+                new org.aventyrs.api.sheet.dto.DevotionPickDto("NOT_A_TALENTO",
+                        org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"))));
+    }
+
+    private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,
+                                     final List<org.aventyrs.api.sheet.dto.QualityDto> qualities) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                List.of(), List.of(), null, 3, null, defects, qualities);
+    }
+
+    /** A Deficiência Física (arms) taken at creation for Radiante Menor, one overcome during play, and a Fobia imposed. */
+    private static final List<org.aventyrs.api.sheet.dto.DefectDto> THREE_DEFECTS = List.of(
+            new org.aventyrs.api.sheet.dto.DefectDto("DEFICIENCIA_FISICA", "LEVE", List.of("BRACOS"), true,
+                    "QUALIDADE_MENOR", null, false),
+            new org.aventyrs.api.sheet.dto.DefectDto("CORPO_FRAGIL", "MODERADO", null, false, null, null, true),
+            new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "GRAVE", List.of("aranhas"), false, null, null, false));
+
+    private static final List<org.aventyrs.api.sheet.dto.QualityDto> RADIANTE = List.of(
+            new org.aventyrs.api.sheet.dto.QualityDto("RADIANTE", "MENOR", null, "SUPERACAO"));
+
+    /** Core 0.0.72–0.0.75's Defeitos e Qualidades — every field, choices and the overcome flag, survive the save. */
+    @Test
+    void theDefeitosAndQualidadesRoundTrip() throws Exception {
+        String id = create(withDefects("Tristão", THREE_DEFECTS, RADIANTE));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(3))
+                .andExpect(jsonPath("$.character.defects[0].type").value("DEFICIENCIA_FISICA"))
+                .andExpect(jsonPath("$.character.defects[0].levelName").value("Dano Permanente"))
+                .andExpect(jsonPath("$.character.defects[0].choices[0]").value("BRACOS"))
+                .andExpect(jsonPath("$.character.defects[0].superacao").value("QUALIDADE_MENOR"))
+                .andExpect(jsonPath("$.character.defects[1].overcome").value(true))
+                .andExpect(jsonPath("$.character.defects[1].fromCreation").value(false))
+                .andExpect(jsonPath("$.character.defects[2].choices[0]").value("aranhas"))
+                .andExpect(jsonPath("$.character.qualities.length()").value(1))
+                .andExpect(jsonPath("$.character.qualities[0].levelName").value("Amigável"))
+                .andExpect(jsonPath("$.character.qualities[0].source").value("SUPERACAO"));
+    }
+
+    @Test
+    void aCharacterWithoutDefeitosReadsAsEmpty() throws Exception {
+        String id = create(withDefects("Nobody", null, null));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(0))
+                .andExpect(jsonPath("$.character.qualities.length()").value(0));
+    }
+
+    @Test
+    void anInconsistentDefeitoOrQualidadeIsABadRequest() throws Exception {
+        org.aventyrs.api.sheet.dto.DefectDto creationLeve = new org.aventyrs.api.sheet.dto.DefectDto(
+                "MEMORIA_FRACA", "LEVE", null, true, "QUALIDADE_MENOR", null, false);
+        List<List<org.aventyrs.api.sheet.dto.DefectDto>> badDefects = List.of(
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("ALERGIA", "LEVE", null, false, null, null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, true, null, null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, true, "TALENTO_GERAL", null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, false, "QUALIDADE_MENOR", null, false)),
+                List.of(creationLeve, new org.aventyrs.api.sheet.dto.DefectDto(
+                        "FOBIA", "LEVE", null, true, "TREINAMENTO_ADICIONAL", null, false)),
+                List.of(new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "LEVE", null, false, null, null, false),
+                        new org.aventyrs.api.sheet.dto.DefectDto("FOBIA", "GRAVE", null, false, null, null, false)));
+        for (List<org.aventyrs.api.sheet.dto.DefectDto> invalid : badDefects) {
+            postBad(withDefects("Bad", invalid, null));
+        }
+        // A Qualidade without a creation Defeito, one opposing it, and one held twice.
+        postBad(withDefects("Bad", null, RADIANTE));
+        postBad(withDefects("Bad", List.of(new org.aventyrs.api.sheet.dto.DefectDto(
+                "COMPORTAMENTO_EXCENTRICO", "LEVE", null, true, "QUALIDADE_MENOR", null, false)), RADIANTE));
+        postBad(withDefects("Bad", List.of(creationLeve), List.of(RADIANTE.get(0), RADIANTE.get(0))));
+    }
+
+    private void postBad(final CharacterDto character) throws Exception {
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CharacterSheetCreateRequest(character, playerId))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void aCombatStatusUpdateKeepsTheDefeitosAndQualidades() throws Exception {
+        String id = create(withDefects("Isolda", THREE_DEFECTS, RADIANTE));
+
+        characterSheetService.updateCombatStatus(id, 3, 0, 0, org.aventyrs.core.character.CharacterStatus.CLEAN);
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.character.defects.length()").value(3))
+                .andExpect(jsonPath("$.character.qualities.length()").value(1));
     }
 
     @Test

@@ -49,6 +49,16 @@ public class CharacterSheetController {
         return service.update(id, request);
     }
 
+    /**
+     * The Narrador raises or lowers a character's devotion tier (core 0.0.86; table ruling: on role-play alone). Only
+     * the tier changes — the rung picks already made are kept.
+     */
+    @PutMapping("/{id}/devotion-tier")
+    public CharacterSheetResponse setDevotionTier(@PathVariable String id,
+                                                  @RequestBody org.aventyrs.api.sheet.dto.DevotionTierRequest request) {
+        return service.setDevotionTier(id, request.tier());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         service.delete(id);

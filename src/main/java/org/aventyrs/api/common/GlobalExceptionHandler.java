@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.aventyrs.api.monster.MonsterRulesViolationException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -46,6 +47,18 @@ public class GlobalExceptionHandler {
         String message = "'" + ex.getValue() + "' is not a valid value for '" + ex.getName() + "'; expected " + expected;
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(), message));
+    }
+
+    /**
+     * A monster blueprint that breaks the creation rules — every violation core's {@code
+     * MonsterRules#validate} found, one detail line each ({@code CODE:subject:actual:limit}), so the
+     * editor can show them all. The request was well-formed but not legal, so {@code 400}.
+     */
+    @ExceptionHandler(MonsterRulesViolationException.class)
+    public ResponseEntity<ApiError> handleMonsterRules(MonsterRulesViolationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                        ex.getMessage(), ex.details()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

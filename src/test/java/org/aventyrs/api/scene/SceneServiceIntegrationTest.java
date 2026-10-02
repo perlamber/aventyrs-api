@@ -38,6 +38,7 @@ import org.aventyrs.api.sheet.dto.CharacterSheetResponse;
 import java.util.Map;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
+import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.scene.Direction;
 import org.aventyrs.core.scene.grid.GridPosition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -691,6 +692,34 @@ class SceneServiceIntegrationTest {
         assertEquals(0, wrapped.currentIndex());
     }
 
+    /**
+     * Core 0.0.79's Iniciativa override: set during Rodada 0 for one Rodada, it reorders exactly Rodada 1 — the
+     * next wrap puts the rolled order back — and the participant response reports it while it holds.
+     */
+    @Test
+    void anInitiativeOverrideReordersExactlyTheRodadasItWasBoughtFor() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        UUID group = UUID.randomUUID();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 8, group));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 15, group));
+        sceneService.startCombat(sceneId);
+        sceneService.advanceTurn(sceneId);
+
+        sceneService.setInitiativeOverride(sceneId, characterSheetId1, 20, 1);
+        assertEquals(20, sceneService.get(sceneId).participants().get(1).initiativeOverride());
+
+        sceneService.advanceTurn(sceneId);
+        TurnAdvancedEvent rodadaOne = sceneService.advanceTurn(sceneId);
+        assertEquals(1, rodadaOne.currentRound());
+        assertEquals(characterSheetId1, rodadaOne.characterSheetId());
+
+        sceneService.advanceTurn(sceneId);
+        TurnAdvancedEvent rodadaTwo = sceneService.advanceTurn(sceneId);
+        assertEquals(2, rodadaTwo.currentRound());
+        assertEquals(characterSheetId2, rodadaTwo.characterSheetId());
+        assertNull(sceneService.get(sceneId).participants().get(1).initiativeOverride());
+    }
+
     @Test
     void advanceTurnBeforeCombatCyclesTheCursorButLeavesTheRoundAtZero() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
@@ -846,6 +875,87 @@ class SceneServiceIntegrationTest {
                 org.aventyrs.core.character.EgoDomain.AUTOCONTROLE, 3, 2, 1)), after.hourlyEgoRecoveries());
         assertTrue(after.exhausted());
         assertEquals(4, after.damageTaken());
+    }
+
+    // --- core 0.0.70: the PV only a Descanso Verdadeiro recovers --------------------------------
+
+    @Test
+    void combatStatusPersistsBothPvLocksWhenSentAndLeavesThemAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 6, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, 2, 3);
+        characterSheetService.updateCombatStatus(characterSheetId1, 7, 0, 0, CharacterStatus.HIGH_LIFE);
+
+        CharacterSheetResponse after = characterSheetService.get(characterSheetId1);
+        assertEquals(2, after.lockedHitPoints());
+        assertEquals(3, after.lifeStealLockedHitPoints());
+        assertEquals(7, after.damageTaken());
+    }
+
+    @Test
+    void combatStatusPersistsRestScopedUsesAndDropsSpentOut() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, Map.of("CRIAR_REFUGIO", 2));
+        assertEquals(Map.of("CRIAR_REFUGIO", 2), characterSheetService.get(characterSheetId1).restScopedUses());
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN);
+        assertEquals(Map.of("CRIAR_REFUGIO", 2), characterSheetService.get(characterSheetId1).restScopedUses());
+
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, Map.of());
+        assertEquals(Map.of(), characterSheetService.get(characterSheetId1).restScopedUses());
+    }
+
+    /** The live status path writes the Ego ledger when sent and leaves it alone when not. */
+    @Test
+    void combatStatusPersistsTheEgoLedgerOnlyWhenSent() {
+        org.aventyrs.api.sheet.dto.EgoLedgerDto ledger = new org.aventyrs.api.sheet.dto.EgoLedgerDto(
+                Map.of(EgoDomain.AUTOCONTROLE, 1), Map.of(), Map.of());
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN,
+                null, null, null, null, null, null, ledger);
+        characterSheetService.updateCombatStatus(characterSheetId1, 0, 0, 0, CharacterStatus.CLEAN);
+
+        assertEquals(1, characterSheetService.get(characterSheetId1).egoLedger().permanentSpent()
+                .get(EgoDomain.AUTOCONTROLE));
+    }
+
+    @Test
+    void aSheetThatNeverLockedAnyReadsZero() {
+        CharacterSheetResponse response = characterSheetService.get(characterSheetId2);
+
+        assertEquals(0, response.lockedHitPoints());
+        assertEquals(0, response.lifeStealLockedHitPoints());
+        assertEquals(0, response.restLockedHitPoints());
+    }
+
+    /** Core 0.0.85's Ferida Infecciosa lock — written when sent, left alone when not. */
+    @Test
+    void combatStatusPersistsTheRestOnlyLockWhenSentAndLeavesItAloneWhenNot() {
+        characterSheetService.updateCombatStatus(characterSheetId1, 5, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, null, null, null, null, 3);
+        characterSheetService.updateCombatStatus(characterSheetId1, 6, 0, 0, CharacterStatus.HIGH_LIFE,
+                null, null, null, null, null, null, null);
+
+        assertEquals(3, characterSheetService.get(characterSheetId1).restLockedHitPoints());
+    }
+
+    // --- core 0.0.70: an action names its target and the Talentos it spent ---------------------
+
+    @Test
+    void aRecordedActionKeepsItsTargetAndTheTalentosItSpent() {
+        String sceneId = newScene("Duelo");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 10, UUID.randomUUID()));
+
+        var event = sceneService.recordAction(sceneId, new org.aventyrs.api.scene.dto.RecordActionMessage(
+                characterSheetId1, SkillType.ATAQUE_CORPO_A_CORPO, null, AttackSourceKind.WEAPON,
+                org.aventyrs.core.sheet.ActionCost.Kind.FIXED, 3, 1, true, 2, null, null, List.of(1, 4, 4), 12,
+                characterSheetId2, List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO")));
+
+        assertEquals(characterSheetId2, event.targetCharacterSheetId());
+        assertEquals(List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO"), event.activatedFeats());
+        var replayed = sceneService.get(sceneId).actionHistory().get(0);
+        assertEquals(characterSheetId2, replayed.targetCharacterSheetId());
+        assertEquals(List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO"), replayed.activatedFeats());
     }
 
     @Test
