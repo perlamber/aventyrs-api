@@ -52,4 +52,17 @@ class SpellLandedRelayTest {
 
         assertEquals("DEXTERITY", read.chosenAttribute());
     }
+
+    /** Serra-Pernas's resolved Duração and its aimed-for Corrente survive the JSON too (client 0.1.0). */
+    @Test
+    void theDuracaoAndTheCorrenteChoiceSurviveTheWire() {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        SpellLandedMessage sent = new SpellLandedMessage("caster", "POLIMORFISMO:SERRA_PERNAS", false, "foe", true, 0,
+                4, List.of(2, 3, 4), List.of(1, 1), null, null, 7, true);
+
+        SpellLandedMessage read = mapper.readValue(mapper.writeValueAsString(sent), SpellLandedMessage.class);
+
+        assertEquals(7, read.durationRounds());
+        assertEquals(true, read.alternateChain());
+    }
 }
