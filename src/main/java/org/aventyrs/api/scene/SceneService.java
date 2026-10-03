@@ -339,7 +339,7 @@ public class SceneService {
     }
 
     /**
-     * casterId's Concentração broke (they cast another Magia or attacked): every summon it held starts its trailing
+     * casterId's Concentração was lost (damage taken or an unpaid 1PA upkeep — core 0.1.1): every summon it held starts its trailing
      * Rodadas, and one with none leaves now. Returns whether anything changed.
      */
     public boolean releaseConcentration(String id, String casterId) {
