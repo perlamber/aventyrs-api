@@ -720,6 +720,31 @@ class CharacterSheetControllerIntegrationTest {
                         org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"))));
     }
 
+    private CharacterDto training(final String name, final List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> companions) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(), List.of(), null, 3, null, null, null, null, null, companions);
+    }
+
+    /** Core 0.0.103's Aliado da Natureza — a trained creature is lasting, saved on the sheet (table ruling). */
+    @Test
+    void trainedCompanionsRoundTrip() throws Exception {
+        String id = create(training("Ayla", List.of(new org.aventyrs.api.sheet.dto.TrainedCompanionDto("Garra",
+                org.aventyrs.core.subordinate.SubordinateBenefit.TORRE_DEFESAS))));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.trainedCompanions.length()").value(1))
+                .andExpect(jsonPath("$.character.trainedCompanions[0].name").value("Garra"))
+                .andExpect(jsonPath("$.character.trainedCompanions[0].benefit").value("TORRE_DEFESAS"));
+    }
+
+    @Test
+    void aTrainedCompanionOfAnotherGradeIsRefused() throws Exception {
+        postBad(training("Ayla", List.of(new org.aventyrs.api.sheet.dto.TrainedCompanionDto("Garra",
+                org.aventyrs.core.subordinate.SubordinateBenefit.REI_SORTE))));
+    }
+
     private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,
                                      final List<org.aventyrs.api.sheet.dto.QualityDto> qualities) {
         return new CharacterDto(
