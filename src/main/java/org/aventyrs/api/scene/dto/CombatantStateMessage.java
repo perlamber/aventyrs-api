@@ -13,7 +13,17 @@ import java.util.List;
  * @param compelled      whether the participant must attack the nearest creature
  */
 public record CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
-                                    List<String> frenzyModes, boolean compelled, String riding, boolean ferocious) {
+                                    List<String> frenzyModes, boolean compelled, String riding, boolean ferocious,
+                                    boolean concentrating) {
+
+    /**
+     * A state message from before core 0.1.1. {@code concentrating} is whether the participant holds a Concentração
+     * (core {@code CombatantSheet#isConcentrating}); its turning false is how the table learns it was lost.
+     */
+    public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
+            List<String> frenzyModes, boolean compelled, String riding, boolean ferocious) {
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, false);
+    }
 
     /**
      * A state message from before core 0.0.67/0.0.69. {@code riding} is the {@code Riding.Kind} the
@@ -22,6 +32,6 @@ public record CombatantStateMessage(String characterSheetId, String sizeCategory
      */
     public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
             List<String> frenzyModes, boolean compelled) {
-        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false);
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false, false);
     }
 }

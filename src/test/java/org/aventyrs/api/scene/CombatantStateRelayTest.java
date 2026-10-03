@@ -35,4 +35,19 @@ class CombatantStateRelayTest {
         assertTrue(event.ferocious());
         assertTrue(event.compelled());
     }
+
+    /** Core 0.1.1: whether the participant holds a Concentração — its turning false tells the table it was lost. */
+    @Test
+    void concentrationIsRelayedUnchanged() {
+        SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
+        SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+
+        controller.combatantState("scene-1",
+                new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), false, null, false, true));
+
+        ArgumentCaptor<Object> relayed = ArgumentCaptor.forClass(Object.class);
+        verify(template).convertAndSend(eq("/topic/scenes/scene-1/state"), relayed.capture());
+        assertTrue(((CombatantStateChangedEvent) relayed.getValue()).concentrating());
+    }
 }

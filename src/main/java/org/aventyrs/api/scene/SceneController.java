@@ -96,7 +96,7 @@ public class SceneController {
         return ResponseEntity.noContent().build();
     }
 
-    /** casterId's Concentração broke — the summons it held start their trailing Rodadas (client 0.0.95). */
+    /** casterId's Concentração was lost — the summons it held start their trailing Rodadas (client 0.0.95). */
     @PostMapping("/{id}/summons/release/{casterId}")
     public ResponseEntity<Void> releaseConcentration(@PathVariable String id, @PathVariable String casterId) {
         if (service.releaseConcentration(id, casterId)) {
