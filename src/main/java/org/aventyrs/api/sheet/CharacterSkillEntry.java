@@ -13,7 +13,9 @@ import java.util.List;
  * one per {@link org.aventyrs.core.skill.SkillType}, so this persisted mirror stores names
  * instead of trying to round-trip a polymorphic core type through Mongo/Jackson. {@code
  * competencyAbilities} does the same for the held {@code SkillCompetencyAbility} enum
- * constants (e.g. {@code "DOM_BARDICO"} for core's {@code ArtesCompetencyAbility#DOM_BARDICO}).
+ * constants (e.g. {@code "DOM_BARDICO"} for core's {@code ArtesCompetencyAbility#DOM_BARDICO}), and
+ * {@code "CONSTANT:CHOICE"} for one carrying an acquisition-time choice ({@code
+ * "APRIMORAR_COM_ARTE:ATLETISMO"}, core's {@code ArtesAprimorarComArteAbility}) — stored as is.
  */
 public record CharacterSkillEntry(List<String> specializations, List<String> competencyAbilities, int graduationValue) {
 }

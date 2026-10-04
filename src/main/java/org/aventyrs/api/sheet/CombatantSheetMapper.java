@@ -144,7 +144,8 @@ public final class CombatantSheetMapper {
                 toDefectEntries(character.defects()),
                 toQualityEntries(character.qualities(), character.defects()),
                 character.devotionTier(),
-                toDevotionPickEntries(character.devotionPicks()));
+                toDevotionPickEntries(character.devotionPicks()),
+                toTrainedCompanionEntries(character.trainedCompanions()));
     }
 
     /**
@@ -166,6 +167,36 @@ public final class CombatantSheetMapper {
             entries.add(new DevotionPickEntry(pick.talento(), pick.rung(), pick.value()));
         }
         return List.copyOf(entries);
+    }
+
+    /**
+     * Aliado da Natureza's trained creatures as sent (core 0.0.103) — each a name and a Cavaleiro, Peão or Torre
+     * benefit, as core's {@code TrainedCompanion} requires. {@code null} reads as none.
+     *
+     * @throws IllegalArgumentException for a creature missing its name, or with another grade's benefit
+     */
+    static List<TrainedCompanionEntry> toTrainedCompanionEntries(List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> companions) {
+        if (companions == null) {
+            return List.of();
+        }
+        return companions.stream().map(companion -> {
+            if (companion == null || companion.benefit() == null || companion.name() == null) {
+                throw new IllegalArgumentException("A trained creature needs its name and benefit");
+            }
+            // Core's own check: a non-blank name and a Cavaleiro/Peão/Torre benefit.
+            new org.aventyrs.core.skill.empatiaselvagem.TrainedCompanion(companion.name(), companion.benefit());
+            return new TrainedCompanionEntry(companion.name(), companion.benefit());
+        }).toList();
+    }
+
+    private static List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> toTrainedCompanionResponses(
+            List<TrainedCompanionEntry> companions) {
+        if (companions == null) {
+            return List.of();
+        }
+        return companions.stream()
+                .map(companion -> new org.aventyrs.api.sheet.dto.TrainedCompanionDto(companion.name(), companion.benefit()))
+                .toList();
     }
 
     private static List<DevotionPickDto> toDevotionPickResponses(List<DevotionPickEntry> picks) {
@@ -719,6 +750,7 @@ public final class CombatantSheetMapper {
                 toDefectResponses(character.defects()),
                 toQualityResponses(character.qualities()),
                 character.devotionTier(),
-                toDevotionPickResponses(character.devotionPicks()));
+                toDevotionPickResponses(character.devotionPicks()),
+                toTrainedCompanionResponses(character.trainedCompanions()));
     }
 }

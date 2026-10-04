@@ -189,8 +189,8 @@ class SceneServiceIntegrationTest {
         document.setAbilityHistory(List.of(new SceneAbilityEntry(
                 characterSheetId1, "SANTO", "ORGULHO_ELDURIANO", "Orgulho Elduriano",
                 3, 0, 7, List.of(),
-                // The four that did not exist when such an entry was first written.
-                null, null, null, null)));
+                // The five that did not exist when such an entry was first written.
+                null, null, null, null, null)));
         sceneRepository.save(document);
 
         SceneResponse response = sceneService.get(sceneId);
@@ -986,6 +986,20 @@ class SceneServiceIntegrationTest {
 
         assertEquals(effects, echoed.effects());
         assertEquals(effects, sceneService.get(sceneId).abilityHistory().get(0).effects());
+    }
+
+    @Test
+    void aCompetencyAbilityActivationCarriesItsPericiaThroughTheLogAndTheEcho() {
+        String sceneId = newScene("Canção");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        AbilityActivatedEvent echoed = sceneService.recordAbility(sceneId,
+                new org.aventyrs.api.scene.dto.AbilityActivationMessage(characterSheetId1, null,
+                        "DOM_BARDICO", "Dom Bárdico", 0, 0, 1, List.of(), null, List.of(), 0, null, "ARTES"));
+
+        assertEquals("ARTES", echoed.skillType());
+        assertEquals("DOM_BARDICO", echoed.abilityId());
+        assertEquals("ARTES", sceneService.get(sceneId).abilityHistory().get(0).skillType());
     }
 
     @Test

@@ -250,7 +250,9 @@ class CharacterSheetControllerIntegrationTest {
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
                 Map.of(EgoDomain.SORTE, new EgoValueDto(3, 2)),
-                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"), List.of("DOM_BARDICO"), 2)),
+                Map.of(SkillType.ARTES, new CharacterSkillDto(List.of("PINTURA"),
+                        // A choice-carrying ability travels as CONSTANT:CHOICE, stored as is.
+                        List.of("DOM_BARDICO", "APRIMORAR_COM_ARTE:ATAQUE_CORPO_A_CORPO"), 2)),
                 List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
                 Map.of(EgoDomain.SORTE, "IMPETO", EgoDomain.RECURSOS, "MORAL_HERDADA"),
                 List.of("CONCENTRACAO_PROFUNDA"),
@@ -302,6 +304,8 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.total").value(2))
                 .andExpect(jsonPath("$.character.skills.ARTES.specializations[0]").value("PINTURA"))
                 .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[0]").value("DOM_BARDICO"))
+                .andExpect(jsonPath("$.character.skills.ARTES.competencyAbilities[1]")
+                        .value("APRIMORAR_COM_ARTE:ATAQUE_CORPO_A_CORPO"))
                 .andExpect(jsonPath("$.character.skills.ARTES.graduationValue").value(2))
                 .andExpect(jsonPath("$.character.skills.ATLETISMO").doesNotExist())
                 .andExpect(jsonPath("$.character.attributeAbilities[0]").value("SOBRE_HUMANO"))
@@ -714,6 +718,31 @@ class CharacterSheetControllerIntegrationTest {
         postBad(devoted("Bryn", org.aventyrs.core.character.DevotionTier.ADEPTO, List.of(
                 new org.aventyrs.api.sheet.dto.DevotionPickDto("NOT_A_TALENTO",
                         org.aventyrs.core.character.DevotionTier.ADEPTO, "DANOS"))));
+    }
+
+    private CharacterDto training(final String name, final List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> companions) {
+        return new CharacterDto(
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, List.of(), List.of(), null, 3, null, null, null, null, null, companions);
+    }
+
+    /** Core 0.0.103's Aliado da Natureza — a trained creature is lasting, saved on the sheet (table ruling). */
+    @Test
+    void trainedCompanionsRoundTrip() throws Exception {
+        String id = create(training("Ayla", List.of(new org.aventyrs.api.sheet.dto.TrainedCompanionDto("Garra",
+                org.aventyrs.core.subordinate.SubordinateBenefit.TORRE_DEFESAS))));
+
+        mockMvc.perform(get("/api/character-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.trainedCompanions.length()").value(1))
+                .andExpect(jsonPath("$.character.trainedCompanions[0].name").value("Garra"))
+                .andExpect(jsonPath("$.character.trainedCompanions[0].benefit").value("TORRE_DEFESAS"));
+    }
+
+    @Test
+    void aTrainedCompanionOfAnotherGradeIsRefused() throws Exception {
+        postBad(training("Ayla", List.of(new org.aventyrs.api.sheet.dto.TrainedCompanionDto("Garra",
+                org.aventyrs.core.subordinate.SubordinateBenefit.REI_SORTE))));
     }
 
     private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,

@@ -894,7 +894,8 @@ public class SceneService {
                 message.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(message.boundCharacterSheetIds()),
                 message.enchantmentRounds(),
-                message.effects());
+                message.effects(),
+                message.skillType());
 
         List<SceneAbilityEntry> history = new ArrayList<>(abilityHistoryOf(document));
         history.add(entry);
@@ -923,7 +924,8 @@ public class SceneService {
                 entry.boundCharacterSheetIds() == null
                         ? List.of() : List.copyOf(entry.boundCharacterSheetIds()),
                 SceneAbilityEntry.orZero(entry.enchantmentRounds()),
-                entry.effects());
+                entry.effects(),
+                entry.skillType());
     }
 
     /** {@code null} on any document persisted before {@code actionHistory} existed. */
