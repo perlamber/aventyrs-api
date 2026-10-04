@@ -278,7 +278,8 @@ public class CharacterSheetService {
                 stored.defects(),
                 stored.qualities(),
                 stored.devotionTier(),
-                stored.devotionPicks()));
+                stored.devotionPicks(),
+                stored.trainedCompanions()));
 
         repository.save(document);
     }
