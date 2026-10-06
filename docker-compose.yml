@@ -1,13 +1,16 @@
+# Ports bind to 127.0.0.1 only: the API runs on the same host, and Docker-published ports
+# bypass ufw. S3 keys default to the dev values; prod passes them via --env-file.
 services:
   mongo:
     image: mongo:latest
     container_name: aventyrs-mongo
+    restart: unless-stopped
     # Single-node replica set: multi-document transactions (SceneConnectionService pairs both
     # sides of a scene link in one) are only allowed on a replica set member. mongo-init below
     # runs rs.initiate() once; this node is "healthy" only once it is actually PRIMARY.
     command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -39,15 +42,16 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: aventyrs-seaweedfs
+    restart: unless-stopped
     command: server -dir=/data -master -volume -filer -s3
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=secret
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-secret}
     ports:
-      - "9333:9333" # master
-      - "8080:8080" # volume
-      - "8888:8888" # filer (HTTP API used to serve uploaded images back)
-      - "8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
+      - "127.0.0.1:9333:9333" # master
+      - "127.0.0.1:8080:8080" # volume
+      - "127.0.0.1:8888:8888" # filer (HTTP API used to serve uploaded images back)
+      - "127.0.0.1:8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
     volumes:
       - seaweedfs-data:/data
 
