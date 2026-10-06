@@ -287,7 +287,8 @@ public class SceneService {
         SceneDocument document = findOrThrow(id);
         SceneParticipantEntry entry = placeSummon(document, request.summonId(), request.casterCharacterSheetId(),
                 new org.aventyrs.api.monster.SummonEntry(request.kind(), request.conjuradorManaGraduation(),
-                        request.powers() == null ? List.of() : request.powers(), request.casterCharacterSheetId()),
+                        request.powers() == null ? List.of() : request.powers(), request.casterCharacterSheetId(),
+                        request.enhancement(), request.familiar()),
                 request.exclusivityGroup(), request.rounds(), request.concentration(), request.position());
         repository.save(document);
         return toParticipantResponse(entry);
@@ -365,7 +366,7 @@ public class SceneService {
         SceneDocument document = findOrThrow(id);
         SceneSummonSpawnerEntry spawner = new SceneSummonSpawnerEntry(request.casterCharacterSheetId(),
                 request.rounds(), request.kind(), request.conjuradorManaGraduation(),
-                request.powers() == null ? List.of() : request.powers(), request.summonRounds());
+                request.powers() == null ? List.of() : request.powers(), request.summonRounds(), request.enhancement());
         List<SceneSummonSpawnerEntry> spawners = new ArrayList<>(spawnersOf(document));
         spawners.add(spawner);
         document.setSummonSpawners(spawners);
@@ -377,7 +378,7 @@ public class SceneService {
     private SceneParticipantEntry spawn(SceneDocument document, SceneSummonSpawnerEntry spawner) {
         return placeSummon(document, UUID.randomUUID().toString(), spawner.casterCharacterSheetId(),
                 new org.aventyrs.api.monster.SummonEntry(spawner.kind(), spawner.conjuradorManaGraduation(),
-                        spawner.powers(), spawner.casterCharacterSheetId()),
+                        spawner.powers(), spawner.casterCharacterSheetId(), spawner.enhancement(), null),
                 null, spawner.summonRounds(), false, null);
     }
 

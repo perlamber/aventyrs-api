@@ -104,9 +104,8 @@ public class MonsterSheetService {
         return toResponse(repository.save(document));
     }
 
-    private static org.aventyrs.core.monster.summon.NatureSummon summonTemplate(SummonEntry summon) {
-        return org.aventyrs.core.monster.summon.NatureSummon.restore(summon.kind(), summon.conjuradorManaGraduation(),
-                summon.powers());
+    private static org.aventyrs.core.monster.SummonedMonsterTemplate summonTemplate(SummonEntry summon) {
+        return summon.toTemplate();
     }
 
     public MonsterSheetResponse get(String id) {
@@ -238,6 +237,7 @@ public class MonsterSheetService {
                 InventoryItemMapper.toDtos(document.getInventory()),
                 document.getTokenImageUrl(),
                 summon == null ? null : new org.aventyrs.api.monster.dto.SummonDto(summon.kind(),
-                        summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId()));
+                        summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId(),
+                        summon.enhancement(), summon.familiar()));
     }
 }
