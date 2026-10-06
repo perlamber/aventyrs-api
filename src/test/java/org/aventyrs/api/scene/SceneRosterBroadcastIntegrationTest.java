@@ -21,6 +21,7 @@ import org.aventyrs.api.sheet.dto.RaceDto;
 import org.aventyrs.core.action.ActionProfile;
 import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.Character.Sexo;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -58,6 +59,8 @@ import tools.jackson.databind.ObjectMapper;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+// Endpoints need a logged-in player; GM so the table-running ones are reachable too.
+@WithMockUser(roles = "GM")
 class SceneRosterBroadcastIntegrationTest {
 
     @Container

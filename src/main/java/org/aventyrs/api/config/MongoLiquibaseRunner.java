@@ -21,7 +21,9 @@ import org.springframework.stereotype.Component;
  * spring.data.mongodb.uri} property, so it also picks up connections supplied via {@code
  * @ServiceConnection} (e.g. Testcontainers in tests). Active Spring profiles are passed through
  * as Liquibase contexts, so changesets tagged {@code context: dev} (e.g. fake seed data) only
- * apply when the {@code dev} profile is active — a production run stays clean.
+ * apply when the {@code dev} profile is active — a production run stays clean. With no profile
+ * active, Spring's default profiles are passed instead: an empty {@link Contexts} would make
+ * Liquibase run every changeset regardless of its context, seed data included.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -43,7 +45,12 @@ public class MongoLiquibaseRunner implements CommandLineRunner {
         Database database = DatabaseFactory.getInstance()
                 .openDatabase(mongoUri, null, null, null, new ClassLoaderResourceAccessor());
         try (Liquibase liquibase = new Liquibase(CHANGELOG_PATH, new ClassLoaderResourceAccessor(), database)) {
-            liquibase.update(new Contexts(environment.getActiveProfiles()), new LabelExpression());
+            liquibase.update(new Contexts(contexts()), new LabelExpression());
         }
+    }
+
+    private String[] contexts() {
+        String[] active = environment.getActiveProfiles();
+        return active.length > 0 ? active : environment.getDefaultProfiles();
     }
 }

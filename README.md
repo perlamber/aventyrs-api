@@ -3,8 +3,9 @@
 Light API exposing the [Aventyrs](https://github.com/perlamber/aventyrs-core) tabletop RPG rules
 engine over HTTP and WebSocket. It provides CRUD persistence for `Player`, `CharacterSheet`,
 `MonsterSheet`, and `Scene`, plus real-time gameplay events (token movement, turn order, combat
-status, grid resize) broadcast over STOMP. There is currently **no authentication** — `PlayerRole`
-(`PLAYER`/`GM`) is a client-side hint only, not an enforced permission.
+status, grid resize) broadcast over STOMP. Requests are authenticated with a JWT obtained from
+`POST /api/auth/login`, and GM-only actions are enforced server-side — see
+[Security](#7-security).
 
 ## 1. Tech stack
 
@@ -52,7 +53,19 @@ extension programmatically instead.
 
 ## 4. Configuration
 
-Key properties in `src/main/resources/application.properties`:
+Profiles:
+
+- `dev` (default) — `application-dev.properties`; local docker-compose Mongo/SeaweedFS, and the
+  Liquibase `context: dev` changesets (fake players, sheets, scene, seeded GM) are applied.
+- `prod` — `application-prod.properties`; run with `SPRING_PROFILES_ACTIVE=prod` (or
+  `--spring.profiles.active=prod`). Same endpoints as dev for now, each overridable through
+  `MONGODB_URI`, `SEAWEEDFS_FILER_URL`, `SEAWEEDFS_S3_ENDPOINT`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`. Seed data never runs.
+
+Active profiles are passed to Liquibase as contexts; with no profile active, Spring's `default`
+profile is passed instead so seed changesets can't run by accident.
+
+Key properties (`application.properties` + the profile file):
 
 - `server.port` — `27018`
 - `spring.mongodb.uri` — defaults to `mongodb://localhost:27017/aventyrs?replicaSet=rs0` (the
@@ -80,7 +93,36 @@ With the app running:
 Docs are generated from the controllers and DTOs (including Bean Validation constraints), so they
 stay in sync with the code.
 
-## 7. REST endpoints
+## 7. Security
+
+- **Login**: `POST /api/auth/login` with `{"login": "...", "password": "..."}` returns
+  `{accessToken, tokenType: "Bearer", expiresAt, player}`. Wrong password, unknown login and an
+  account without a password all answer the same `401`.
+- **REST**: every `/api/**` call needs `Authorization: Bearer <accessToken>`, except the login
+  itself and `GET /api/skills` (the client's pre-login health probe). Swagger UI's *Authorize*
+  button takes the token. `GET /api/auth/me` returns the token's player.
+- **STOMP**: the `/ws` handshake and CONNECT are open (the client connects before login); every
+  SEND and SUBSCRIBE needs the token in an `Authorization` native header, or a CONNECT that
+  carried it. A refused frame gets an ERROR and the session is closed.
+- **GM-only** (403 for a `PLAYER`): changing players; creating/updating/deleting scenes, activating
+  them, scene connections and REST combat/time; creating/updating/deleting monster sheets;
+  creating/deleting campaigns, their sessions and participants, adding to/discarding from the bag.
+  Over STOMP: `/app/scenes/{id}/grid|combat|combat/end|time|terrain|initiative`. Rules live in
+  `SecurityConfig` and `StompAuthChannelInterceptor`.
+- **Tokens**: HS256, signed with `aventyrs.security.jwt.secret` (`JWT_SECRET`, ≥ 32 bytes;
+  required in `prod`, fixed dev key in `dev`), valid for `JWT_TTL` (24h dev / 12h prod).
+- **Accounts** are provisioned by a database administrator — no sign-up endpoint. Set a BCrypt
+  hash on the player document:
+
+  ```bash
+  htpasswd -bnBC 10 "" 'the-password' | tr -d ':\n'
+  # mongosh: db.players.updateOne({ login: "someone" }, { $set: { passwordHash: "<hash>" } })
+  ```
+
+  In `dev`, the seeded players' password is their login (`elara.dawnbringer`, `rowan.ashgrove`,
+  `kestrel.voss` — the GM).
+
+## 8. REST endpoints
 
 All CRUD resources follow the same shape: `POST` (create), `GET /{id}`, `GET` (list),
 `PUT /{id}` (full replace), `DELETE /{id}`.
@@ -99,7 +141,7 @@ Validation/reference errors return `400`, missing resources `404`, unique-constr
 and refused core-rules operations (e.g. starting combat twice) `409` — see
 `org.aventyrs.api.common.GlobalExceptionHandler`.
 
-## 8. Real-time Scene events (WebSocket/STOMP)
+## 9. Real-time Scene events (WebSocket/STOMP)
 
 Configured in `org.aventyrs.api.config.WebSocketConfig`: handshake at `/ws` (no SockJS), broker
 destinations `/topic/**`, application prefix `/app/**`. `SceneRealtimeController` handles, per
@@ -119,7 +161,7 @@ logged and silently dropped rather than reported back — there's no auth yet to
 rejection to a single caller. REST gives clients the full Scene/CharacterSheet snapshot on
 load/reconnect; WebSocket carries only small, typed per-action deltas.
 
-## 9. Grid mechanics
+## 10. Grid mechanics
 
 `Scene` participants are placed on a flat-top hex grid — "even-q" offset coordinates (`x`/`y`,
 both non-negative), sized per-Scene (`width`×`height`, each ≤ 100). The coordinate system,
@@ -127,7 +169,7 @@ hex-distance calculation, and mapping from hex distance to core's `RangeBand` li
 `aventyrs-core`, under `org.aventyrs.core.scene.grid` — not in this repo — since it's
 rules-adjacent logic the Android client will need too.
 
-## 10. Project structure
+## 11. Project structure
 
 ```
 org.aventyrs.api
@@ -145,7 +187,7 @@ Persistence documents (`*Document`) are separate from the core domain model on p
 (`aventyrs-core`) stays a framework-free rules engine library with no Mongo/Spring/Jackson
 coupling; this API owns the mapping between the two.
 
-## 11. Related repositories
+## 12. Related repositories
 
 - [`aventyrs-core`](../aventyrs-core) — the rules engine (Character, CharacterSheet, Scene,
   skills, abilities, grid/range math). Required build dependency, published to `mavenLocal()`.

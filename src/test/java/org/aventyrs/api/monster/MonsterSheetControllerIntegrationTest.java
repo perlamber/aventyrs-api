@@ -40,6 +40,7 @@ import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.core.modifier.ModifierType;
 import org.aventyrs.core.rest.RestType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,8 @@ import org.testcontainers.mongodb.MongoDBContainer;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+// Endpoints need a logged-in player; GM so the table-running ones are reachable too.
+@WithMockUser(roles = "GM")
 class MonsterSheetControllerIntegrationTest {
 
     @Container

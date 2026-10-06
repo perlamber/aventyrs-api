@@ -18,7 +18,7 @@ public class PlayerService {
 
     public PlayerResponse create(PlayerRequest request) {
         PlayerDocument document = new PlayerDocument(
-                UUID.randomUUID().toString(), request.name(), request.login(), roleOf(request.role()));
+                UUID.randomUUID().toString(), request.name(), request.login(), roleOf(request.role()), null);
         return toResponse(repository.save(document));
     }
 

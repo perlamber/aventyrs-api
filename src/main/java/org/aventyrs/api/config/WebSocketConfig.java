@@ -1,6 +1,7 @@
 package org.aventyrs.api.config;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -18,10 +19,19 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  * tighten {@link #registerStompEndpoints} before shipping to production. SockJS fallback is
  * intentionally omitted — add {@code .withSockJS()} if a client without native WebSocket support
  * needs to be served.
+ *
+ * <p>Inbound frames pass through {@link StompAuthChannelInterceptor}, which requires the login
+ * JWT on every SEND/SUBSCRIBE and reserves the GM's table controls for the GM.
  */
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+
+    public WebSocketConfig(StompAuthChannelInterceptor stompAuthChannelInterceptor) {
+        this.stompAuthChannelInterceptor = stompAuthChannelInterceptor;
+    }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
@@ -32,5 +42,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws").setAllowedOriginPatterns("*");
+    }
+
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompAuthChannelInterceptor);
     }
 }

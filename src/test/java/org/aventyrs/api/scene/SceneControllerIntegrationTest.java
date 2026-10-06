@@ -24,6 +24,7 @@ import org.aventyrs.core.scene.Direction;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,8 @@ import tools.jackson.databind.ObjectMapper;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+// Endpoints need a logged-in player; GM so the table-running ones are reachable too.
+@WithMockUser(roles = "GM")
 class SceneControllerIntegrationTest {
 
     // withReplicaSet(): the /connections endpoint writes several scene documents in one

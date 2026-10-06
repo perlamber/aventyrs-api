@@ -28,4 +28,11 @@ public class PlayerDocument {
      * this isn't a permission.
      */
     private PlayerRole role;
+
+    /**
+     * BCrypt hash of the player's password. Never leaves the API — {@code PlayerResponse} has no
+     * such field. Accounts are provisioned by a database administrator for now, so nothing in the
+     * API writes it; a player whose document has none simply cannot log in.
+     */
+    private String passwordHash;
 }
