@@ -19,8 +19,26 @@ package org.aventyrs.api.scene.dto;
  * @param sourceKind               as {@link DamageDealtMessage#sourceKind()}
  * @param sourceRef                as {@link DamageDealtMessage#sourceRef()}
  * @param wasCritical              whether the attack was a critical hit, or {@code null} when unknown
+ * @param criticalResult           the core {@code CriticalResult} name the Efeitos Críticos were inflicted at, or
+ *                                 {@code null} when none fired
+ * @param criticalEffects          the core {@code CriticalEffectType} names that fired on this target, in chain
+ *                                 order — the owner rebuilds and applies them to the real sheet; {@code null} for none
  */
 public record AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
                                boolean ignoreDamageReduction, boolean halved, String damageType,
-                               String elementalType, String sourceKind, String sourceRef, Boolean wasCritical) {
+                               String elementalType, String sourceKind, String sourceRef, Boolean wasCritical,
+                               String criticalResult, java.util.List<String> criticalEffects) {
+
+    /** Without the Efeitos Críticos — a hit that carries damage only. */
+    public AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
+            boolean ignoreDamageReduction, boolean halved, String damageType, String elementalType,
+            String sourceKind, String sourceRef, Boolean wasCritical) {
+        this(attackerCharacterSheetId, targetCharacterSheetId, rawDamage, ignoreDamageReduction, halved, damageType,
+                elementalType, sourceKind, sourceRef, wasCritical, null, null);
+    }
+
+    /** Whether this hit carries anything for the owner to apply: damage, or an Efeito Crítico. */
+    public boolean carriesAnything() {
+        return rawDamage > 0 || criticalEffects != null && !criticalEffects.isEmpty();
+    }
 }

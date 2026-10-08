@@ -533,12 +533,13 @@ public class SceneRealtimeController {
 
     /**
      * A hit on a sheet another client owns, still unmitigated (see {@link AttackHitMessage}) — relayed so the owner
-     * can apply it to the real sheet. Nothing is persisted or recorded: the owner's {@link #damage} report is. Both
+     * can apply it — its damage and any Efeitos Críticos it carries — to the real sheet. A hit carrying neither is
+     * dropped. Nothing is persisted or recorded: the owner's {@link #damage} report is. Both
      * participants are asserted, same as {@link #damage}; a malformed message is dropped.
      */
     @MessageMapping("/scenes/{sceneId}/hits")
     public void hit(@DestinationVariable String sceneId, @Payload AttackHitMessage message) {
-        if (message == null || message.targetCharacterSheetId() == null || message.rawDamage() <= 0) {
+        if (message == null || message.targetCharacterSheetId() == null || !message.carriesAnything()) {
             return;
         }
         try {

@@ -57,4 +57,15 @@ class HitRelayTest {
 
         verifyNoInteractions(template, analytics);
     }
+
+    /** A critical that dealt no damage still carries its Efeitos Críticos — Sangramento owes 2PV on its own. */
+    @Test
+    void aHitCarryingOnlyEfeitosCriticosIsStillRelayed() {
+        AttackHitMessage message = new AttackHitMessage("hero-1", "foe-1", 0, false, false, null, null, "ATTACK",
+                null, true, "ACERTO_CRITICO_MENOR", java.util.List.of("SANGRAMENTO"));
+
+        controller.hit("scene-1", message);
+
+        verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);
+    }
 }
