@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.analytics.AnalyticsRecorder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -26,7 +27,7 @@ class ConditionRelayTest {
     private final SceneService sceneService = mock(SceneService.class);
     private final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
     private final SceneRealtimeController controller = new SceneRealtimeController(sceneService,
-            mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+            mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
     @Test
     void aGrabIsRelayedWithItsCaptorAndMagnitudes() {

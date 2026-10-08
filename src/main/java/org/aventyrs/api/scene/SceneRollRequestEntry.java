@@ -28,6 +28,8 @@ import org.aventyrs.core.skill.SkillType;
  * @param targetCharacterSheetIds who must answer. <b>Empty means everyone</b> — the Narrador asking
  *                   the whole table for an Atenção roll is the ordinary case, not a special one.
  * @param prompt     free text the Narrador wrote, or {@code null}.
+ * @param specialization the Especialização the Narrador asked the check to be rolled with — the
+ *                   client catalog's id, opaque here — or {@code null} for a plain roll.
  */
 public record SceneRollRequestEntry(
         String requestId,
@@ -38,5 +40,14 @@ public record SceneRollRequestEntry(
         String attackerCharacterSheetId,
         List<String> targetCharacterSheetIds,
         String prompt,
-        Instant requestedAt) {
+        Instant requestedAt,
+        String specialization) {
+
+    /** A request naming no Especialização — and every one persisted before the field existed. */
+    public SceneRollRequestEntry(String requestId, RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel,
+            int attackBonus, String attackerCharacterSheetId, List<String> targetCharacterSheetIds, String prompt,
+            Instant requestedAt) {
+        this(requestId, kind, skill, difficultyLevel, attackBonus, attackerCharacterSheetId, targetCharacterSheetIds,
+                prompt, requestedAt, null);
+    }
 }

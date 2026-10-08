@@ -846,7 +846,8 @@ public class SceneService {
                 message.dice() == null ? null : List.copyOf(message.dice()),
                 message.total(),
                 message.targetCharacterSheetId(),
-                message.activatedFeats() == null ? null : List.copyOf(message.activatedFeats()));
+                message.activatedFeats() == null ? null : List.copyOf(message.activatedFeats()),
+                message.attackDetails());
 
         List<SceneActionEntry> history = new ArrayList<>(actionHistoryOf(document));
         history.add(entry);
@@ -966,7 +967,8 @@ public class SceneService {
                 message.attackerCharacterSheetId(),
                 targets,
                 message.prompt(),
-                Instant.now());
+                Instant.now(),
+                message.specialization());
 
         appendTo(id, "rollRequests", entry);
         return toRollRequestedEvent(entry);
@@ -1026,7 +1028,7 @@ public class SceneService {
     private RollRequestedEvent toRollRequestedEvent(SceneRollRequestEntry entry) {
         return new RollRequestedEvent(entry.requestId(), entry.kind(), entry.skill(),
                 entry.difficultyLevel(), entry.attackBonus(), entry.attackerCharacterSheetId(),
-                entry.targetCharacterSheetIds(), entry.prompt(), entry.requestedAt());
+                entry.targetCharacterSheetIds(), entry.prompt(), entry.requestedAt(), entry.specialization());
     }
 
     private RollRespondedEvent toRollRespondedEvent(SceneRollResponseEntry entry) {
@@ -1052,7 +1054,8 @@ public class SceneService {
                 entry.dice(),
                 entry.total(),
                 entry.targetCharacterSheetId(),
-                entry.activatedFeats());
+                entry.activatedFeats(),
+                entry.attackDetails());
     }
 
     /** How many of participants are in the turn rotation at round — the length of the list's prefix. */
