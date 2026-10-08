@@ -16,6 +16,8 @@ import org.aventyrs.api.scene.dto.CharacterStatusMessage;
 import org.aventyrs.api.scene.dto.GridPositionDto;
 import org.aventyrs.api.scene.dto.GridResizeMessage;
 import org.aventyrs.api.scene.dto.GridResizedEvent;
+import org.aventyrs.api.scene.dto.ConditionChangeMessage;
+import org.aventyrs.api.scene.dto.ConditionChangedEvent;
 import org.aventyrs.api.scene.dto.HiddenStatusChangedEvent;
 import org.aventyrs.api.scene.dto.HiddenStatusMessage;
 import org.aventyrs.api.scene.dto.RollRequestMessage;
@@ -359,6 +361,32 @@ public class SceneRealtimeController {
     }
 
     /**
+     * A Condição put on, or taken off, a participant another client owns (core 0.1.5) — an Agarrar, an
+     * escape, a Desacordado. Relayed, never persisted: the owning client applies it to its own core sheet
+     * and reports the result in its next {@link #combatantState} frame. Membership of the target (and of
+     * the source, when named) is asserted, same reason {@link #hidden} checks it; a malformed message is
+     * dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/conditions")
+    public void conditionChanged(@DestinationVariable String sceneId, @Payload ConditionChangeMessage message) {
+        if (message == null || message.targetCharacterSheetId() == null || message.conditionType() == null
+                || message.op() == null) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            if (message.sourceCharacterSheetId() != null) {
+                sceneService.requireParticipant(sceneId, message.sourceCharacterSheetId());
+            }
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/conditions",
+                    ConditionChangedEvent.of(message));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Condição change in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
      * An Iniciativa Ego point changing a participant's place in the order (core 0.0.79). Persisted, because this
      * server owns the order ({@link SceneService#advanceTurn}), and broadcast so every board shows it. Membership
      * is asserted by the lookup. Rejected silently like {@link #hidden}.
@@ -414,7 +442,7 @@ public class SceneRealtimeController {
                     "/topic/scenes/" + sceneId + "/state",
                     new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
                             message.frenzyRounds(), message.frenzyModes(), message.compelled(),
-                            message.riding(), message.ferocious(), message.concentrating()));
+                            message.riding(), message.ferocious(), message.concentrating(), message.conditions()));
         } catch (RuntimeException ex) {
             log.warn("Rejected state change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
