@@ -58,6 +58,8 @@ public record MonsterSheetResponse(
         List<LifeStealDto> lifeSteals,
         List<InventoryItemDto> inventory,
         String tokenImageUrl,
-        SummonDto summon
+        SummonDto summon,
+        /** The Subordinados this foe commands (core 0.1.5.6). */
+        List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates
 ) {
 }

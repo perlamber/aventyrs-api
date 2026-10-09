@@ -73,7 +73,8 @@ public class MonsterSheetService {
                 InventoryItemMapper.toEntries(request.inventory()),
                 request.tokenImageUrl(),
                 null,
-                null);
+                null,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -102,7 +103,8 @@ public class MonsterSheetService {
                 List.of(),
                 null,
                 summon,
-                null);
+                null,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -182,6 +184,13 @@ public class MonsterSheetService {
         repository.save(document);
     }
 
+    /** The Subordinados this foe commands, as the GM's status frame reports them (core 0.1.5.6). */
+    public void updateSubordinates(String id, List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
+        MonsterSheetDocument document = findOrThrow(id);
+        document.setSubordinates(List.copyOf(subordinates));
+        repository.save(document);
+    }
+
     public void delete(String id) {
         if (!repository.existsById(id)) {
             throw new NotFoundException("MonsterSheet not found: " + id);
@@ -254,6 +263,7 @@ public class MonsterSheetService {
                 document.getTokenImageUrl(),
                 summon == null ? null : new org.aventyrs.api.monster.dto.SummonDto(summon.kind(),
                         summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId(),
-                        summon.enhancement(), summon.familiar()));
+                        summon.enhancement(), summon.familiar()),
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
     }
 }

@@ -663,7 +663,7 @@ public class SceneService {
         }
 
         document.setCombatScene(true);
-        resetRotation(document);
+        resetRotation(document, rainhaBonuses(document.getParticipants()));
         return toResponse(repository.save(document));
     }
 
@@ -689,7 +689,7 @@ public class SceneService {
         }
 
         document.setCombatScene(false);
-        resetRotation(document);
+        resetRotation(document, Map.of());
         return toResponse(repository.save(document));
     }
 
@@ -700,11 +700,12 @@ public class SceneService {
      * joinedAtRound} 3 once the Rodada went back to 0: it read as waiting while still sitting inside the rotation,
      * so the next combat's Rodadas wrapped early and its Turns landed on the wrong combatants.
      */
-    private static void resetRotation(SceneDocument document) {
+    private static void resetRotation(SceneDocument document, Map<String, Integer> rainhaBonuses) {
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants().stream()
                 .map(entry -> entry.withJoinedAtRound(0))
                 .toList());
-        participants.sort(Comparator.comparingInt(SceneParticipantEntry::effectiveInitiative).reversed());
+        participants.sort(Comparator.comparingInt(
+                (SceneParticipantEntry entry) -> SubordinateInitiative.sortValue(entry, rainhaBonuses)).reversed());
         document.setParticipants(participants);
         document.setCurrentRound(0);
         document.setCurrentIndex(-1);
@@ -823,6 +824,23 @@ public class SceneService {
     }
 
     /**
+     * Each participant's Rainha Iniciativa bonus ({@link SubordinateInitiative}), read off the Subordinados its character
+     * or monster sheet persists. Called only where combat is on — the sort at combat start and at each Rodada wrap.
+     */
+    private Map<String, Integer> rainhaBonuses(List<SceneParticipantEntry> participants) {
+        Map<String, SubordinateInitiative.Holding> holdings = new java.util.HashMap<>();
+        for (SceneParticipantEntry entry : participants) {
+            String sheetId = entry.characterSheetId();
+            characterSheetRepository.findById(sheetId)
+                    .map(sheet -> new SubordinateInitiative.Holding(true, sheet.getSubordinates()))
+                    .or(() -> monsterSheetRepository.findById(sheetId)
+                            .map(sheet -> new SubordinateInitiative.Holding(false, sheet.getSubordinates())))
+                    .ifPresent(holding -> holdings.put(sheetId, holding));
+        }
+        return SubordinateInitiative.bonuses(participants, holdings);
+    }
+
+    /**
      * The Round-boundary bookkeeping {@link #advanceTurn} runs on every wrap, mirroring {@code
      * Scene#startNewRound()}: everyone whose {@code joinedAtRound} has now come round joins the
      * rotation prefix, which is then re-sorted by {@code initiativeValue} descending. The sort is
@@ -837,7 +855,9 @@ public class SceneService {
                 .map(entry -> entry.initiativeOverride() == null ? entry
                         : entry.withInitiativeOverride(entry.initiativeOverride().advanced()))
                 .toList());
-        rotation.sort(Comparator.comparingInt(SceneParticipantEntry::effectiveInitiative).reversed());
+        Map<String, Integer> rainhaBonuses = rainhaBonuses(participants);
+        rotation.sort(Comparator.comparingInt(
+                (SceneParticipantEntry entry) -> SubordinateInitiative.sortValue(entry, rainhaBonuses)).reversed());
 
         List<SceneParticipantEntry> merged = new ArrayList<>(rotation);
         participants.stream().filter(entry -> entry.joinedAtRound() > round).forEach(merged::add);

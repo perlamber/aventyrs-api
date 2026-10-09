@@ -12,6 +12,7 @@ public enum AnalyticsEventType {
     DAMAGE,
     STATUS,
     CONDITION,
+    SUBORDINATE,
     SPELL_LANDED,
     COMBATANT_STATE,
     TURN_ADVANCED,

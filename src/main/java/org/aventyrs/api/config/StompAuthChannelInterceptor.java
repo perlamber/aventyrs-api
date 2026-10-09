@@ -26,7 +26,8 @@ import org.springframework.stereotype.Component;
  * then picks up.
  *
  * <p>The GM-only destinations mirror what the client only shows the GM: resizing the grid,
- * starting and ending combat, passing time, painting terrain and overriding initiative.
+ * starting and ending combat, passing time, painting terrain, overriding initiative and granting or
+ * dismissing Subordinados.
  */
 @Component
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
@@ -35,7 +36,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String GM_AUTHORITY = "ROLE_" + SecurityConfig.ROLE_GM;
     private static final Pattern GM_ONLY_DESTINATION =
-            Pattern.compile("^/app/scenes/[^/]+/(grid|combat|combat/end|time|terrain|initiative)$");
+            Pattern.compile("^/app/scenes/[^/]+/(grid|combat|combat/end|time|terrain|initiative|subordinates)$");
 
     private final JwtDecoder jwtDecoder;
     private final Converter<org.springframework.security.oauth2.jwt.Jwt, AbstractAuthenticationToken> converter;

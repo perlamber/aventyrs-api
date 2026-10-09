@@ -14,6 +14,7 @@ import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_REQUEST;
 import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_RESPONSE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.SPELL_LANDED;
 import static org.aventyrs.api.analytics.AnalyticsEventType.STATUS;
+import static org.aventyrs.api.analytics.AnalyticsEventType.SUBORDINATE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.TIME;
 import static org.aventyrs.api.analytics.AnalyticsEventType.TURN_ADVANCED;
 
@@ -47,6 +48,7 @@ import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.SpellLandedMessage;
+import org.aventyrs.api.scene.dto.SubordinateChangeMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -150,6 +152,9 @@ public class SceneRealtimeController {
                 if (message.bleedingEffects() != null) {
                     monsterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
                 }
+                if (message.subordinates() != null) {
+                    monsterSheetService.updateSubordinates(message.characterSheetId(), message.subordinates());
+                }
             } else {
                 characterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
@@ -166,7 +171,7 @@ public class SceneRealtimeController {
                     new CharacterStatusChangedEvent(
                             message.characterSheetId(), message.hitPointsSpent(),
                             message.magicPointsSpent(), message.determinationPointsSpent(),
-                            message.status(), message.bleedingEffects()));
+                            message.status(), message.bleedingEffects(), message.subordinates()));
             analytics.record(STATUS, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected status change in scene {} for participant {}: {}",
@@ -428,6 +433,28 @@ public class SceneRealtimeController {
                     List.of(message.targetCharacterSheetId()), message);
         } catch (RuntimeException ex) {
             log.warn("Rejected Condição change in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The GM granting or dismissing a Subordinado (core 0.1.5.6) — GM-only ({@code StompAuthChannelInterceptor}),
+     * relayed, never persisted: the client that owns the target applies it to its core sheet and saves it through its
+     * next {@link #status} frame. Membership of the target is asserted; a malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/subordinates")
+    public void subordinateChanged(@DestinationVariable String sceneId, @Payload SubordinateChangeMessage message) {
+        if (message == null || message.targetCharacterSheetId() == null || message.op() == null
+                || message.op() == SubordinateChangeMessage.Op.GRANT && message.benefit() == null
+                || message.op() == SubordinateChangeMessage.Op.DISMISS && message.subordinateId() == null) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/subordinates", message);
+            analytics.record(SUBORDINATE, sceneId, null, List.of(message.targetCharacterSheetId()), message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Subordinado change in scene {} for participant {}: {}",
                     sceneId, message.targetCharacterSheetId(), ex.getMessage());
         }
     }

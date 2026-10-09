@@ -99,4 +99,10 @@ public class MonsterSheetDocument {
      * before this field) reads as whatever {@code character} carries.
      */
     private CharacterStatus status;
+
+    /**
+     * The Subordinados this foe commands (core 0.1.5.6) — the GM grants them in the Cena; written from the GM's status
+     * frame, like a character's. Null on a document from before this field.
+     */
+    private List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
 }
