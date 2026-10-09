@@ -93,6 +93,35 @@ class SceneSummonIntegrationTest {
         return sceneService.get(sceneId).participants().stream().map(SceneParticipantResponse::characterSheetId).toList();
     }
 
+    /** A Bruxo's enhancement rides the summon (core 0.1.2): stored, returned, and read by the rebuilt stat block. */
+    @Test
+    void aSummonKeepsWhatItsSummonersTitulosGaveIt() {
+        org.aventyrs.core.magic.invocation.SummonEnhancement enhancement =
+                org.aventyrs.core.magic.invocation.SummonEnhancement.builder()
+                        .lifeMultiplierBonus(3).invocacaoMaior(true).sizeIncrease(2).build();
+        String summonId = sceneService.addSummon(sceneId, new SummonCreateRequest(UUID.randomUUID().toString(), caster,
+                "ALIADO_DA_NATUREZA", 4, List.of(), null, 3, false, null, enhancement, null)).characterSheetId();
+
+        var sheet = monsterSheetService.get(summonId);
+        assertEquals(enhancement, sheet.summon().enhancement());
+        assertTrue(sheet.maxHitPoints() > 20, "Multiplicador de PV +3 over the plain Aliado's 20PV");
+    }
+
+    /** A Familiar Maior's token: no Duração, rebuilt from the Familiar it is. */
+    @Test
+    void aFamiliarTokenStaysAndIsRebuiltAsTheFamiliar() {
+        org.aventyrs.core.title.bruxo.Familiar familiar = new org.aventyrs.core.title.bruxo.Familiar("Corvo",
+                org.aventyrs.core.race.CreatureType.ABISSAL, org.aventyrs.core.subordinate.SubordinateBenefit.TORRE_DEFESAS);
+        String summonId = sceneService.addSummon(sceneId, new SummonCreateRequest(UUID.randomUUID().toString(), caster,
+                org.aventyrs.api.monster.SummonEntry.FAMILIAR_KIND, 0, List.of(), null, null, false, null, null,
+                familiar)).characterSheetId();
+
+        var sheet = monsterSheetService.get(summonId);
+        assertEquals(familiar, sheet.summon().familiar());
+        assertEquals("Corvo", sheet.character().name());
+        assertEquals(List.of(caster, summonId, foe), order());
+    }
+
     /** Its own sheet, run by the caster's player, standing right after the caster. */
     @Test
     void aSummonJoinsAfterItsCasterAsTheCastersPlayers() {
@@ -160,6 +189,17 @@ class SceneSummonIntegrationTest {
         assertEquals(List.of(foe), order());
         assertFalse(monsterSheetRepository.existsById(other));
         assertTrue(sceneService.get(sceneId).summons().isEmpty());
+    }
+
+    /** A Bruxo's Totem (core 0.1.3): every Predador it spawns carries the enhancement. */
+    @Test
+    void aSpawnersCreaturesCarryItsEnhancement() {
+        org.aventyrs.core.magic.invocation.SummonEnhancement enhancement =
+                org.aventyrs.core.magic.invocation.SummonEnhancement.builder().damageTakenReduction(3).build();
+        String first = sceneService.addSummonSpawner(sceneId, new SummonSpawnerCreateRequest(caster, 3,
+                "PREDADOR_REGIONAL", 4, List.of(), 3, enhancement)).characterSheetId();
+
+        assertEquals(enhancement, monsterSheetService.get(first).summon().enhancement());
     }
 
     /** Totem de Gaea: a Predador now, and one more at each Rodada boundary while it stands. */

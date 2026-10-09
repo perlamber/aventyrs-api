@@ -33,6 +33,7 @@ import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.monster.MonsterKind;
 import org.aventyrs.core.monster.model.MonsterModel;
+import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
 import org.aventyrs.core.item.ItemCategory;
@@ -40,6 +41,7 @@ import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemWeightClass;
 import org.aventyrs.core.modifier.ModifierType;
 import org.aventyrs.core.rest.RestType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +57,8 @@ import org.testcontainers.mongodb.MongoDBContainer;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+// Endpoints need a logged-in player; GM so the table-running ones are reachable too.
+@WithMockUser(roles = "GM")
 class MonsterSheetControllerIntegrationTest {
 
     @Container
@@ -345,18 +349,37 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** A Cena's /status frame for a foe lands on its monster sheet — pools, and Ego when sent. */
+    /** A Cena's /status frame for a foe lands on its monster sheet — pools, status tier, and Ego when sent. */
     @Test
     void persistsAFoesCombatStatus() throws Exception {
         String id = create(new MonsterSheetCreateRequest(pantera(), gmId, null, null));
         assertTrue(monsterSheetService.exists(id));
 
-        monsterSheetService.updateCombatStatus(id, 7, 0, 3, Map.of(EgoDomain.SORTE, 1));
+        monsterSheetService.updateCombatStatus(id, 7, 0, 3, CharacterStatus.LOW_LIFE, Map.of(EgoDomain.SORTE, 1));
 
+        // The tier is what a player's client badges the token from on joining the Cena.
         mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.status").value("LOW_LIFE"))
                 .andExpect(jsonPath("$.damageTaken").value(7))
                 .andExpect(jsonPath("$.determinationSpent").value(3))
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(1));
+    }
+
+    /** A Sangramento running on a foe (an Efeito Crítico's per-Rodada loss) is stored on its sheet, and cleared. */
+    @Test
+    void persistsAFoesRunningSangramentos() throws Exception {
+        String id = create(new MonsterSheetCreateRequest(pantera(), gmId, null, null));
+
+        monsterSheetService.updateBleeding(id, List.of(new org.aventyrs.api.sheet.dto.BleedingDto(1, 3)));
+
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.bleedingEffects[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.bleedingEffects[0].remainingRounds").value(3));
+
+        monsterSheetService.updateBleeding(id, List.of());
+
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.bleedingEffects").isEmpty());
     }
 
     /** A Habilidade with several picks round-trips them, and the wrong number of picks is a 400. */

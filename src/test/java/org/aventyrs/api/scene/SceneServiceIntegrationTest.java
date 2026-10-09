@@ -345,6 +345,20 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void aCheckRequestKeepsTheEspecializacaoTheNarradorAskedFor() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        RollRequestedEvent event = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.CHECK, SkillType.ATTENTION, DifficultyLevel.MEDIUM, 0, null,
+                List.of(), null, "INVESTIGAR"));
+
+        assertEquals("INVESTIGAR", event.specialization());
+        assertEquals("INVESTIGAR", sceneService.get(sceneId).rollRequests().get(0).specialization(),
+                "replayed to late joiners with the rest of the request");
+    }
+
+    @Test
     void anAttackRequestCarriesItsGrauDeDificuldadeAndFlatBonus() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
@@ -956,6 +970,25 @@ class SceneServiceIntegrationTest {
         var replayed = sceneService.get(sceneId).actionHistory().get(0);
         assertEquals(characterSheetId2, replayed.targetCharacterSheetId());
         assertEquals(List.of("LUTADOR_NATO", "ATAQUE_CONCENTRADO"), replayed.activatedFeats());
+        assertNull(replayed.attackDetails(), "a client predating attackDetails sends none");
+    }
+
+    /** The weapon, Margem Crítica and Efeitos Críticos/Corrente an attack set off — for the log and the warehouse. */
+    @Test
+    void aRecordedActionKeepsHowTheHitLanded() {
+        String sceneId = newScene("Golpe Crítico");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 10, UUID.randomUUID()));
+        var details = new org.aventyrs.api.scene.dto.AttackDetailsDto("item-1", "Florete", "LIGHT_BLADE", null,
+                16, 11, true, List.of("SANGRAMENTO"), true, List.of("INFLAMAR"), List.of());
+
+        var event = sceneService.recordAction(sceneId, new org.aventyrs.api.scene.dto.RecordActionMessage(
+                characterSheetId1, SkillType.ATAQUE_CORPO_A_CORPO, null, AttackSourceKind.WEAPON,
+                org.aventyrs.core.sheet.ActionCost.Kind.FIXED, 3, 1, true, 6, null, null, List.of(6, 6, 5), 17,
+                characterSheetId2, List.of(), details));
+
+        assertEquals(details, event.attackDetails());
+        assertEquals(details, sceneService.get(sceneId).actionHistory().get(0).attackDetails());
     }
 
     @Test

@@ -33,6 +33,8 @@ import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.item.ItemCategory;
 import org.aventyrs.core.item.ItemRarity;
 import org.aventyrs.core.item.ItemWeightClass;
+import org.springframework.security.test.context.support.WithMockUser;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +53,8 @@ import tools.jackson.databind.ObjectMapper;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
+// Endpoints need a logged-in player; GM so the table-running ones are reachable too.
+@WithMockUser(roles = "GM")
 class CampaignBagIntegrationTest {
 
     @Container
@@ -111,7 +115,10 @@ class CampaignBagIntegrationTest {
     }
 
     private ResultActions postJson(String path, Object body, Object... vars) throws Exception {
+        // Explicit user rather than only the class's @WithMockUser: that one is thread-local, and
+        // concurrentAdditionsAreAllKept posts from other threads.
         return mockMvc.perform(post(path, vars)
+                .with(user("gm").roles("GM"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body)));
     }

@@ -1,13 +1,16 @@
+# Ports bind to 127.0.0.1 only: the API runs on the same host, and Docker-published ports
+# bypass ufw. S3 keys default to the dev values; prod passes them via --env-file.
 services:
   mongo:
     image: mongo:latest
     container_name: aventyrs-mongo
+    restart: unless-stopped
     # Single-node replica set: multi-document transactions (SceneConnectionService pairs both
     # sides of a scene link in one) are only allowed on a replica set member. mongo-init below
     # runs rs.initiate() once; this node is "healthy" only once it is actually PRIMARY.
     command: ["--replSet", "rs0", "--bind_ip_all"]
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -39,18 +42,102 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: aventyrs-seaweedfs
+    restart: unless-stopped
     command: server -dir=/data -master -volume -filer -s3
     environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=secret
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-secret}
     ports:
-      - "9333:9333" # master
-      - "8080:8080" # volume
-      - "8888:8888" # filer (HTTP API used to serve uploaded images back)
-      - "8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
+      - "127.0.0.1:9333:9333" # master
+      - "127.0.0.1:8080:8080" # volume
+      - "127.0.0.1:8888:8888" # filer (HTTP API used to serve uploaded images back)
+      - "127.0.0.1:8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
     volumes:
       - seaweedfs-data:/data
+
+  # --- Analytics (opt-in: `docker compose --profile analytics ...`, never started by a plain `up`) ---
+
+  # One-shot Mongo -> DuckDB job (warehouse/). Re-run it, or cron it, to refresh the warehouse:
+  #   docker compose --profile analytics run --rm warehouse
+  # directConnection: the replica set advertises itself as localhost:27017, which from inside
+  # this container is not mongo.
+  warehouse:
+    build: ./warehouse
+    profiles: ["analytics"]
+    depends_on:
+      - mongo
+    # Mounted at /warehouse, the same path Metabase and the duckdb CLI use: warehouse.duckdb's
+    # views point at /warehouse/tables/*.parquet by absolute path.
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/aventyrs?directConnection=true
+      - WAREHOUSE_DATA_DIR=/warehouse
+    volumes:
+      - warehouse-data:/warehouse
+
+  # The DuckDB CLI over the warehouse file (read-only). DuckDB is embedded, so this isn't a
+  # long-running server: it opens the file, runs your SQL and exits.
+  #   docker compose --profile analytics run --rm duckdb                     # interactive shell
+  #   docker compose --profile analytics run --rm duckdb -readonly /warehouse/warehouse.duckdb \
+  #       -c "FROM mart_damage_leaderboard"
+  duckdb:
+    build: ./warehouse/duckdb
+    profiles: ["analytics"]
+    volumes:
+      - warehouse-data:/warehouse:ro
+
+  # Metabase over the warehouse, at http://localhost:3000. The volume is read-only here. Each
+  # job run replaces the Parquet files behind warehouse.duckdb's views, so Metabase sees new
+  # data on its next query, with no restart.
+  #
+  # Metabase's own data (accounts, questions, dashboards) lives in metabase-db. The embedded H2
+  # default lost track of its ID counters across container restarts, which broke creating
+  # collections. metabase-data is the old H2 file, kept only so it can be migrated with:
+  #   docker compose --profile analytics stop metabase
+  #   docker compose --profile analytics run --rm --entrypoint java metabase \
+  #       -jar /app/metabase.jar load-from-h2 /metabase-data/metabase.db
+  metabase:
+    build: ./warehouse/metabase
+    container_name: aventyrs-metabase
+    profiles: ["analytics"]
+    restart: unless-stopped
+    depends_on:
+      metabase-db:
+        condition: service_healthy
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_HOST=metabase-db
+      - MB_DB_PORT=5432
+      - MB_DB_DBNAME=metabase
+      - MB_DB_USER=metabase
+      - MB_DB_PASS=${METABASE_DB_PASSWORD:-metabase}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - warehouse-data:/warehouse:ro
+      - metabase-data:/metabase-data
+
+  # Postgres for Metabase's application data only (the warehouse itself is DuckDB). Not
+  # published to the host: only Metabase talks to it.
+  metabase-db:
+    image: postgres:17
+    container_name: aventyrs-metabase-db
+    profiles: ["analytics"]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=metabase
+      - POSTGRES_USER=metabase
+      - POSTGRES_PASSWORD=${METABASE_DB_PASSWORD:-metabase}
+    volumes:
+      - metabase-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metabase -d metabase"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
 volumes:
   mongo-data:
   seaweedfs-data:
+  warehouse-data:
+  metabase-data:
+  metabase-db-data:

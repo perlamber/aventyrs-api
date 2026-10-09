@@ -56,3 +56,9 @@ databaseChangeLog:
   - include:
       file: db/changelog/019-monster-blueprints.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/020-player-passwords.yaml
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/021-analytics.yaml
+      relativeToChangelogFile: false

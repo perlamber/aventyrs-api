@@ -1,16 +1,13 @@
 package org.aventyrs.api.player;
 
 /**
- * What a {@link PlayerDocument} is allowed to do in the client.
+ * What a {@link PlayerDocument} is allowed to do.
  *
- * <p><b>This is not an authorization boundary.</b> This API has no authentication at all — a
- * client identifies itself by looking a login up through {@code GET /api/players/by-login/{login}}
- * with no credential of any kind — so nothing here can be enforced server-side, and no endpoint
- * checks it. It exists so the client knows which screen to open after login: a {@link #GM} lands
- * on the scene/monster tooling, a {@link #PLAYER} on their character roster.
- *
- * <p>When real authentication arrives, this is the field the enforcement would hang off; until
- * then, treat it as a preference, not a permission.
+ * <p>Carried as the {@code role} claim of the JWT issued at login and enforced server-side:
+ * {@code SecurityConfig} reserves the table-running REST endpoints for {@link #GM}, and {@code
+ * StompAuthChannelInterceptor} does the same for the GM-only realtime destinations. The client
+ * also uses it to pick the screen to open after login — a GM lands on the scene/monster tooling,
+ * a {@link #PLAYER} on their character roster.
  */
 public enum PlayerRole {
 

@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.analytics.AnalyticsRecorder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,6 +12,7 @@ import java.util.List;
 import org.aventyrs.api.monster.MonsterSheetService;
 import org.aventyrs.api.scene.dto.CombatantStateChangedEvent;
 import org.aventyrs.api.scene.dto.CombatantStateMessage;
+import org.aventyrs.api.scene.dto.HeldConditionDto;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -23,7 +25,7 @@ class CombatantStateRelayTest {
     void ridingAndFerocityAreRelayedUnchanged() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
         controller.combatantState("scene-1",
                 new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), true, "MONTARIA", true));
@@ -41,7 +43,7 @@ class CombatantStateRelayTest {
     void concentrationIsRelayedUnchanged() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
         controller.combatantState("scene-1",
                 new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), false, null, false, true));
@@ -49,5 +51,22 @@ class CombatantStateRelayTest {
         ArgumentCaptor<Object> relayed = ArgumentCaptor.forClass(Object.class);
         verify(template).convertAndSend(eq("/topic/scenes/scene-1/state"), relayed.capture());
         assertTrue(((CombatantStateChangedEvent) relayed.getValue()).concentrating());
+    }
+
+    /** Core 0.1.5: the Condições a participant holds, so every board can mirror them. */
+    @Test
+    void heldConditionsAreRelayedUnchanged() {
+        SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
+        SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
+        List<HeldConditionDto> held = List.of(new HeldConditionDto("AGARRADO", null, "captor-1"),
+                new HeldConditionDto("ABALADO", 2, "fear-1"));
+
+        controller.combatantState("scene-1",
+                new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), false, null, false, false, held));
+
+        ArgumentCaptor<Object> relayed = ArgumentCaptor.forClass(Object.class);
+        verify(template).convertAndSend(eq("/topic/scenes/scene-1/state"), relayed.capture());
+        assertEquals(held, ((CombatantStateChangedEvent) relayed.getValue()).conditions());
     }
 }

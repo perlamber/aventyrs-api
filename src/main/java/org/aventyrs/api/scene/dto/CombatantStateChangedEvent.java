@@ -5,7 +5,14 @@ import java.util.List;
 /** {@link CombatantStateMessage}, relayed on {@code /topic/scenes/{sceneId}/state}. */
 public record CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
                                          List<String> frenzyModes, boolean compelled, String riding, boolean ferocious,
-                                         boolean concentrating) {
+                                         boolean concentrating, List<HeldConditionDto> conditions) {
+
+    /** A state event from before core 0.1.5 — no held Condições reported ({@code null}, not "none"). */
+    public CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
+            List<String> frenzyModes, boolean compelled, String riding, boolean ferocious, boolean concentrating) {
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, concentrating,
+                null);
+    }
 
     /**
      * A state message from before core 0.1.1. {@code concentrating} is whether the participant holds a Concentração
@@ -13,7 +20,7 @@ public record CombatantStateChangedEvent(String characterSheetId, String sizeCat
      */
     public CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
             List<String> frenzyModes, boolean compelled, String riding, boolean ferocious) {
-        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, false);
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, false, null);
     }
 
     /**
@@ -23,6 +30,6 @@ public record CombatantStateChangedEvent(String characterSheetId, String sizeCat
      */
     public CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
             List<String> frenzyModes, boolean compelled) {
-        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false, false);
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false, false, null);
     }
 }
