@@ -1,5 +1,23 @@
 package org.aventyrs.api.scene;
 
+import static org.aventyrs.api.analytics.AnalyticsEventType.ABILITY;
+import static org.aventyrs.api.analytics.AnalyticsEventType.ACTION;
+import static org.aventyrs.api.analytics.AnalyticsEventType.COMBATANT_STATE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.COMBAT_ENDED;
+import static org.aventyrs.api.analytics.AnalyticsEventType.COMBAT_STARTED;
+import static org.aventyrs.api.analytics.AnalyticsEventType.CONDITION;
+import static org.aventyrs.api.analytics.AnalyticsEventType.DAMAGE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.HIDDEN;
+import static org.aventyrs.api.analytics.AnalyticsEventType.INITIATIVE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.MOVE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_REQUEST;
+import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_RESPONSE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.SPELL_LANDED;
+import static org.aventyrs.api.analytics.AnalyticsEventType.STATUS;
+import static org.aventyrs.api.analytics.AnalyticsEventType.SUBORDINATE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.TIME;
+import static org.aventyrs.api.analytics.AnalyticsEventType.TURN_ADVANCED;
+
 import org.aventyrs.api.scene.dto.EgoGrantMessage;
 import org.aventyrs.api.scene.dto.EgoGrantedEvent;
 import org.aventyrs.api.scene.dto.InitiativeOverriddenEvent;
@@ -30,6 +48,7 @@ import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.SpellLandedMessage;
+import org.aventyrs.api.scene.dto.SubordinateChangeMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
 import org.aventyrs.api.scene.dto.TokenMoveMessage;
@@ -38,11 +57,16 @@ import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.aventyrs.core.scene.grid.GridPosition;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.aventyrs.api.analytics.AnalyticsRecorder;
+import org.aventyrs.api.scene.dto.AttackHitMessage;
+import org.aventyrs.api.scene.dto.DamageDealtMessage;
+import org.aventyrs.api.scene.dto.TitleEffectsDto;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
@@ -76,13 +100,16 @@ public class SceneRealtimeController {
     private final CharacterSheetService characterSheetService;
     private final MonsterSheetService monsterSheetService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final AnalyticsRecorder analytics;
 
     public SceneRealtimeController(SceneService sceneService, CharacterSheetService characterSheetService,
-            MonsterSheetService monsterSheetService, SimpMessagingTemplate messagingTemplate) {
+            MonsterSheetService monsterSheetService, SimpMessagingTemplate messagingTemplate,
+            AnalyticsRecorder analytics) {
         this.sceneService = sceneService;
         this.characterSheetService = characterSheetService;
         this.monsterSheetService = monsterSheetService;
         this.messagingTemplate = messagingTemplate;
+        this.analytics = analytics;
     }
 
     @MessageMapping("/scenes/{sceneId}/move")
@@ -94,6 +121,7 @@ public class SceneRealtimeController {
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/moves",
                     new TokenMovedEvent(updated.characterSheetId(), toDto(updated.position())));
+            analytics.record(MOVE, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected move in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -120,7 +148,13 @@ public class SceneRealtimeController {
             if (monsterSheetService.exists(message.characterSheetId())) {
                 monsterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
-                        message.determinationPointsSpent(), message.temporaryEgoPoints());
+                        message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints());
+                if (message.bleedingEffects() != null) {
+                    monsterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
+                if (message.subordinates() != null) {
+                    monsterSheetService.updateSubordinates(message.characterSheetId(), message.subordinates());
+                }
             } else {
                 characterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
@@ -128,13 +162,17 @@ public class SceneRealtimeController {
                         message.hourlyEgoRecoveries(), message.exhausted(), message.lockedHitPoints(),
                         message.lifeStealLockedHitPoints(), message.restScopedUses(), message.egoLedger(),
                         message.restLockedHitPoints(), message.subordinates());
+                if (message.bleedingEffects() != null) {
+                    characterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
             }
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",
                     new CharacterStatusChangedEvent(
                             message.characterSheetId(), message.hitPointsSpent(),
                             message.magicPointsSpent(), message.determinationPointsSpent(),
-                            message.status()));
+                            message.status(), message.bleedingEffects(), message.subordinates()));
+            analytics.record(STATUS, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -161,6 +199,7 @@ public class SceneRealtimeController {
                         sceneService.get(sceneId));
             }
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/turn", advance.event());
+            analytics.record(TURN_ADVANCED, sceneId, advance.event().characterSheetId(), null, advance.event());
         } catch (RuntimeException ex) {
             log.warn("Rejected turn advance in scene {}: {}", sceneId, ex.getMessage());
         }
@@ -181,9 +220,11 @@ public class SceneRealtimeController {
     public void startCombat(@DestinationVariable String sceneId) {
         try {
             var scene = sceneService.startCombat(sceneId);
-            messagingTemplate.convertAndSend(
-                    "/topic/scenes/" + sceneId + "/combat",
-                    new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+            // The order was rebuilt from the top (SceneService#resetRotation); clients take it from the roster.
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/participants", scene);
+            SceneCombatStartedEvent event = new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combat", event);
+            analytics.record(COMBAT_STARTED, sceneId, null, null, event);
         } catch (RuntimeException ex) {
             log.warn("Rejected combat start in scene {}: {}", sceneId, ex.getMessage());
         }
@@ -200,9 +241,11 @@ public class SceneRealtimeController {
     public void endCombat(@DestinationVariable String sceneId) {
         try {
             var scene = sceneService.endCombat(sceneId);
-            messagingTemplate.convertAndSend(
-                    "/topic/scenes/" + sceneId + "/combat",
-                    new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound()));
+            // The order was rebuilt from the top (SceneService#resetRotation); clients take it from the roster.
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/participants", scene);
+            SceneCombatStartedEvent event = new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combat", event);
+            analytics.record(COMBAT_ENDED, sceneId, null, null, event);
         } catch (RuntimeException ex) {
             log.warn("Rejected combat end in scene {}: {}", sceneId, ex.getMessage());
         }
@@ -258,6 +301,7 @@ public class SceneRealtimeController {
         try {
             SceneActionEvent event = sceneService.recordAction(sceneId, message);
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/actions", event);
+            analytics.record(ACTION, sceneId, event.characterSheetId(), actionTargetsOf(event), event);
         } catch (RuntimeException ex) {
             log.warn("Rejected action in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -291,6 +335,7 @@ public class SceneRealtimeController {
         try {
             AbilityActivatedEvent event = sceneService.recordAbility(sceneId, message);
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/abilities", event);
+            analytics.record(ABILITY, sceneId, event.characterSheetId(), abilityTargetsOf(event), event);
         } catch (RuntimeException ex) {
             log.warn("Rejected ability activation in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -302,6 +347,8 @@ public class SceneRealtimeController {
         try {
             RollRequestedEvent event = sceneService.requestRoll(sceneId, message);
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/roll-requests", event);
+            analytics.record(ROLL_REQUEST, sceneId, event.attackerCharacterSheetId(), event.targetCharacterSheetIds(),
+                    event);
         } catch (RuntimeException ex) {
             log.warn("Rejected roll request in scene {}: {}", sceneId, ex.getMessage());
         }
@@ -318,6 +365,7 @@ public class SceneRealtimeController {
         try {
             RollRespondedEvent event = sceneService.respondToRoll(sceneId, message);
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/roll-responses", event);
+            analytics.record(ROLL_RESPONSE, sceneId, event.characterSheetId(), null, event);
         } catch (RuntimeException ex) {
             log.warn("Rejected roll response in scene {} from participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -354,6 +402,7 @@ public class SceneRealtimeController {
                     new HiddenStatusChangedEvent(message.characterSheetId(), message.hidden(),
                             message.ordinaryConcealmentValue(), message.expertConcealmentValue(),
                             message.difficultyLevel(), message.bonus()));
+            analytics.record(HIDDEN, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected hidden-status change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -380,8 +429,32 @@ public class SceneRealtimeController {
             }
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/conditions",
                     ConditionChangedEvent.of(message));
+            analytics.record(CONDITION, sceneId, message.sourceCharacterSheetId(),
+                    List.of(message.targetCharacterSheetId()), message);
         } catch (RuntimeException ex) {
             log.warn("Rejected Condição change in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * The GM granting or dismissing a Subordinado (core 0.1.5.6) — GM-only ({@code StompAuthChannelInterceptor}),
+     * relayed, never persisted: the client that owns the target applies it to its core sheet and saves it through its
+     * next {@link #status} frame. Membership of the target is asserted; a malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/subordinates")
+    public void subordinateChanged(@DestinationVariable String sceneId, @Payload SubordinateChangeMessage message) {
+        if (message == null || message.targetCharacterSheetId() == null || message.op() == null
+                || message.op() == SubordinateChangeMessage.Op.GRANT && message.benefit() == null
+                || message.op() == SubordinateChangeMessage.Op.DISMISS && message.subordinateId() == null) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/subordinates", message);
+            analytics.record(SUBORDINATE, sceneId, null, List.of(message.targetCharacterSheetId()), message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Subordinado change in scene {} for participant {}: {}",
                     sceneId, message.targetCharacterSheetId(), ex.getMessage());
         }
     }
@@ -397,6 +470,7 @@ public class SceneRealtimeController {
             sceneService.setInitiativeOverride(sceneId, message.characterSheetId(), message.value(), message.rodadas());
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/initiative",
                     new InitiativeOverriddenEvent(message.characterSheetId(), message.value(), message.rodadas()));
+            analytics.record(INITIATIVE, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected Iniciativa change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -418,6 +492,8 @@ public class SceneRealtimeController {
             return;
         }
         messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/spells", message);
+        analytics.record(SPELL_LANDED, sceneId, message.casterCharacterSheetId(),
+                List.of(message.targetCharacterSheetId()), message);
     }
 
     @MessageMapping("/scenes/{sceneId}/ego-grants")
@@ -443,6 +519,7 @@ public class SceneRealtimeController {
                     new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
                             message.frenzyRounds(), message.frenzyModes(), message.compelled(),
                             message.riding(), message.ferocious(), message.concentrating(), message.conditions()));
+            analytics.record(COMBATANT_STATE, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected state change in scene {} for participant {}: {}",
                     sceneId, message.characterSheetId(), ex.getMessage());
@@ -459,9 +536,93 @@ public class SceneRealtimeController {
         try {
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/time",
                     sceneService.passTime(sceneId, message));
+            analytics.record(TIME, sceneId, null, message.characterSheetIds(), message);
         } catch (RuntimeException ex) {
             log.warn("Rejected time passing in scene {}: {}", sceneId, ex.getMessage());
         }
+    }
+
+    /**
+     * A hit landed — reported by the client owning the <b>target</b>, where core mitigated it into what was actually
+     * deducted (see {@link DamageDealtMessage}). Recorded for the analytics warehouse and relayed so every log can
+     * show it; nothing is persisted on the Scene, since the PV themselves arrive on {@link #status}. Membership of the
+     * target, and of the attacker when one is named, is asserted, same reason {@link #conditionChanged} checks it; a
+     * malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/damage")
+    public void damage(@DestinationVariable String sceneId, @Payload DamageDealtMessage message) {
+        if (message == null || message.targetCharacterSheetId() == null) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            if (message.attackerCharacterSheetId() != null) {
+                sceneService.requireParticipant(sceneId, message.attackerCharacterSheetId());
+            }
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/damage", message);
+            analytics.record(DAMAGE, sceneId, message.attackerCharacterSheetId(),
+                    List.of(message.targetCharacterSheetId()), message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected damage in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * A hit on a sheet another client owns, still unmitigated (see {@link AttackHitMessage}) — relayed so the owner
+     * can apply it — its damage and any Efeitos Críticos it carries — to the real sheet. A hit carrying neither is
+     * dropped. Nothing is persisted or recorded: the owner's {@link #damage} report is. Both
+     * participants are asserted, same as {@link #damage}; a malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/hits")
+    public void hit(@DestinationVariable String sceneId, @Payload AttackHitMessage message) {
+        if (message == null || message.targetCharacterSheetId() == null || !message.carriesAnything()) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            if (message.attackerCharacterSheetId() != null) {
+                sceneService.requireParticipant(sceneId, message.attackerCharacterSheetId());
+            }
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/hits", message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected hit in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /** The primary target first, then whoever else an area or chained attack caught. */
+    private static List<String> actionTargetsOf(SceneActionEvent event) {
+        List<String> targets = new ArrayList<>();
+        targets.add(event.targetCharacterSheetId());
+        if (event.attackDetails() != null && event.attackDetails().additionalTargetCharacterSheetIds() != null) {
+            targets.addAll(event.attackDetails().additionalTargetCharacterSheetIds());
+        }
+        return targets;
+    }
+
+    /** Everyone an activation bound, damaged, conditioned or otherwise touched. */
+    private static List<String> abilityTargetsOf(AbilityActivatedEvent event) {
+        List<String> targets = new ArrayList<>();
+        if (event.boundCharacterSheetIds() != null) {
+            targets.addAll(event.boundCharacterSheetIds());
+        }
+        TitleEffectsDto effects = event.effects();
+        if (effects != null) {
+            if (effects.areaDamage() != null) {
+                effects.areaDamage().forEach(hit -> targets.add(hit.targetCharacterSheetId()));
+            }
+            if (effects.conditions() != null) {
+                effects.conditions().forEach(condition -> targets.add(condition.targetCharacterSheetId()));
+            }
+            if (effects.targetEffects() != null) {
+                effects.targetEffects().forEach(effect -> targets.add(effect.targetCharacterSheetId()));
+            }
+            if (effects.inspiredFrenzy() != null && effects.inspiredFrenzy().recipientCharacterSheetIds() != null) {
+                targets.addAll(effects.inspiredFrenzy().recipientCharacterSheetIds());
+            }
+        }
+        return targets;
     }
 
     private static GridPosition toGridPosition(GridPositionDto dto) {

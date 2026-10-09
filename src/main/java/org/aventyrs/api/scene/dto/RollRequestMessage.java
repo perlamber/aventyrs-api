@@ -9,6 +9,9 @@ import org.aventyrs.core.skill.SkillType;
 /**
  * The Narrador asking the table to roll — inbound on {@code /app/scenes/{sceneId}/roll-requests}.
  *
+ * <p>{@code specialization} is the Especialização a Perícia check asks for (the client catalog's id), or
+ * {@code null} for a plain roll; a character not holding it rolls plainly.
+ *
  * <p>No {@code requestId}: the server stamps one, so responses have something stable to point at
  * that no client could collide on.
  *
@@ -26,5 +29,13 @@ public record RollRequestMessage(
         int attackBonus,
         String attackerCharacterSheetId,
         List<String> targetCharacterSheetIds,
-        String prompt) {
+        String prompt,
+        String specialization) {
+
+    /** A request naming no Especialização — every caller but the Narrador's Perícia check. */
+    public RollRequestMessage(RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel, int attackBonus,
+            String attackerCharacterSheetId, List<String> targetCharacterSheetIds, String prompt) {
+        this(kind, skill, difficultyLevel, attackBonus, attackerCharacterSheetId, targetCharacterSheetIds, prompt,
+                null);
+    }
 }

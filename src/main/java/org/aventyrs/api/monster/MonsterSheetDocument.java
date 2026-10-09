@@ -14,6 +14,7 @@ import org.aventyrs.api.sheet.ManaDrainEntry;
 import org.aventyrs.api.sheet.PendingEgoRecoveryEntry;
 import org.aventyrs.api.sheet.TemporaryBonusEntry;
 import org.aventyrs.api.sheet.WitheringEntry;
+import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -91,4 +92,17 @@ public class MonsterSheetDocument {
 
     /** What an invoked creature is — {@code null} for a foe, whose {@link #blueprint} is its source instead. */
     private SummonEntry summon;
+
+    /**
+     * The status tier the GM's client last reported for this foe — kept apart from {@link #character},
+     * which is re-derived from the blueprint on every write. Null (never damaged, or a document from
+     * before this field) reads as whatever {@code character} carries.
+     */
+    private CharacterStatus status;
+
+    /**
+     * The Subordinados this foe commands (core 0.1.5.6) — the GM grants them in the Cena; written from the GM's status
+     * frame, like a character's. Null on a document from before this field.
+     */
+    private List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
 }

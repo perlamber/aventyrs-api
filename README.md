@@ -155,6 +155,10 @@ Scene, all persisted then broadcast to every subscribed client:
 | Advance the turn | `/app/scenes/{id}/turn` | `/topic/scenes/{id}/turn` |
 | Resize the grid | `/app/scenes/{id}/grid` | `/topic/scenes/{id}/grid` |
 | Sonar ping (unpersisted) | `/app/scenes/{id}/ping` | `/topic/scenes/{id}/pings` |
+| Record a rolled action | `/app/scenes/{id}/actions` | `/topic/scenes/{id}/actions` |
+| Report a hit landing (unpersisted on the Scene) | `/app/scenes/{id}/damage` | `/topic/scenes/{id}/damage` |
+
+An action may carry `attackDetails`. It records how a hit landed: the weapon (item id, name and `ItemCategory`) or spell key, the Margem Crítica, the Efeitos Críticos and Corrente de Efeitos it set off, and any extra targets. A `/damage` frame (`DamageDealtMessage`) is sent by the client owning the **target**, once core has mitigated the hit. It carries the attacker, raw and final damage, and the type and source. Both exist for the analytics warehouse (§13).
 
 Rejected actions (unknown participant, occupied cell, a resize that would strand a token) are
 logged and silently dropped rather than reported back — there's no auth yet to address a
@@ -180,7 +184,8 @@ org.aventyrs.api
 ├── monster      — MonsterSheet CRUD
 ├── scene        — Scene CRUD + SceneRealtimeController (WebSocket)
 ├── skill        — read-only SkillType listing
-└── image        — image upload to SeaweedFS
+├── image        — image upload to SeaweedFS
+└── analytics    — AnalyticsRecorder: append-only analytics_events + sheet snapshots for warehouse/
 ```
 
 Persistence documents (`*Document`) are separate from the core domain model on purpose — core
@@ -192,3 +197,16 @@ coupling; this API owns the mapping between the two.
 - [`aventyrs-core`](../aventyrs-core) — the rules engine (Character, CharacterSheet, Scene,
   skills, abilities, grid/range math). Required build dependency, published to `mavenLocal()`.
 - `aventyrsapp` — the Android client. Not yet wired to this API or to `aventyrs-core`.
+
+## 13. Analytics warehouse
+
+After a realtime Scene frame is accepted, `SceneRealtimeController` also writes it to the append-only `analytics_events` collection. Each event is timestamped, stamped with the Scene's Rodada, and points at content-addressed snapshots (`analytics_sheet_snapshots`) of the sheets involved.
+
+A failure here is logged and never reaches play. `aventyrs.analytics.enabled=false` switches it off.
+
+The Python job in [`warehouse/`](warehouse/README.md) loads this into a denormalized DuckDB warehouse, with Metabase on top:
+
+```bash
+docker compose --profile analytics run --rm warehouse   # Mongo -> DuckDB
+docker compose --profile analytics up -d metabase       # http://localhost:3000
+```

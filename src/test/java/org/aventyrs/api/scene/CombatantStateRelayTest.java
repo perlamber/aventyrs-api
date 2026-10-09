@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.analytics.AnalyticsRecorder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,7 +25,7 @@ class CombatantStateRelayTest {
     void ridingAndFerocityAreRelayedUnchanged() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
         controller.combatantState("scene-1",
                 new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), true, "MONTARIA", true));
@@ -42,7 +43,7 @@ class CombatantStateRelayTest {
     void concentrationIsRelayedUnchanged() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
         controller.combatantState("scene-1",
                 new CombatantStateMessage("sheet-1", "ZERO", null, List.of(), false, null, false, true));
@@ -57,7 +58,7 @@ class CombatantStateRelayTest {
     void heldConditionsAreRelayedUnchanged() {
         SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
         SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+                mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
         List<HeldConditionDto> held = List.of(new HeldConditionDto("AGARRADO", null, "captor-1"),
                 new HeldConditionDto("ABALADO", 2, "fear-1"));
 

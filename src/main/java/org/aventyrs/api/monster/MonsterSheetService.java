@@ -72,7 +72,9 @@ public class MonsterSheetService {
                 List.of(),
                 InventoryItemMapper.toEntries(request.inventory()),
                 request.tokenImageUrl(),
-                null);
+                null,
+                null,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -100,7 +102,9 @@ public class MonsterSheetService {
                 List.of(),
                 List.of(),
                 null,
-                summon);
+                summon,
+                null,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -157,14 +161,33 @@ public class MonsterSheetService {
      * CharacterSheetService#updateCombatStatus}.
      */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent, int determinationPointsSpent,
+            org.aventyrs.core.character.CharacterStatus status,
             java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints) {
         MonsterSheetDocument document = findOrThrow(id);
         document.setHitPointsSpent(hitPointsSpent);
+        // Without this a player joining the Cena reads the blueprint-derived CLEAN and draws no badge.
+        if (status != null) {
+            document.setStatus(status);
+        }
         document.setMagicPointsSpent(magicPointsSpent);
         document.setDeterminationPointsSpent(determinationPointsSpent);
         if (temporaryEgoPoints != null) {
             document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
         }
+        repository.save(document);
+    }
+
+    /** Replaces the foe's running Sangramentos with what its owner's client reports (core's {@code Bleeding}). */
+    public void updateBleeding(String id, java.util.List<org.aventyrs.api.sheet.dto.BleedingDto> bleedingEffects) {
+        MonsterSheetDocument document = findOrThrow(id);
+        document.setBleedingEffects(CombatantSheetMapper.toBleedingEntries(bleedingEffects));
+        repository.save(document);
+    }
+
+    /** The Subordinados this foe commands, as the GM's status frame reports them (core 0.1.5.6). */
+    public void updateSubordinates(String id, List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
+        MonsterSheetDocument document = findOrThrow(id);
+        document.setSubordinates(List.copyOf(subordinates));
         repository.save(document);
     }
 
@@ -209,7 +232,9 @@ public class MonsterSheetService {
         return new MonsterSheetResponse(
                 document.getId(),
                 summon == null ? MonsterBlueprintMapper.toDto(document.getBlueprint()) : null,
-                CombatantSheetMapper.toCharacterResponse(document.getCharacter()),
+                CombatantSheetMapper.toCharacterResponse(document.getStatus() == null
+                        ? document.getCharacter()
+                        : document.getCharacter().withStatus(document.getStatus())),
                 document.getPlayerId(),
                 blueprint == null ? null : blueprint.getCategory(),
                 sheet.getDefense(DefenseType.PHYSICAL),
@@ -238,6 +263,7 @@ public class MonsterSheetService {
                 document.getTokenImageUrl(),
                 summon == null ? null : new org.aventyrs.api.monster.dto.SummonDto(summon.kind(),
                         summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId(),
-                        summon.enhancement(), summon.familiar()));
+                        summon.enhancement(), summon.familiar()),
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
     }
 }

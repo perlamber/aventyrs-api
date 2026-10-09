@@ -22,6 +22,10 @@ import org.aventyrs.core.skill.SkillType;
  * {@code Feat#name()}s of the Talentos the roll spent (Lutador Nato, Ataque Rápido, …) — core
  * 0.0.70's {@code CombatantAction#targetId}/{@code #activatedFeats}, carried so every client's log
  * can name them. {@code null} from a client that predates them.
+ *
+ * <p>{@code attackDetails} is what the attacker's core resolved about the hit beyond the roll — weapon,
+ * Margem Crítica, Efeitos Críticos and Corrente — see {@link AttackDetailsDto}. {@code null} from a
+ * client that predates it.
  */
 public record SceneActionEvent(
         String characterSheetId,
@@ -38,5 +42,17 @@ public record SceneActionEvent(
         List<Integer> dice,
         Integer total,
         String targetCharacterSheetId,
-        List<String> activatedFeats) {
+        List<String> activatedFeats,
+        AttackDetailsDto attackDetails) {
+
+    /** An action from before {@code attackDetails} existed. */
+    public SceneActionEvent(String characterSheetId, SkillType skill, AttributeDomain governingDomain,
+            AttackSourceKind attackSourceKind, ActionCost.Kind costKind, int actionPoints, int turnNumber,
+            Boolean succeeded, Integer margin, CriticalResult criticalResult,
+            DifficultyLevel reachedDifficultyLevel, List<Integer> dice, Integer total,
+            String targetCharacterSheetId, List<String> activatedFeats) {
+        this(characterSheetId, skill, governingDomain, attackSourceKind, costKind, actionPoints, turnNumber,
+                succeeded, margin, criticalResult, reachedDifficultyLevel, dice, total, targetCharacterSheetId,
+                activatedFeats, null);
+    }
 }

@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-analytics-events-occurred-at-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: analytics_events
+            keys: '{ "occurredAt": 1 }'
+            options: '{ "name": "ix_analytics_events_occurred_at" }'
+  - changeSet:
+      id: 002-create-analytics-events-scene-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: analytics_events
+            keys: '{ "sceneId": 1, "occurredAt": 1 }'
+            options: '{ "name": "ix_analytics_events_scene_occurred_at" }'
+  - changeSet:
+      id: 003-create-analytics-sheet-snapshots-index
+      author: aventyrs-api
+      changes:
+        - createIndex:
+            collectionName: analytics_sheet_snapshots
+            keys: '{ "characterSheetId": 1, "firstSeenAt": 1 }'
+            options: '{ "name": "ix_analytics_sheet_snapshots_sheet_first_seen" }'

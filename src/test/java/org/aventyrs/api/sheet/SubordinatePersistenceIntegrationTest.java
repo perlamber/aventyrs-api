@@ -38,6 +38,9 @@ class SubordinatePersistenceIntegrationTest {
     @Autowired
     private CharacterSheetService characterSheetService;
 
+    @Autowired
+    private org.aventyrs.api.monster.MonsterSheetService monsterSheetService;
+
     @Test
     void subordinadosSentOnTheStatusFrameAreStoredAndAFrameWithoutThemLeavesThemAlone() {
         String playerId = playerService.create(new PlayerRequest("Orc", "orc-" + UUID.randomUUID())).id();
@@ -48,7 +51,7 @@ class SubordinatePersistenceIntegrationTest {
                         null, null),
                 playerId)).id();
         SubordinateDto peao = new SubordinateDto("PEAO_SKILL", false, "AGNACAO_ANCESTRAL_SUPERIOR", null, null, null,
-                null, "MINIMO");
+                null, "MINIMO", UUID.randomUUID().toString());
 
         characterSheetService.updateCombatStatus(id, 0, 0, 0, CharacterStatus.CLEAN, null, null, null, null, null,
                 null, null, null, List.of(peao));
@@ -56,5 +59,22 @@ class SubordinatePersistenceIntegrationTest {
 
         characterSheetService.updateCombatStatus(id, 2, 0, 0, CharacterStatus.CLEAN);
         assertEquals(List.of(peao), characterSheetService.get(id).subordinates());
+    }
+
+    /** A foe commands Subordinados too (core 0.1.5.6) — the GM's status frame stores them on its own document. */
+    @Test
+    void aMonstersSubordinadosAreStoredOnItsSheet() {
+        String playerId = playerService.create(new PlayerRequest("Mestre", "gm-" + UUID.randomUUID())).id();
+        org.aventyrs.api.monster.dto.MonsterBlueprintDto goblin = new org.aventyrs.api.monster.dto.MonsterBlueprintDto(
+                "Goblin", 0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, 0);
+        String id = monsterSheetService.create(
+                new org.aventyrs.api.monster.dto.MonsterSheetCreateRequest(goblin, playerId, null, null)).id();
+        assertEquals(List.of(), monsterSheetService.get(id).subordinates());
+
+        SubordinateDto torre = new SubordinateDto("TORRE_RA", true, "Mestre", null, null, null, null, null,
+                UUID.randomUUID().toString());
+        monsterSheetService.updateSubordinates(id, List.of(torre));
+
+        assertEquals(List.of(torre), monsterSheetService.get(id).subordinates());
     }
 }
