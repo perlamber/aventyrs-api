@@ -18,5 +18,19 @@ public enum RollRequestKind {
     ATTACK,
 
     /** The Narrador asked for a Perícia roll against a Grau de Dificuldade they set. */
-    CHECK
+    CHECK,
+
+    /**
+     * A foe is trying to <b>Agarrar</b> a player (core 0.1.5). The defender rolls Esquiva e Aparar against
+     * the foe's Ataque GD and bonus, through core's {@code GrappleService#defendGrab}; failing, they are
+     * Agarrado by the attacker.
+     */
+    GRAPPLE,
+
+    /**
+     * A foe a player holds Agarrado is struggling free (core 0.1.5). The captor rolls Ataque Corpo-a-Corpo
+     * against the foe's Ataque GD to keep the hold, through core's {@code GrappleService#holdAgainst}; the
+     * foe goes free on a failure.
+     */
+    GRAPPLE_ESCAPE
 }

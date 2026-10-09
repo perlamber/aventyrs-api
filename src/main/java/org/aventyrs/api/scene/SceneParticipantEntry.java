@@ -60,6 +60,12 @@ public record SceneParticipantEntry(
                 concealment, override);
     }
 
+    /** This entry in the rotation from round onward. */
+    public SceneParticipantEntry withJoinedAtRound(int round) {
+        return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, round,
+                concealment, initiativeOverride);
+    }
+
     /** This entry moved to position. */
     public SceneParticipantEntry withPosition(GridPosition newPosition) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, newPosition, joinedAtRound,

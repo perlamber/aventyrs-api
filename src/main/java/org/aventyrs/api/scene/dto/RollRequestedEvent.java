@@ -23,5 +23,14 @@ public record RollRequestedEvent(
         String attackerCharacterSheetId,
         List<String> targetCharacterSheetIds,
         String prompt,
-        Instant requestedAt) {
+        Instant requestedAt,
+        String specialization) {
+
+    /** A request naming no Especialização — and every one persisted before the field existed. */
+    public RollRequestedEvent(String requestId, RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel,
+            int attackBonus, String attackerCharacterSheetId, List<String> targetCharacterSheetIds, String prompt,
+            Instant requestedAt) {
+        this(requestId, kind, skill, difficultyLevel, attackBonus, attackerCharacterSheetId, targetCharacterSheetIds,
+                prompt, requestedAt, null);
+    }
 }

@@ -1,5 +1,6 @@
 package org.aventyrs.api.scene;
 
+import org.aventyrs.api.analytics.AnalyticsRecorder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -21,7 +22,7 @@ class SpellLandedRelayTest {
 
     private final SimpMessagingTemplate template = mock(SimpMessagingTemplate.class);
     private final SceneRealtimeController controller = new SceneRealtimeController(mock(SceneService.class),
-            mock(CharacterSheetService.class), mock(MonsterSheetService.class), template);
+            mock(CharacterSheetService.class), mock(MonsterSheetService.class), template, mock(AnalyticsRecorder.class));
 
     @Test
     void aLandedSpellIsRelayedUnchanged() {

@@ -271,4 +271,9 @@ public record CharacterEntry(
     public CharacterEntry withDevotionTier(org.aventyrs.core.character.DevotionTier tier) {
         return new CharacterEntry(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, tier, devotionPicks, trainedCompanions);
     }
+
+    /** This character with its combat status tier set to status — a foe's, persisted beside its derived entry. */
+    public CharacterEntry withStatus(CharacterStatus status) {
+        return new CharacterEntry(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, devotionTier, devotionPicks, trainedCompanions);
+    }
 }

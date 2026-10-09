@@ -14,7 +14,18 @@ import java.util.List;
  */
 public record CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
                                     List<String> frenzyModes, boolean compelled, String riding, boolean ferocious,
-                                    boolean concentrating) {
+                                    boolean concentrating, List<HeldConditionDto> conditions) {
+
+    /**
+     * A state message from before core 0.1.5. {@code conditions} are the Condições the participant holds
+     * (core {@code CombatantSheet#getHeldConditions}), so every board can mirror them; {@code null} on an
+     * older frame means "not reported", never "none".
+     */
+    public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
+            List<String> frenzyModes, boolean compelled, String riding, boolean ferocious, boolean concentrating) {
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, concentrating,
+                null);
+    }
 
     /**
      * A state message from before core 0.1.1. {@code concentrating} is whether the participant holds a Concentração
@@ -22,7 +33,7 @@ public record CombatantStateMessage(String characterSheetId, String sizeCategory
      */
     public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
             List<String> frenzyModes, boolean compelled, String riding, boolean ferocious) {
-        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, false);
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, false, null);
     }
 
     /**
@@ -32,6 +43,6 @@ public record CombatantStateMessage(String characterSheetId, String sizeCategory
      */
     public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
             List<String> frenzyModes, boolean compelled) {
-        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false, false);
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, null, false, false, null);
     }
 }
