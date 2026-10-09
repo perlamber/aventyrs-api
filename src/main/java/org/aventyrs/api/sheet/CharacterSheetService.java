@@ -191,6 +191,13 @@ public class CharacterSheetService {
                 restLockedHitPoints, null);
     }
 
+    /** Replaces the sheet's running Sangramentos with what its owner's client reports (core's {@code Bleeding}). */
+    public void updateBleeding(String id, List<org.aventyrs.api.sheet.dto.BleedingDto> bleedingEffects) {
+        CharacterSheetDocument document = findOrThrow(id);
+        document.setBleedingEffects(CombatantSheetMapper.toBleedingEntries(bleedingEffects));
+        repository.save(document);
+    }
+
     /** …plus the Subordinados commanded (core 0.0.98) — written only when sent, like the rest. */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent,
             int determinationPointsSpent, CharacterStatus status, Map<EgoDomain, Integer> temporaryEgoPoints,

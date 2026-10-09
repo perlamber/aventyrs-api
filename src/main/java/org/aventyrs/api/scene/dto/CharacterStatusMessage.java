@@ -27,6 +27,10 @@ import org.aventyrs.core.character.CharacterStatus;
  *
  * <p>{@code restLockedHitPoints} is the part of {@code hitPointsSpent} only a Descanso recovers — core's {@code
  * CombatantSheet#lockDamageUntilRest} (Ferida Infecciosa, core 0.0.85). {@code null} leaves it as stored.
+ *
+ * <p>{@code bleedingEffects} is every Sangramento running on the sheet (core's {@code Bleeding}) — the per-Rodada
+ * loss an Efeito Crítico left. {@code null} leaves the stored list alone; a list replaces it, so a healed one is sent
+ * as absent. Character and monster sheets alike.
  */
 public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent,
                                      int magicPointsSpent, int determinationPointsSpent,
@@ -39,7 +43,21 @@ public record CharacterStatusMessage(String characterSheetId, int hitPointsSpent
                                      java.util.Map<String, Integer> restScopedUses,
                                      org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger,
                                      Integer restLockedHitPoints,
-                                     java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
+                                     java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates,
+                                     java.util.List<org.aventyrs.api.sheet.dto.BleedingDto> bleedingEffects) {
+
+    /** A frame from before the running Sangramentos — the stored ones are left alone. */
+    public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,
+            int determinationPointsSpent, CharacterStatus status,
+            java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.HourlyEgoRecoveryDto> hourlyEgoRecoveries, Boolean exhausted,
+            Integer lockedHitPoints, Integer lifeStealLockedHitPoints, java.util.Map<String, Integer> restScopedUses,
+            org.aventyrs.api.sheet.dto.EgoLedgerDto egoLedger, Integer restLockedHitPoints,
+            java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
+        this(characterSheetId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status,
+                temporaryEgoPoints, hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints,
+                restScopedUses, egoLedger, restLockedHitPoints, subordinates, null);
+    }
 
     /** A frame from before the Subordinados (core 0.0.98) — the stored ones are left alone. */
     public CharacterStatusMessage(String characterSheetId, int hitPointsSpent, int magicPointsSpent,

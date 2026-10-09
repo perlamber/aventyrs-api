@@ -147,6 +147,9 @@ public class SceneRealtimeController {
                 monsterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
                         message.determinationPointsSpent(), message.temporaryEgoPoints());
+                if (message.bleedingEffects() != null) {
+                    monsterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
             } else {
                 characterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
@@ -154,13 +157,16 @@ public class SceneRealtimeController {
                         message.hourlyEgoRecoveries(), message.exhausted(), message.lockedHitPoints(),
                         message.lifeStealLockedHitPoints(), message.restScopedUses(), message.egoLedger(),
                         message.restLockedHitPoints(), message.subordinates());
+                if (message.bleedingEffects() != null) {
+                    characterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
             }
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/status",
                     new CharacterStatusChangedEvent(
                             message.characterSheetId(), message.hitPointsSpent(),
                             message.magicPointsSpent(), message.determinationPointsSpent(),
-                            message.status()));
+                            message.status(), message.bleedingEffects()));
             analytics.record(STATUS, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected status change in scene {} for participant {}: {}",
@@ -209,6 +215,8 @@ public class SceneRealtimeController {
     public void startCombat(@DestinationVariable String sceneId) {
         try {
             var scene = sceneService.startCombat(sceneId);
+            // The order was rebuilt from the top (SceneService#resetRotation); clients take it from the roster.
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/participants", scene);
             SceneCombatStartedEvent event = new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound());
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combat", event);
             analytics.record(COMBAT_STARTED, sceneId, null, null, event);
@@ -228,6 +236,8 @@ public class SceneRealtimeController {
     public void endCombat(@DestinationVariable String sceneId) {
         try {
             var scene = sceneService.endCombat(sceneId);
+            // The order was rebuilt from the top (SceneService#resetRotation); clients take it from the roster.
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/participants", scene);
             SceneCombatStartedEvent event = new SceneCombatStartedEvent(scene.combatScene(), scene.currentRound());
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combat", event);
             analytics.record(COMBAT_ENDED, sceneId, null, null, event);

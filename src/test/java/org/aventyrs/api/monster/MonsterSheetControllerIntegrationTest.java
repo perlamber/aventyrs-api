@@ -362,6 +362,23 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(1));
     }
 
+    /** A Sangramento running on a foe (an Efeito Crítico's per-Rodada loss) is stored on its sheet, and cleared. */
+    @Test
+    void persistsAFoesRunningSangramentos() throws Exception {
+        String id = create(new MonsterSheetCreateRequest(pantera(), gmId, null, null));
+
+        monsterSheetService.updateBleeding(id, List.of(new org.aventyrs.api.sheet.dto.BleedingDto(1, 3)));
+
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.bleedingEffects[0].valuePerRound").value(1))
+                .andExpect(jsonPath("$.bleedingEffects[0].remainingRounds").value(3));
+
+        monsterSheetService.updateBleeding(id, List.of());
+
+        mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.bleedingEffects").isEmpty());
+    }
+
     /** A Habilidade with several picks round-trips them, and the wrong number of picks is a 400. */
     @Test
     void storesAHabilidadesMultiplePicks() throws Exception {

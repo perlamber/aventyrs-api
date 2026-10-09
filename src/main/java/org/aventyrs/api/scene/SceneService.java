@@ -639,7 +639,8 @@ public class SceneService {
      * Combat breaks out in this scene, mirroring {@code Scene#startCombat()} (core 0.0.32): flip
      * {@code combatScene} on so the Rodada counter and the Round-boundary bookkeeping in {@link
      * #advanceTurn} start running. Idempotent within a scene — a second call throws rather than
-     * re-firing, the same guard core's {@code startCombat()} carries.
+     * re-firing, the same guard core's {@code startCombat()} carries. The order is rebuilt from the top
+     * ({@link #resetRotation}): everyone waiting joins, and the first advance is Rodada 0's first Turn.
      *
      * <p>What core's {@code startCombat()} also does — running {@code CombatantSheet#startCombat()}
      * on every participant to apply start-of-combat Talento Blessings ({@code
@@ -662,13 +663,15 @@ public class SceneService {
         }
 
         document.setCombatScene(true);
+        resetRotation(document);
         return toResponse(repository.save(document));
     }
 
     /**
      * Combat ends in this scene — the GM's "encerrar combate", mirroring {@code Scene#endCombat()}
      * (core 0.0.48): flip {@code combatScene} off and put {@code currentRound} back to 0, so the
-     * next combat counts its Rodadas afresh. The turn cursor is left where it is.
+     * next combat counts its Rodadas afresh, and rebuild the order from the top ({@link #resetRotation}) so
+     * nobody is left reading as waiting for a Rodada that will not come.
      *
      * <p>What core's {@code endCombat()} also does — dropping every participant's combat-scoped
      * grants ("até o final da Cena": Campeão da Taverna's stacked Defesas, Impacto Elemental's
@@ -686,8 +689,25 @@ public class SceneService {
         }
 
         document.setCombatScene(false);
-        document.setCurrentRound(0);
+        resetRotation(document);
         return toResponse(repository.save(document));
+    }
+
+    /**
+     * What a combat starting or ending does to the order: everyone in the Scene joins the rotation from Rodada 0,
+     * sorted by Iniciativa (stable, so ties keep their order), and the cursor goes back to before the first Turn —
+     * the next advance is always Rodada 0, index 0. Without it, a participant who joined at Rodada 3 kept {@code
+     * joinedAtRound} 3 once the Rodada went back to 0: it read as waiting while still sitting inside the rotation,
+     * so the next combat's Rodadas wrapped early and its Turns landed on the wrong combatants.
+     */
+    private static void resetRotation(SceneDocument document) {
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants().stream()
+                .map(entry -> entry.withJoinedAtRound(0))
+                .toList());
+        participants.sort(Comparator.comparingInt(SceneParticipantEntry::effectiveInitiative).reversed());
+        document.setParticipants(participants);
+        document.setCurrentRound(0);
+        document.setCurrentIndex(-1);
     }
 
     /**
@@ -767,8 +787,12 @@ public class SceneService {
         repository.save(document);
 
         int current = Math.max(0, document.getCurrentIndex());
+        List<String> rotation = document.getParticipants().stream()
+                .limit(rotationSize(document.getParticipants(), round))
+                .map(SceneParticipantEntry::characterSheetId)
+                .toList();
         return new TurnAdvance(new TurnAdvancedEvent(document.getParticipants().get(current).characterSheetId(),
-                round, document.getCurrentIndex()), rosterChanged);
+                round, document.getCurrentIndex(), rotation), rosterChanged);
     }
 
     /** The Rodada boundary for invocations — spent Durações leave, spawners invoke. Whether the roster changed. */

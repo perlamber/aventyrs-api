@@ -168,6 +168,13 @@ public class MonsterSheetService {
         repository.save(document);
     }
 
+    /** Replaces the foe's running Sangramentos with what its owner's client reports (core's {@code Bleeding}). */
+    public void updateBleeding(String id, java.util.List<org.aventyrs.api.sheet.dto.BleedingDto> bleedingEffects) {
+        MonsterSheetDocument document = findOrThrow(id);
+        document.setBleedingEffects(CombatantSheetMapper.toBleedingEntries(bleedingEffects));
+        repository.save(document);
+    }
+
     public void delete(String id) {
         if (!repository.existsById(id)) {
             throw new NotFoundException("MonsterSheet not found: " + id);
