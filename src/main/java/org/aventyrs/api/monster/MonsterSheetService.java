@@ -72,6 +72,7 @@ public class MonsterSheetService {
                 List.of(),
                 InventoryItemMapper.toEntries(request.inventory()),
                 request.tokenImageUrl(),
+                null,
                 null);
         return toResponse(repository.save(document));
     }
@@ -100,7 +101,8 @@ public class MonsterSheetService {
                 List.of(),
                 List.of(),
                 null,
-                summon);
+                summon,
+                null);
         return toResponse(repository.save(document));
     }
 
@@ -157,9 +159,14 @@ public class MonsterSheetService {
      * CharacterSheetService#updateCombatStatus}.
      */
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent, int determinationPointsSpent,
+            org.aventyrs.core.character.CharacterStatus status,
             java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints) {
         MonsterSheetDocument document = findOrThrow(id);
         document.setHitPointsSpent(hitPointsSpent);
+        // Without this a player joining the Cena reads the blueprint-derived CLEAN and draws no badge.
+        if (status != null) {
+            document.setStatus(status);
+        }
         document.setMagicPointsSpent(magicPointsSpent);
         document.setDeterminationPointsSpent(determinationPointsSpent);
         if (temporaryEgoPoints != null) {
@@ -216,7 +223,9 @@ public class MonsterSheetService {
         return new MonsterSheetResponse(
                 document.getId(),
                 summon == null ? MonsterBlueprintMapper.toDto(document.getBlueprint()) : null,
-                CombatantSheetMapper.toCharacterResponse(document.getCharacter()),
+                CombatantSheetMapper.toCharacterResponse(document.getStatus() == null
+                        ? document.getCharacter()
+                        : document.getCharacter().withStatus(document.getStatus())),
                 document.getPlayerId(),
                 blueprint == null ? null : blueprint.getCategory(),
                 sheet.getDefense(DefenseType.PHYSICAL),

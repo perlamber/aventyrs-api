@@ -146,7 +146,7 @@ public class SceneRealtimeController {
             if (monsterSheetService.exists(message.characterSheetId())) {
                 monsterSheetService.updateCombatStatus(
                         message.characterSheetId(), message.hitPointsSpent(), message.magicPointsSpent(),
-                        message.determinationPointsSpent(), message.temporaryEgoPoints());
+                        message.determinationPointsSpent(), message.status(), message.temporaryEgoPoints());
                 if (message.bleedingEffects() != null) {
                     monsterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
                 }

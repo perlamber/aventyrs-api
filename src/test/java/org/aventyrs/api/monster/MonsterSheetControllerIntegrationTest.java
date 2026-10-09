@@ -33,6 +33,7 @@ import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.SizeCategory;
 import org.aventyrs.core.monster.MonsterKind;
 import org.aventyrs.core.monster.model.MonsterModel;
+import org.aventyrs.core.character.CharacterStatus;
 import org.aventyrs.core.character.EgoDomain;
 import org.aventyrs.core.effect.CriticalEffectType;
 import org.aventyrs.core.item.ItemCategory;
@@ -348,15 +349,17 @@ class MonsterSheetControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** A Cena's /status frame for a foe lands on its monster sheet — pools, and Ego when sent. */
+    /** A Cena's /status frame for a foe lands on its monster sheet — pools, status tier, and Ego when sent. */
     @Test
     void persistsAFoesCombatStatus() throws Exception {
         String id = create(new MonsterSheetCreateRequest(pantera(), gmId, null, null));
         assertTrue(monsterSheetService.exists(id));
 
-        monsterSheetService.updateCombatStatus(id, 7, 0, 3, Map.of(EgoDomain.SORTE, 1));
+        monsterSheetService.updateCombatStatus(id, 7, 0, 3, CharacterStatus.LOW_LIFE, Map.of(EgoDomain.SORTE, 1));
 
+        // The tier is what a player's client badges the token from on joining the Cena.
         mockMvc.perform(get("/api/monster-sheets/{id}", id))
+                .andExpect(jsonPath("$.character.status").value("LOW_LIFE"))
                 .andExpect(jsonPath("$.damageTaken").value(7))
                 .andExpect(jsonPath("$.determinationSpent").value(3))
                 .andExpect(jsonPath("$.temporaryEgoPoints.SORTE").value(1));
