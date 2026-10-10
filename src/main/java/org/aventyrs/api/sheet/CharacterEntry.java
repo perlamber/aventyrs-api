@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Set;
 import org.aventyrs.api.item.InventoryItemEntry;
 import org.aventyrs.core.action.ActionProfile;
-import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -93,11 +92,9 @@ import org.aventyrs.core.skill.SkillType;
  * MimetizedSpellEntry}; see that record for why the mimicry-specific activation-time/duration
  * overrides aren't persisted. Both empty, not {@code null}, when nothing is held.
  *
- * <p>{@code alignment} mirrors core's {@code Character#alignment} ({@code GOOD}/{@code
- * NEUTRAL}/{@code EVIL}), which replaced the former unvalidated 1–10 {@code tendencia} int in
- * core 0.0.31. Documents written before the migration ({@code 011-character-alignment.yaml})
- * carried a {@code tendencia} int instead; that changeSet maps each to an {@link Alignment}
- * (≤4 → {@code EVIL}, 5–6 → {@code NEUTRAL}, ≥7 → {@code GOOD}) and drops the old field.
+ * <p>{@code alignment} mirrors core's {@code Character#alignment}: the 1–10 tendência (core
+ * 0.1.6.1). Between core 0.0.31 and 0.1.6 it was stored as a {@code GOOD}/{@code NEUTRAL}/{@code
+ * EVIL} string; {@code 022-character-alignment-tendencia.yaml} maps those back to 8/6/4.
  */
 public record CharacterEntry(
         String characterId,
@@ -105,7 +102,7 @@ public record CharacterEntry(
         RaceEntry race,
         Sexo sexo,
         Deity deity,
-        Alignment alignment,
+        Integer alignment,
         SizeCategory sizeCategory,
         ActionProfile actionProfile,
         Map<AttributeDomain, AttributeValueEntry> attributes,
@@ -146,12 +143,12 @@ public record CharacterEntry(
         List<TrainedCompanionEntry> trainedCompanions
 ) {
     /** The shape before core 0.0.103 added Aliado da Natureza's trained creatures — none. */
-    public CharacterEntry(String characterId, String name, RaceEntry race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueEntry> attributes, Map<EgoDomain, EgoValueEntry> egos, Map<SkillType, CharacterSkillEntry> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatEntry> feats, List<InventoryItemEntry> equipment, TitleEntry primaryTitle, TitleEntry secondaryTitle, TitleEntry tertiaryTitle, List<String> spells, List<MimetizedSpellEntry> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundEntry> backgrounds, List<DefectEntry> defects, List<QualityEntry> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<DevotionPickEntry> devotionPicks) {
+    public CharacterEntry(String characterId, String name, RaceEntry race, Sexo sexo, Deity deity, Integer alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueEntry> attributes, Map<EgoDomain, EgoValueEntry> egos, Map<SkillType, CharacterSkillEntry> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatEntry> feats, List<InventoryItemEntry> equipment, TitleEntry primaryTitle, TitleEntry secondaryTitle, TitleEntry tertiaryTitle, List<String> spells, List<MimetizedSpellEntry> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundEntry> backgrounds, List<DefectEntry> defects, List<QualityEntry> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<DevotionPickEntry> devotionPicks) {
         this(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, devotionTier, devotionPicks, null);
     }
 
     /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
-    public CharacterEntry(String characterId, String name, RaceEntry race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueEntry> attributes, Map<EgoDomain, EgoValueEntry> egos, Map<SkillType, CharacterSkillEntry> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatEntry> feats, List<InventoryItemEntry> equipment, TitleEntry primaryTitle, TitleEntry secondaryTitle, TitleEntry tertiaryTitle, List<String> spells, List<MimetizedSpellEntry> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundEntry> backgrounds, List<DefectEntry> defects, List<QualityEntry> qualities) {
+    public CharacterEntry(String characterId, String name, RaceEntry race, Sexo sexo, Deity deity, Integer alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueEntry> attributes, Map<EgoDomain, EgoValueEntry> egos, Map<SkillType, CharacterSkillEntry> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatEntry> feats, List<InventoryItemEntry> equipment, TitleEntry primaryTitle, TitleEntry secondaryTitle, TitleEntry tertiaryTitle, List<String> spells, List<MimetizedSpellEntry> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundEntry> backgrounds, List<DefectEntry> defects, List<QualityEntry> qualities) {
         this(characterId, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
     }
 
@@ -161,7 +158,7 @@ public record CharacterEntry(
             RaceEntry race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            Integer alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueEntry> attributes,
@@ -198,7 +195,7 @@ public record CharacterEntry(
             RaceEntry race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            Integer alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueEntry> attributes,
@@ -234,7 +231,7 @@ public record CharacterEntry(
                           RaceEntry race,
                           Sexo sexo,
                           Deity deity,
-                          Alignment alignment,
+                          Integer alignment,
                           SizeCategory sizeCategory,
                           ActionProfile actionProfile,
                           Map<AttributeDomain, AttributeValueEntry> attributes,

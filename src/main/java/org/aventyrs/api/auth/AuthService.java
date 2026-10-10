@@ -34,6 +34,21 @@ public class AuthService {
         if (hash == null || !matches) {
             throw new InvalidCredentialsException();
         }
+        return issueFor(player);
+    }
+
+    /**
+     * Trades a still-valid token for a fresh one, which is what keeps a client's session sliding:
+     * it only lapses once nobody refreshes it for a whole TTL. The player is reloaded rather than
+     * copied from the old token's claims, so a deleted account stops refreshing and a changed role
+     * or name reaches the new token.
+     */
+    public LoginResponse refresh(String playerId) {
+        PlayerDocument player = players.findById(playerId).orElseThrow(InvalidCredentialsException::new);
+        return issueFor(player);
+    }
+
+    private LoginResponse issueFor(PlayerDocument player) {
         PlayerRole role = player.getRole() == null ? PlayerRole.PLAYER : player.getRole();
         TokenService.IssuedToken issued = tokenService.issue(player, role);
         return new LoginResponse(issued.token(), "Bearer", issued.expiresAt(),

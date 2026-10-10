@@ -46,7 +46,7 @@ class SubordinatePersistenceIntegrationTest {
         String playerId = playerService.create(new PlayerRequest("Orc", "orc-" + UUID.randomUUID())).id();
         String id = characterSheetService.create(new CharacterSheetCreateRequest(
                 new CharacterDto("Orc", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null),
                 playerId)).id();

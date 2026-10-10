@@ -112,7 +112,7 @@ class SceneServiceIntegrationTest {
     private String createCharacterSheet(String playerId) {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
                 new CharacterDto("Scene Character", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         return characterSheetService.create(request).id();

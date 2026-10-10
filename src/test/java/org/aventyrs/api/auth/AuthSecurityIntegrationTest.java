@@ -109,6 +109,38 @@ class AuthSecurityIntegrationTest {
     }
 
     @Test
+    void refreshTradesAValidTokenForALaterOne() throws Exception {
+        String loginBody = mockMvc.perform(login(playerLogin, "player-pass"))
+                .andReturn().getResponse().getContentAsString();
+        String token = objectMapper.readTree(loginBody).get("accessToken").asText();
+        java.time.Instant firstExpiry = java.time.Instant.parse(objectMapper.readTree(loginBody).get("expiresAt").asText());
+
+        String refreshed = mockMvc.perform(post("/api/auth/refresh").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.player.login").value(playerLogin))
+                .andReturn().getResponse().getContentAsString();
+        java.time.Instant secondExpiry = java.time.Instant.parse(objectMapper.readTree(refreshed).get("expiresAt").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(secondExpiry.isAfter(firstExpiry));
+
+        String newToken = objectMapper.readTree(refreshed).get("accessToken").asText();
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + newToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void refreshNeedsAValidTokenAndAnExistingPlayer() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/refresh").header("Authorization", "Bearer not-a-jwt"))
+                .andExpect(status().isUnauthorized());
+
+        String token = tokenFor(playerLogin, "player-pass");
+        players.delete(players.findByLogin(playerLogin).orElseThrow());
+        mockMvc.perform(post("/api/auth/refresh").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void playerCanReadButNotRunTheTable() throws Exception {
         String bearer = "Bearer " + tokenFor(playerLogin, "player-pass");
 

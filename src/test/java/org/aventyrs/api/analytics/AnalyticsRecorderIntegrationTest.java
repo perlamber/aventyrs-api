@@ -87,7 +87,7 @@ class AnalyticsRecorderIntegrationTest {
     private String createCharacterSheet(String playerId) {
         return characterSheetService.create(new CharacterSheetCreateRequest(
                 new CharacterDto("Analytics Character", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null),
                 playerId)).id();

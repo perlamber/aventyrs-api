@@ -89,7 +89,7 @@ class SceneRosterBroadcastIntegrationTest {
 
         CharacterSheetCreateRequest sheetRequest = new CharacterSheetCreateRequest(
                 new CharacterDto("Roster Character", new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 objectMapper.readTree(playerResponse).get("id").asText());
         String sheetResponse = mockMvc.perform(post("/api/character-sheets")

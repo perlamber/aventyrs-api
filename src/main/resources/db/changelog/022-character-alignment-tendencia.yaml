@@ -1,0 +1,64 @@
+# Alignment is a 1–10 tendência again (core 0.1.6.1). 011 had turned the old int into a
+# GOOD/NEUTRAL/EVIL string; this maps each string back to a number in its band — 8, 6 and 4,
+# which restores 004's dev seed sheets to their original tendências.
+databaseChangeLog:
+  - changeSet:
+      id: 001-character-alignment-to-tendencia
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "characterSheets",
+                updates: [
+                  {
+                    q: { "character.alignment": { $type: "string" } },
+                    u: [
+                      {
+                        $set: {
+                          "character.alignment": {
+                            $switch: {
+                              branches: [
+                                { case: { $eq: [ "$character.alignment", "GOOD" ] }, then: 8 },
+                                { case: { $eq: [ "$character.alignment", "EVIL" ] }, then: 4 }
+                              ],
+                              default: 6
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-monster-alignment-to-tendencia
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { "character.alignment": { $type: "string" } },
+                    u: [
+                      {
+                        $set: {
+                          "character.alignment": {
+                            $switch: {
+                              branches: [
+                                { case: { $eq: [ "$character.alignment", "GOOD" ] }, then: 8 },
+                                { case: { $eq: [ "$character.alignment", "EVIL" ] }, then: 4 }
+                              ],
+                              default: 6
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    multi: true
+                  }
+                ]
+              }

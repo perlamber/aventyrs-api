@@ -36,7 +36,6 @@ import org.aventyrs.api.sheet.dto.TemporaryBonusDto;
 import org.aventyrs.api.sheet.dto.TitleDto;
 import org.aventyrs.api.sheet.dto.WitheringDto;
 import org.aventyrs.core.action.ActionProfile;
-import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -104,7 +103,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void performsFullCrudLifecycle() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Aragorn Character", HUMAN_RACE, Sexo.MASCULINO, Deity.EPONA, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                "Aragorn Character", HUMAN_RACE, Sexo.MASCULINO, Deity.EPONA, 6, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -117,7 +116,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.race.type").value("HUMAN"))
                 .andExpect(jsonPath("$.character.sexo").value("MASCULINO"))
                 .andExpect(jsonPath("$.character.deity").value("EPONA"))
-                .andExpect(jsonPath("$.character.alignment").value("NEUTRAL"))
+                .andExpect(jsonPath("$.character.alignment").value(6))
                 .andExpect(jsonPath("$.character.actionProfile").value("IMPULSIVO"))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.base").value(2))
                 .andExpect(jsonPath("$.character.egos.AUTOCONTROLE.total").value(2))
@@ -159,7 +158,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
 
         CharacterDto updatedCharacter = new CharacterDto(
-                "Strider", HUMAN_RACE, Sexo.MASCULINO, Deity.TYKHE, Alignment.GOOD, null, ActionProfile.CALCULISTA, null, null, null, null,
+                "Strider", HUMAN_RACE, Sexo.MASCULINO, Deity.TYKHE, 8, null, ActionProfile.CALCULISTA, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetUpdateRequest updateRequest = new CharacterSheetUpdateRequest(
                 updatedCharacter,
@@ -192,7 +191,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.id").value(characterId))
                 .andExpect(jsonPath("$.character.name").value("Strider"))
                 .andExpect(jsonPath("$.character.deity").value("TYKHE"))
-                .andExpect(jsonPath("$.character.alignment").value("GOOD"))
+                .andExpect(jsonPath("$.character.alignment").value(8))
                 .andExpect(jsonPath("$.character.actionProfile").value("CALCULISTA"))
                 .andExpect(jsonPath("$.totalExperience").value(15))
                 .andExpect(jsonPath("$.unUsedExperience").value(5))
@@ -248,7 +247,7 @@ class CharacterSheetControllerIntegrationTest {
                 HUMAN_RACE,
                 Sexo.MASCULINO,
                 Deity.EPONA,
-                Alignment.NEUTRAL,
+                6,
                 SizeCategory.PLUS_ONE,
                 ActionProfile.ESTRATEGISTA,
                 Map.of(AttributeDomain.VIGOR, new AttributeValueDto(3, 1, 0)),
@@ -383,7 +382,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void defaultsCharacterStatFieldsWhenOmitted() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Faramir", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA,
+                "Faramir", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
@@ -419,7 +418,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void skillsPopulatedByUpdateSurviveAndCanBeChangedAgain() throws Exception {
         CharacterDto character = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null, Map.of(), null,
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null, Map.of(), null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
@@ -432,7 +431,7 @@ class CharacterSheetControllerIntegrationTest {
         String id = objectMapper.readTree(createResponse).get("id").asText();
 
         CharacterDto firstUpdatedCharacter = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 3),
                         SkillType.FURTIVIDADE, new CharacterSkillDto(List.of("MAESTRIA_DA_OCULTACAO"), List.of("ESCONDER_OUTROS"), 5)),
                 List.of("SOBRE_HUMANO", "PASSOS_LONGOS"),
@@ -455,7 +454,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.character.skills.FURTIVIDADE.graduationValue").value(5));
 
         CharacterDto secondUpdatedCharacter = new CharacterDto(
-                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 Map.of(SkillType.ATTENTION, new CharacterSkillDto(null, null, 4),
                         SkillType.DOMINIO_DO_MANA, new CharacterSkillDto(null, null, 6)),
                 null,
@@ -490,7 +489,7 @@ class CharacterSheetControllerIntegrationTest {
     void spellsAndMimetizedSpellsRoundTripThroughCreateAndUpdate() throws Exception {
         List<FeatDto> arcanista = List.of(new FeatDto("ARCANISTA", List.of(), null));
         CharacterDto created = new CharacterDto(
-                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
                 List.of("Aliviar a Dor", "Luz de Vela"),
                 List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
@@ -507,7 +506,7 @@ class CharacterSheetControllerIntegrationTest {
         String id = objectMapper.readTree(createResponse).get("id").asText();
 
         CharacterDto grown = new CharacterDto(
-                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Merlin Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, arcanista, null, null, null, null,
                 List.of("Aliviar a Dor", "Luz de Vela", "Revigorar"),
                 List.of(new MimetizedSpellDto("Golpe de Fogo", 2, false)));
@@ -535,7 +534,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void aprendizadoRapidoCentelhasAndAFormaLockRoundTrip() throws Exception {
         CharacterDto created = new CharacterDto(
-                "Nimue Character", HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                "Nimue Character", HUMAN_RACE, Sexo.FEMININO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 List.of(),
                 List.of(new MimetizedSpellDto("Golpe de Fogo", 0, false, "FEERICA")),
@@ -563,7 +562,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void theEgoLedgerRoundTripsAndAnOlderPutLeavesItAlone() throws Exception {
         CharacterDto created = new CharacterDto(
-                "Midas Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA,
+                "Midas Character", HUMAN_RACE, Sexo.MASCULINO, null, 6, null, ActionProfile.ESTRATEGISTA,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, List.of(), List.of());
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -605,7 +604,7 @@ class CharacterSheetControllerIntegrationTest {
 
     private CharacterDto withBackgrounds(final String name, final List<org.aventyrs.api.sheet.dto.BackgroundDto> backgrounds) {
         return new CharacterDto(
-                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                name, HUMAN_RACE, Sexo.FEMININO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 List.of(), List.of(), java.util.Set.of(SkillType.ATTENTION, SkillType.ATLETISMO), 3, backgrounds);
     }
@@ -689,7 +688,7 @@ class CharacterSheetControllerIntegrationTest {
     private CharacterDto devoted(final String name, final org.aventyrs.core.character.DevotionTier tier,
                                  final List<org.aventyrs.api.sheet.dto.DevotionPickDto> picks) {
         return new CharacterDto(
-                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, 6, null, ActionProfile.ESTRATEGISTA, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, List.of(), List.of(), null, 3, null, null, null, tier, picks);
     }
@@ -725,7 +724,7 @@ class CharacterSheetControllerIntegrationTest {
 
     private CharacterDto training(final String name, final List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> companions) {
         return new CharacterDto(
-                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null,
+                name, HUMAN_RACE, Sexo.FEMININO, Deity.YMIR, 6, null, ActionProfile.ESTRATEGISTA, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, List.of(), List.of(), null, 3, null, null, null, null, null, companions);
     }
@@ -751,7 +750,7 @@ class CharacterSheetControllerIntegrationTest {
     private CharacterDto withDefects(final String name, final List<org.aventyrs.api.sheet.dto.DefectDto> defects,
                                      final List<org.aventyrs.api.sheet.dto.QualityDto> qualities) {
         return new CharacterDto(
-                name, HUMAN_RACE, Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.ESTRATEGISTA, null, null,
+                name, HUMAN_RACE, Sexo.FEMININO, null, 6, null, ActionProfile.ESTRATEGISTA, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 List.of(), List.of(), null, 3, null, defects, qualities);
     }
@@ -851,7 +850,7 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.character.sexo").doesNotExist())
                 .andExpect(jsonPath("$.character.deity").doesNotExist())
-                .andExpect(jsonPath("$.character.alignment").value("NEUTRAL"))
+                .andExpect(jsonPath("$.character.alignment").value(6))
                 .andExpect(jsonPath("$.character.sizeCategory").value("ZERO"))
                 .andExpect(jsonPath("$.character.attributes.VIGOR.base").value(1))
                 .andExpect(jsonPath("$.character.attributes.VIGOR.total").value(1))
@@ -869,7 +868,7 @@ class CharacterSheetControllerIntegrationTest {
         String otherPlayerId = objectMapper.readTree(otherPlayerResponse).get("id").asText();
 
         CharacterSheetCreateRequest ownSheetRequest = new CharacterSheetCreateRequest(
-                new CharacterDto("Legolas Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.EVIL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                new CharacterDto("Legolas Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
         String ownSheetResponse = mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -879,7 +878,7 @@ class CharacterSheetControllerIntegrationTest {
         String ownSheetId = objectMapper.readTree(ownSheetResponse).get("id").asText();
 
         CharacterSheetCreateRequest otherSheetRequest = new CharacterSheetCreateRequest(
-                new CharacterDto("Gimli Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.EVIL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                new CharacterDto("Gimli Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 otherPlayerId);
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -896,8 +895,19 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationForUnknownPlayer() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.EVIL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                new CharacterDto("Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 UUID.randomUUID().toString());
+
+        mockMvc.perform(post("/api/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsCreationWithAlignmentOutsideOneToTen() throws Exception {
+        CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
+                new CharacterDto("Boromir Character", HUMAN_RACE, Sexo.MASCULINO, null, 11, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), playerId);
 
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -908,7 +918,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void rejectsCreationWithBlankCharacterName() throws Exception {
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("", HUMAN_RACE, Sexo.MASCULINO, null, Alignment.EVIL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), playerId);
+                new CharacterDto("", HUMAN_RACE, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null), playerId);
 
         mockMvc.perform(post("/api/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -921,7 +931,7 @@ class CharacterSheetControllerIntegrationTest {
         RaceDto agastias = new RaceDto(
                 "AGASTIAS", "HUMAN", "VULCANO", null, List.of("DOM_BARDICO"), List.of("SOBRE_HUMANO"));
         CharacterDto character = new CharacterDto(
-                "Vulcan Character", agastias, Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                "Vulcan Character", agastias, Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         CharacterSheetCreateRequest createRequest = new CharacterSheetCreateRequest(character, playerId);
 
         String createResponse = mockMvc.perform(post("/api/character-sheets")
@@ -950,7 +960,7 @@ class CharacterSheetControllerIntegrationTest {
     void rejectsAMesticoRaceWithoutAParentRaceType() throws Exception {
         RaceDto agastias = new RaceDto("AGASTIAS", null, "VULCANO", null, null, null);
         CharacterSheetCreateRequest request = new CharacterSheetCreateRequest(
-                new CharacterDto("Vulcan Character", agastias, Sexo.MASCULINO, null, Alignment.EVIL, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
+                new CharacterDto("Vulcan Character", agastias, Sexo.MASCULINO, null, 3, null, ActionProfile.IMPULSIVO, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId);
 
         mockMvc.perform(post("/api/character-sheets")
