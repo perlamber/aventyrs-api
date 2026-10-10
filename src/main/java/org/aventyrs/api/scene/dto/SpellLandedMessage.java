@@ -21,11 +21,26 @@ import java.util.List;
  * @param durationRounds the Duração the cast resolved to (Talento and item increases, Serra-Pernas's extra PM), or
  *                      {@code null} for the Magia's own (client 0.1.0)
  * @param alternateChain whether the caster aimed for the Corrente de Efeitos Alternativa — Serra-Pernas (client 0.1.0)
+ * @param rawDamage     the Magia's unmitigated damage on this target, or {@code null} — it rides here rather than on
+ *                      {@code /hits} so the owner decides once whether Alma de AEther negates the whole Magia (client
+ *                      0.1.6.2)
+ * @param damageType    that damage's {@code DamageType} name, or {@code null}
+ * @param manaSpent     the PM the cast cost — what a negation recovers — or {@code null} (client 0.1.6.2)
  */
 public record SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
                                  String targetCharacterSheetId, boolean hostile, int healingBonus, Integer chainDie,
                                  List<Integer> castDice, List<Integer> criticalDice, Integer fixedHealing,
-                                 String chosenAttribute, Integer durationRounds, boolean alternateChain) {
+                                 String chosenAttribute, Integer durationRounds, boolean alternateChain,
+                                 Integer rawDamage, String damageType, Integer manaSpent) {
+
+    /** A landing whose damage, if any, travels on its own — no Alma de AEther fields (before client 0.1.6.2). */
+    public SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
+                              String targetCharacterSheetId, boolean hostile, int healingBonus, Integer chainDie,
+                              List<Integer> castDice, List<Integer> criticalDice, Integer fixedHealing,
+                              String chosenAttribute, Integer durationRounds, boolean alternateChain) {
+        this(casterCharacterSheetId, spellKey, alternate, targetCharacterSheetId, hostile, healingBonus, chainDie,
+                castDice, criticalDice, fixedHealing, chosenAttribute, durationRounds, alternateChain, null, null, null);
+    }
 
     /** A landing with an Atributo pick and no Duração or Corrente choice. */
     public SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
