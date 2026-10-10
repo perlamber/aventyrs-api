@@ -122,4 +122,10 @@ public class CharacterSheetDocument {
      * null} on older documents, read as none.
      */
     private java.util.List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
+
+    /**
+     * Game sessions this character has finished (core 0.1.6.3, {@code Character#getCompletedSessions()}) — advanced by
+     * the client that ends a Sessão, written by the PUT only when sent. {@code null} on older documents, read as 0.
+     */
+    private Integer completedSessions;
 }

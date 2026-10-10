@@ -64,7 +64,8 @@ public class CharacterSheetService {
                 Map.of(),
                 null,
                 0,
-                List.of());
+                List.of(),
+                0);
         return toResponse(repository.save(document));
     }
 
@@ -113,6 +114,9 @@ public class CharacterSheetService {
         document.setTokenImageUrl(request.tokenImageUrl());
         if (request.egoLedger() != null) {
             document.setEgoLedger(CombatantSheetMapper.toEgoLedgerEntry(request.egoLedger()));
+        }
+        if (request.completedSessions() != null) {
+            document.setCompletedSessions(request.completedSessions());
         }
 
         return toResponse(repository.save(document));
@@ -358,6 +362,7 @@ public class CharacterSheetService {
                 document.getRestScopedUses() == null ? Map.of() : Map.copyOf(document.getRestScopedUses()),
                 CombatantSheetMapper.toEgoLedgerDto(document.getEgoLedger()),
                 document.getRestLockedHitPoints() == null ? 0 : document.getRestLockedHitPoints(),
-                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()),
+                document.getCompletedSessions() == null ? 0 : document.getCompletedSessions());
     }
 }
