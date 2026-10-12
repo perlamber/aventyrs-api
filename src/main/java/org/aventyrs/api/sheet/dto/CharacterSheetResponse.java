@@ -51,6 +51,7 @@ public record CharacterSheetResponse(
         EgoLedgerDto egoLedger,
         int restLockedHitPoints,
         List<SubordinateDto> subordinates,
-        int completedSessions
+        int completedSessions,
+        List<PowerStoneCombatDto> powerStoneCombatState
 ) {
 }

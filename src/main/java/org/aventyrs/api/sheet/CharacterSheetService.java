@@ -65,7 +65,8 @@ public class CharacterSheetService {
                 null,
                 0,
                 List.of(),
-                0);
+                0,
+                List.of());
         return toResponse(repository.save(document));
     }
 
@@ -193,6 +194,16 @@ public class CharacterSheetService {
         updateCombatStatus(id, hitPointsSpent, magicPointsSpent, determinationPointsSpent, status, temporaryEgoPoints,
                 hourlyEgoRecoveries, exhausted, lockedHitPoints, lifeStealLockedHitPoints, restScopedUses, egoLedger,
                 restLockedHitPoints, null);
+    }
+
+    /**
+     * Replaces the sheet's running Vinculações and item Resfriamentos with what its owner's client reports (core
+     * 0.1.6.7); an empty list clears them, as at the end of a combat.
+     */
+    public void updatePowerStoneCombatState(String id, List<org.aventyrs.api.sheet.dto.PowerStoneCombatDto> state) {
+        CharacterSheetDocument document = findOrThrow(id);
+        document.setPowerStoneCombatState(List.copyOf(state));
+        repository.save(document);
     }
 
     /** Replaces the sheet's running Sangramentos with what its owner's client reports (core's {@code Bleeding}). */
@@ -363,6 +374,7 @@ public class CharacterSheetService {
                 CombatantSheetMapper.toEgoLedgerDto(document.getEgoLedger()),
                 document.getRestLockedHitPoints() == null ? 0 : document.getRestLockedHitPoints(),
                 document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()),
-                document.getCompletedSessions() == null ? 0 : document.getCompletedSessions());
+                document.getCompletedSessions() == null ? 0 : document.getCompletedSessions(),
+                document.getPowerStoneCombatState() == null ? List.of() : List.copyOf(document.getPowerStoneCombatState()));
     }
 }

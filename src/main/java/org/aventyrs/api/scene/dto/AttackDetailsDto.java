@@ -31,5 +31,19 @@ import java.util.List;
 public record AttackDetailsDto(String weaponItemId, String weaponName, String weaponCategory, String spellKey,
                                Integer criticalMargin, Integer requiredTotal, Boolean criticalEffectTriggered,
                                List<String> criticalEffects, Boolean effectChainTriggered,
-                               List<String> chainedEffects, List<String> additionalTargetCharacterSheetIds) {
+                               List<String> chainedEffects, List<String> additionalTargetCharacterSheetIds,
+                               String projectileTemplate, String projectileName) {
+
+    /**
+     * The shape before core 0.1.6.6 — no projectile. projectileTemplate is the fired {@code ProjectileItem} constant's
+     * name (an Arco's Flecha, a Besta's Virote), for the combat log; {@code null} for an attack firing nothing.
+     */
+    public AttackDetailsDto(String weaponItemId, String weaponName, String weaponCategory, String spellKey,
+                            Integer criticalMargin, Integer requiredTotal, Boolean criticalEffectTriggered,
+                            List<String> criticalEffects, Boolean effectChainTriggered, List<String> chainedEffects,
+                            List<String> additionalTargetCharacterSheetIds) {
+        this(weaponItemId, weaponName, weaponCategory, spellKey, criticalMargin, requiredTotal,
+                criticalEffectTriggered, criticalEffects, effectChainTriggered, chainedEffects,
+                additionalTargetCharacterSheetIds, null, null);
+    }
 }

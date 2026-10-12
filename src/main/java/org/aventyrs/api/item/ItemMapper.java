@@ -116,12 +116,12 @@ final class ItemMapper {
     static PowerStoneEntry toPowerStoneEntry(PowerStoneDto powerStone) {
         return powerStone == null ? null
                 : new PowerStoneEntry(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
-                        powerStone.improvement());
+                        powerStone.improvement(), powerStone.remainingCharges(), powerStone.lastChanceUsed());
     }
 
     static PowerStoneDto toPowerStoneDto(PowerStoneEntry powerStone) {
         return powerStone == null ? null
                 : new PowerStoneDto(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
-                        powerStone.improvement());
+                        powerStone.improvement(), powerStone.remainingCharges(), powerStone.lastChanceUsed());
     }
 }

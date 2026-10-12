@@ -65,3 +65,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/022-character-alignment-tendencia.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/023-items-remaining.yaml
+      relativeToChangelogFile: false

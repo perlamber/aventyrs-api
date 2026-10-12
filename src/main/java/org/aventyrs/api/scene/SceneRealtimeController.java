@@ -47,6 +47,7 @@ import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
+import org.aventyrs.api.scene.dto.PowerStoneEventMessage;
 import org.aventyrs.api.scene.dto.SpellLandedMessage;
 import org.aventyrs.api.scene.dto.SubordinateChangeMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintMessage;
@@ -164,6 +165,10 @@ public class SceneRealtimeController {
                         message.restLockedHitPoints(), message.subordinates());
                 if (message.bleedingEffects() != null) {
                     characterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
+                if (message.powerStoneCombatState() != null) {
+                    characterSheetService.updatePowerStoneCombatState(message.characterSheetId(),
+                            message.powerStoneCombatState());
                 }
             }
             messagingTemplate.convertAndSend(
@@ -494,6 +499,18 @@ public class SceneRealtimeController {
         messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/spells", message);
         analytics.record(SPELL_LANDED, sceneId, message.casterCharacterSheetId(),
                 List.of(message.targetCharacterSheetId()), message);
+    }
+
+    /**
+     * A Pedra do Poder bound, removed, lapsed or spent on Vitalitas Immanis (core 0.1.6.7) — relayed for every client's
+     * log, never persisted here: the Cargas and the host's Dureza ride the sheet, the binding its {@code /status} frame.
+     */
+    @MessageMapping("/scenes/{sceneId}/power-stones")
+    public void powerStone(@DestinationVariable String sceneId, @Payload PowerStoneEventMessage message) {
+        if (message == null || message.characterSheetId() == null || message.action() == null) {
+            return;
+        }
+        messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/power-stones", message);
     }
 
     @MessageMapping("/scenes/{sceneId}/ego-grants")

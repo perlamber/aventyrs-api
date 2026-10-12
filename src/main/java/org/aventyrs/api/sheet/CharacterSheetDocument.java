@@ -128,4 +128,10 @@ public class CharacterSheetDocument {
      * the client that ends a Sessão, written by the PUT only when sent. {@code null} on older documents, read as 0.
      */
     private Integer completedSessions;
+
+    /**
+     * The running Vinculações and item Resfriamentos (core 0.1.6.7) — combat-scoped, written by the live status path
+     * only when sent. {@code null} on older documents, read as none.
+     */
+    private List<org.aventyrs.api.sheet.dto.PowerStoneCombatDto> powerStoneCombatState;
 }
