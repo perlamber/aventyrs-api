@@ -23,18 +23,32 @@ package org.aventyrs.api.scene.dto;
  *                                 {@code null} when none fired
  * @param criticalEffects          the core {@code CriticalEffectType} names that fired on this target, in chain
  *                                 order — the owner rebuilds and applies them to the real sheet; {@code null} for none
+ * @param bypassedReductions       the core {@code BypassedReduction} names the hit ignores (a Benção Vulcana weapon's
+ *                                 RD, its Corrente's RE and RM — core 0.1.6.9), or {@code null} for none
+ * @param additionalElement        the core {@code ElementalType} the hit deals on top of its own type (a Benção
+ *                                 Elemental weapon), or {@code null}
  */
 public record AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
                                boolean ignoreDamageReduction, boolean halved, String damageType,
                                String elementalType, String sourceKind, String sourceRef, Boolean wasCritical,
-                               String criticalResult, java.util.List<String> criticalEffects) {
+                               String criticalResult, java.util.List<String> criticalEffects,
+                               java.util.List<String> bypassedReductions, String additionalElement) {
+
+    /** Without the weapon's mitigation bypass and added element — every hit before core 0.1.6.9. */
+    public AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
+            boolean ignoreDamageReduction, boolean halved, String damageType, String elementalType,
+            String sourceKind, String sourceRef, Boolean wasCritical, String criticalResult,
+            java.util.List<String> criticalEffects) {
+        this(attackerCharacterSheetId, targetCharacterSheetId, rawDamage, ignoreDamageReduction, halved, damageType,
+                elementalType, sourceKind, sourceRef, wasCritical, criticalResult, criticalEffects, null, null);
+    }
 
     /** Without the Efeitos Críticos — a hit that carries damage only. */
     public AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
             boolean ignoreDamageReduction, boolean halved, String damageType, String elementalType,
             String sourceKind, String sourceRef, Boolean wasCritical) {
         this(attackerCharacterSheetId, targetCharacterSheetId, rawDamage, ignoreDamageReduction, halved, damageType,
-                elementalType, sourceKind, sourceRef, wasCritical, null, null);
+                elementalType, sourceKind, sourceRef, wasCritical, null, null, null, null);
     }
 
     /** Whether this hit carries anything for the owner to apply: damage, or an Efeito Crítico. */

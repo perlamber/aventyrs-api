@@ -14,9 +14,9 @@ import org.aventyrs.core.magic.ElementalType;
  *
  * <p>{@code selectedDefense} is set only for {@code DefensiveImprovement#CAMADA_DE_REFORCO} on a
  * non-shield host, {@code selectedElementalType} only for {@code
- * DefensiveImprovement#BENCAO_ELEMENTAL}. An offensive Aprimoramento records no choice at all —
- * core deliberately drops {@code OffensiveImprovement#BENCAO_ELEMENTAL}'s element, having nothing
- * that reads it — so both are always {@code null} on a weapon's Aprimoramento.
+ * DefensiveImprovement#BENCAO_ELEMENTAL} and, since core 0.1.6.9, {@code
+ * OffensiveImprovement#BENCAO_ELEMENTAL} — the element a weapon's hits now deal on top of their own
+ * type. {@code selectedDefense} is always {@code null} on a weapon's Aprimoramento.
  */
 public record ItemImprovementDto(
         @NotBlank String definition,

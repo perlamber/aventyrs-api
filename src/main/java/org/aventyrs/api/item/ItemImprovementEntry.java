@@ -13,8 +13,8 @@ import org.aventyrs.core.magic.ElementalType;
  *
  * <p>{@code selectedDefense} is set only for {@code DefensiveImprovement#CAMADA_DE_REFORCO} on a
  * non-shield host, {@code selectedElementalType} only for {@code
- * DefensiveImprovement#BENCAO_ELEMENTAL} — {@code null} otherwise, and always {@code null} for an
- * offensive entry.
+ * DefensiveImprovement#BENCAO_ELEMENTAL} or (core 0.1.6.9) {@code OffensiveImprovement#BENCAO_ELEMENTAL}
+ * — {@code null} otherwise. No migration: an older offensive Benção Elemental simply has no element.
  */
 public record ItemImprovementEntry(
         String definition,
