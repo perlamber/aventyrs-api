@@ -102,14 +102,16 @@ final class ItemMapper {
     static List<ItemImprovementEntry> toImprovementEntries(List<ItemImprovementDto> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementEntry(improvement.definition(),
-                        improvement.selectedDefense(), improvement.selectedElementalType()))
+                        improvement.selectedDefense(), improvement.selectedElementalType(),
+                        improvement.selectedTerrain()))
                 .toList();
     }
 
     static List<ItemImprovementDto> toImprovementDtos(List<ItemImprovementEntry> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementDto(improvement.definition(),
-                        improvement.selectedDefense(), improvement.selectedElementalType()))
+                        improvement.selectedDefense(), improvement.selectedElementalType(),
+                        improvement.selectedTerrain()))
                 .toList();
     }
 

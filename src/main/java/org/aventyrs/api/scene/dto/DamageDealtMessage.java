@@ -22,9 +22,19 @@ package org.aventyrs.api.scene.dto;
  * @param wasCritical             whether the hit was a critical one, or {@code null} when unknown
  * @param turnNumber              the Rodada it landed in
  * @param hitPointsSpentAfter     the target's {@code hitPointsSpent} once it landed, or {@code null}
+ * @param sanctity              the core {@code DamageSanctity} name (Profano, Sagrado, Umbral), or {@code null}
  */
 public record DamageDealtMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
                                  int finalDamage, boolean ignoreDamageReduction, String damageType,
                                  String elementalType, String sourceKind, String sourceRef, Boolean wasCritical,
-                                 int turnNumber, Integer hitPointsSpentAfter) {
+                                 int turnNumber, Integer hitPointsSpentAfter, String sanctity) {
+
+    /** Without the hit's sanctity — every report before core 0.1.6.11. */
+    public DamageDealtMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
+                              int finalDamage, boolean ignoreDamageReduction, String damageType, String elementalType,
+                              String sourceKind, String sourceRef, Boolean wasCritical, int turnNumber,
+                              Integer hitPointsSpentAfter) {
+        this(attackerCharacterSheetId, targetCharacterSheetId, rawDamage, finalDamage, ignoreDamageReduction,
+                damageType, elementalType, sourceKind, sourceRef, wasCritical, turnNumber, hitPointsSpentAfter, null);
+    }
 }

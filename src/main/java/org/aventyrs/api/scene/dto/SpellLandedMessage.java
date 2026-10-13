@@ -26,12 +26,27 @@ import java.util.List;
  *                      0.1.6.2)
  * @param damageType    that damage's {@code DamageType} name, or {@code null}
  * @param manaSpent     the PM the cast cost — what a negation recovers — or {@code null} (client 0.1.6.2)
+ * @param elementalType that damage's {@code ElementalType} name — a Mágico or Elemental hit's element — or {@code
+ *                      null} (core 0.1.6.11: it was dropped before, failing an elemental Magia's descriptor)
+ * @param sanctity      that damage's {@code DamageSanctity} name, or {@code null}
  */
 public record SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
                                  String targetCharacterSheetId, boolean hostile, int healingBonus, Integer chainDie,
                                  List<Integer> castDice, List<Integer> criticalDice, Integer fixedHealing,
                                  String chosenAttribute, Integer durationRounds, boolean alternateChain,
-                                 Integer rawDamage, String damageType, Integer manaSpent) {
+                                 Integer rawDamage, String damageType, Integer manaSpent, String elementalType,
+                                 String sanctity) {
+
+    /** Without the damage's element and sanctity — every landing before core 0.1.6.11. */
+    public SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
+                              String targetCharacterSheetId, boolean hostile, int healingBonus, Integer chainDie,
+                              List<Integer> castDice, List<Integer> criticalDice, Integer fixedHealing,
+                              String chosenAttribute, Integer durationRounds, boolean alternateChain,
+                              Integer rawDamage, String damageType, Integer manaSpent) {
+        this(casterCharacterSheetId, spellKey, alternate, targetCharacterSheetId, hostile, healingBonus, chainDie,
+                castDice, criticalDice, fixedHealing, chosenAttribute, durationRounds, alternateChain, rawDamage,
+                damageType, manaSpent, null, null);
+    }
 
     /** A landing whose damage, if any, travels on its own — no Alma de AEther fields (before client 0.1.6.2). */
     public SpellLandedMessage(String casterCharacterSheetId, String spellKey, boolean alternate,
@@ -39,7 +54,8 @@ public record SpellLandedMessage(String casterCharacterSheetId, String spellKey,
                               List<Integer> castDice, List<Integer> criticalDice, Integer fixedHealing,
                               String chosenAttribute, Integer durationRounds, boolean alternateChain) {
         this(casterCharacterSheetId, spellKey, alternate, targetCharacterSheetId, hostile, healingBonus, chainDie,
-                castDice, criticalDice, fixedHealing, chosenAttribute, durationRounds, alternateChain, null, null, null);
+                castDice, criticalDice, fixedHealing, chosenAttribute, durationRounds, alternateChain, null, null, null,
+                null, null);
     }
 
     /** A landing with an Atributo pick and no Duração or Corrente choice. */
