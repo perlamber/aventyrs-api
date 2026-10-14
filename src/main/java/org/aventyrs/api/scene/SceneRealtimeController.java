@@ -50,6 +50,7 @@ import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
 import org.aventyrs.api.scene.dto.PowerStoneEventMessage;
 import org.aventyrs.api.scene.dto.SpellLandedMessage;
+import org.aventyrs.api.scene.dto.CombatantActionMessage;
 import org.aventyrs.api.scene.dto.HazardMessage;
 import org.aventyrs.api.scene.dto.ReactionAnswerMessage;
 import org.aventyrs.api.scene.dto.ReactionWindowCloseMessage;
@@ -535,6 +536,25 @@ public class SceneRealtimeController {
         } catch (RuntimeException ex) {
             log.warn("Rejected hazard in scene {} for participant {}: {}",
                     sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * A combatant declaring an action (core 0.1.6.21) — relayed so every other table logs it and a Preparação's holder
+     * may react from the history. Never persisted, like {@link #ping}; membership of the actor is asserted and a
+     * malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/combatant-actions")
+    public void combatantAction(@DestinationVariable String sceneId, @Payload CombatantActionMessage message) {
+        if (message == null || !message.isWellFormed()) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.actorCharacterSheetId());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combatant-actions", message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected combatant action in scene {} for participant {}: {}",
+                    sceneId, message.actorCharacterSheetId(), ex.getMessage());
         }
     }
 
