@@ -225,8 +225,13 @@ public class SceneService {
         boolean wasSummon = summons.removeIf(summon -> summon.summonId().equals(characterSheetId));
         List<String> ownSummons = summons.stream()
                 .filter(summon -> summon.casterCharacterSheetId().equals(characterSheetId))
+                .filter(summon -> !summon.raisedFromCorpse())
                 .map(SceneSummonEntry::summonId)
                 .toList();
+        // A body a raised undead stood in stays behind when its caster leaves (core 0.1.6.24).
+        summons.stream()
+                .filter(summon -> summon.casterCharacterSheetId().equals(characterSheetId) && summon.raisedFromCorpse())
+                .forEach(summon -> monsterSheetService.markCorpse(summon.summonId()));
         summons.removeIf(summon -> summon.casterCharacterSheetId().equals(characterSheetId));
         document.setSummons(summons);
         document.setSummonSpawners(spawnersOf(document).stream()
@@ -289,18 +294,88 @@ public class SceneService {
      */
     public SceneParticipantResponse addSummon(String id, org.aventyrs.api.scene.dto.SummonCreateRequest request) {
         SceneDocument document = findOrThrow(id);
-        SceneParticipantEntry entry = placeSummon(document, request.summonId(), request.casterCharacterSheetId(),
-                new org.aventyrs.api.monster.SummonEntry(request.kind(), request.conjuradorManaGraduation(),
-                        request.powers() == null ? List.of() : request.powers(), request.casterCharacterSheetId(),
-                        request.enhancement(), request.familiar()),
-                request.exclusivityGroup(), request.rounds(), request.concentration(), request.position());
+        org.aventyrs.api.monster.SummonEntry summon = new org.aventyrs.api.monster.SummonEntry(request.kind(),
+                request.conjuradorManaGraduation(), request.powers() == null ? List.of() : request.powers(),
+                request.casterCharacterSheetId(), request.enhancement(), request.familiar(), request.bodySize(),
+                request.butcher());
+        SceneParticipantEntry entry = request.corpseParticipantId() == null
+                ? placeSummon(document, request.summonId(), request.casterCharacterSheetId(), summon,
+                        request.exclusivityGroup(), request.rounds(), request.concentration(), request.position())
+                : raiseFromCorpse(document, request, summon);
         repository.save(document);
         return toParticipantResponse(entry);
+    }
+
+    /**
+     * Reanimar / Criar Carniçal (core 0.1.6.24, table rulings 2026-10-14): the corpse leaves the Scene — a PC's sheet is
+     * kept, a fallen invocação's body is spent into the new one — and the undead takes its square, carrying the body's
+     * raise count plus one. A body raised {@code RaiseDeadService#MAX_RAISES} times is refused. Whether it is a body at
+     * all is judged by the caster's core ({@code RaiseDeadService#requireRaisable}).
+     */
+    private SceneParticipantEntry raiseFromCorpse(SceneDocument document,
+            org.aventyrs.api.scene.dto.SummonCreateRequest request, org.aventyrs.api.monster.SummonEntry summon) {
+        String corpseId = request.corpseParticipantId();
+        SceneParticipantEntry corpse = document.getParticipants().stream()
+                .filter(entry -> entry.characterSheetId().equals(corpseId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Corpse not in scene: " + corpseId));
+        if (summonsOf(document).stream().anyMatch(held -> held.summonId().equals(corpseId))) {
+            throw new IllegalOperationException(TranslatableMessages.RAISE_REQUIRES_CORPSE);
+        }
+        java.util.Optional<org.aventyrs.api.monster.MonsterSheetDocument> corpseSheet =
+                monsterSheetRepository.findById(corpseId);
+        int timesRaised = corpseSheet.map(org.aventyrs.api.monster.MonsterSheetDocument::getTimesRaised)
+                .orElse(null) == null ? 0 : corpseSheet.get().getTimesRaised();
+        if (timesRaised >= org.aventyrs.core.magic.invocation.RaiseDeadService.MAX_RAISES) {
+            throw new IllegalOperationException(TranslatableMessages.CORPSE_EXHAUSTED);
+        }
+        removeParticipantEntry(document, corpseId);
+        if (corpseSheet.map(org.aventyrs.api.monster.MonsterSheetDocument::getSummon).isPresent()) {
+            deleteSummonSheet(corpseId);
+        }
+        return placeSummon(document, request.summonId(), request.casterCharacterSheetId(), summon,
+                request.exclusivityGroup(), request.rounds(), request.concentration(), corpse.position(),
+                new Placement(timesRaised + 1, true, false, null, false, null));
+    }
+
+    /**
+     * How a summon is placed beyond the ordinary (core 0.1.6.26): the body's raise count, whether it was raised from a
+     * corpse, whether it obeys nobody (then owned by ownerPlayerId, standing in group), and whether it waits for the
+     * next Rodada to act.
+     */
+    private record Placement(int timesRaised, boolean raisedFromCorpse, boolean uncontrolled, UUID group,
+                             boolean deferred, String ownerPlayerId) {
+        static final Placement ORDINARY = new Placement(0, false, false, null, false, null);
+    }
+
+    /**
+     * Sends a summon away the way core's {@code Scene#dismissSummon} does (core 0.1.6.24): one raised from a corpse leaves
+     * its body instead — the record goes, the sheet stays where it stood, marked a corpse.
+     */
+    private void dropSummon(SceneDocument document, String summonId) {
+        java.util.Optional<SceneSummonEntry> held = summonsOf(document).stream()
+                .filter(summon -> summon.summonId().equals(summonId))
+                .findFirst();
+        if (held.isPresent() && held.get().raisedFromCorpse()) {
+            document.setSummons(summonsOf(document).stream()
+                    .filter(summon -> !summon.summonId().equals(summonId))
+                    .toList());
+            monsterSheetService.markCorpse(summonId);
+            return;
+        }
+        removeFromDocument(document, summonId);
     }
 
     private SceneParticipantEntry placeSummon(SceneDocument document, String summonId, String casterId,
             org.aventyrs.api.monster.SummonEntry summon, String exclusivityGroup, Integer rounds,
             boolean concentration, GridPosition requested) {
+        return placeSummon(document, summonId, casterId, summon, exclusivityGroup, rounds, concentration, requested,
+                Placement.ORDINARY);
+    }
+
+    private SceneParticipantEntry placeSummon(SceneDocument document, String summonId, String casterId,
+            org.aventyrs.api.monster.SummonEntry summon, String exclusivityGroup, Integer rounds,
+            boolean concentration, GridPosition requested, Placement placement) {
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int casterIndex = indexOfParticipant(participants, casterId);
         SceneParticipantEntry caster = participants.get(casterIndex);
@@ -309,11 +384,26 @@ public class SceneService {
             summons.replaceAll(held -> held.casterCharacterSheetId().equals(casterId)
                     && exclusivityGroup.equals(held.exclusivityGroup()) ? held.markedReplaced() : held);
         }
-        monsterSheetService.createSummon(summonId, summon, playerOf(casterId));
+        monsterSheetService.createSummon(summonId, placement.uncontrolled() ? summon.asUncontrolled() : summon,
+                placement.ownerPlayerId() != null ? placement.ownerPlayerId() : playerOf(casterId),
+                placement.timesRaised());
 
         GridPosition position = requested != null && isFree(participants, requested)
                 ? requested : freePositionNear(participants, caster.position());
-        SceneParticipantEntry entry = new SceneParticipantEntry(summonId, caster.effectiveInitiative(), caster.group(),
+        UUID group = placement.group() != null ? placement.group() : caster.group();
+        if (placement.deferred()) {
+            // "Só podem agir na Rodada seguinte a sua aparição" — waiting at the end, like any mid-Rodada joiner.
+            SceneParticipantEntry waiting = new SceneParticipantEntry(summonId, caster.effectiveInitiative(), group,
+                    position, document.getCurrentRound() + 1, null);
+            participants.add(waiting);
+            summons.add(new SceneSummonEntry(summonId, casterId, exclusivityGroup, concentration ? null : rounds,
+                    concentration ? (rounds == null ? 0 : rounds) : null, false, placement.raisedFromCorpse(),
+                    placement.uncontrolled()));
+            document.setParticipants(participants);
+            document.setSummons(summons);
+            return waiting;
+        }
+        SceneParticipantEntry entry = new SceneParticipantEntry(summonId, caster.effectiveInitiative(), group,
                 position, caster.joinedAtRound(), null);
         // After the caster and the summons already behind it, in the order they were invoked.
         Set<String> casterSummons = summons.stream()
@@ -330,7 +420,8 @@ public class SceneService {
             document.setCurrentIndex(document.getCurrentIndex() + 1);
         }
         summons.add(new SceneSummonEntry(summonId, casterId, exclusivityGroup, concentration ? null : rounds,
-                concentration ? (rounds == null ? 0 : rounds) : null, false));
+                concentration ? (rounds == null ? 0 : rounds) : null, false, placement.raisedFromCorpse(),
+                placement.uncontrolled()));
         document.setParticipants(participants);
         document.setSummons(summons);
         return entry;
@@ -339,8 +430,26 @@ public class SceneService {
     /** Sends an invocation away — it fell, or its caster dismissed it. */
     public void dismissSummon(String id, String summonId) {
         SceneDocument document = findOrThrow(id);
-        removeFromDocument(document, summonId);
+        dropSummon(document, summonId);
         repository.save(document);
+    }
+
+    /**
+     * An Abantesma was struck (core 0.1.6.25): "quando sofrem danos a Duração da Magia é reduzida em -1 Rodada" — one
+     * Rodada off its record, and it leaves once none is left. Returns whether it left.
+     */
+    public boolean shortenSummon(String id, String summonId) {
+        SceneDocument document = findOrThrow(id);
+        List<SceneSummonEntry> shortened = summonsOf(document).stream()
+                .map(held -> held.summonId().equals(summonId) ? held.shortened() : held)
+                .toList();
+        document.setSummons(shortened);
+        boolean spent = shortened.stream().anyMatch(held -> held.summonId().equals(summonId) && held.isSpent());
+        if (spent) {
+            dropSummon(document, summonId);
+        }
+        repository.save(document);
+        return spent;
     }
 
     /**
@@ -359,7 +468,7 @@ public class SceneService {
                 .toList();
         document.setSummons(released);
         released.stream().filter(SceneSummonEntry::isSpent).map(SceneSummonEntry::summonId).toList()
-                .forEach(summonId -> removeFromDocument(document, summonId));
+                .forEach(summonId -> dropSummon(document, summonId));
         repository.save(document);
         return true;
     }
@@ -370,20 +479,110 @@ public class SceneService {
         SceneDocument document = findOrThrow(id);
         SceneSummonSpawnerEntry spawner = new SceneSummonSpawnerEntry(request.casterCharacterSheetId(),
                 request.rounds(), request.kind(), request.conjuradorManaGraduation(),
-                request.powers() == null ? List.of() : request.powers(), request.summonRounds(), request.enhancement());
+                request.powers() == null ? List.of() : request.powers(), request.summonRounds(), request.enhancement(),
+                request.rule(), request.summonLimit(), UUID.randomUUID().toString(), List.of(), null);
+        SpawnResult first = spawn(document, spawner);
         List<SceneSummonSpawnerEntry> spawners = new ArrayList<>(spawnersOf(document));
-        spawners.add(spawner);
+        spawners.add(first.spawner());
         document.setSummonSpawners(spawners);
-        SceneParticipantEntry first = spawn(document, spawner);
         repository.save(document);
-        return toParticipantResponse(first);
+        return first.placed().isEmpty() ? null : toParticipantResponse(first.placed().get(0));
     }
 
-    private SceneParticipantEntry spawn(SceneDocument document, SceneSummonSpawnerEntry spawner) {
-        return placeSummon(document, UUID.randomUUID().toString(), spawner.casterCharacterSheetId(),
-                new org.aventyrs.api.monster.SummonEntry(spawner.kind(), spawner.conjuradorManaGraduation(),
-                        spawner.powers(), spawner.casterCharacterSheetId(), spawner.enhancement(), null),
-                null, spawner.summonRounds(), false, null);
+    /** What one firing of a spawner placed, and the spawner with its record of them. */
+    private record SpawnResult(SceneSummonSpawnerEntry spawner, List<SceneParticipantEntry> placed) {
+    }
+
+    /**
+     * One firing of spawner: Totem de Gaea's single creature, Festim dos Mortos' roll on core's {@code FestimDosMortos}
+     * table (past the caster's Foco or under Horda Faminta uncontrolled — the GM's, in the spawner's hostile group —
+     * every one waiting for the next Rodada), or Cuspidor de Pragas' two Deviante Carrascos on an odd Rodada (core
+     * 0.1.6.26).
+     */
+    private SpawnResult spawn(SceneDocument document, SceneSummonSpawnerEntry spawner) {
+        String casterId = spawner.casterCharacterSheetId();
+        List<SceneParticipantEntry> placed = new ArrayList<>();
+        Integer face = null;
+        if (spawner.isFestim()) {
+            face = diceRoller.rollD6();
+            int room = Math.max(0, (spawner.summonLimit() == null ? 0 : spawner.summonLimit())
+                    - controlledSummonCount(document, casterId));
+            String gm = null;
+            for (org.aventyrs.core.magic.invocation.FestimDosMortos.Spawn rising : org.aventyrs.core.magic.invocation
+                    .FestimDosMortos.spawnsFor(face, SceneSummonSpawnerEntry.FESTIM_HORDA.equals(spawner.rule()), room)) {
+                boolean uncontrolled = rising.uncontrolled() || room <= 0;
+                if (!uncontrolled) {
+                    room--;
+                } else if (gm == null) {
+                    gm = gmPlayerId().orElse(playerOf(casterId));
+                }
+                placed.add(placeSummon(document, UUID.randomUUID().toString(), casterId,
+                        new org.aventyrs.api.monster.SummonEntry(rising.kind().name(),
+                                spawner.conjuradorManaGraduation(), List.of(), casterId),
+                        null, null, false, null,
+                        new Placement(0, false, uncontrolled,
+                                uncontrolled ? UUID.fromString(spawner.hostileGroup()) : null, true,
+                                uncontrolled ? gm : null)));
+            }
+        } else if (spawner.isCombatScoped()) {
+            // "a Cada Rodada Ímpar" counted from 1 — server Rodadas 0, 2, 4…
+            if (document.getCurrentRound() % 2 == 0) {
+                for (int i = 0; i < org.aventyrs.core.monster.model.escolhidodemacaria.EscolhidoDeMacariaAbility
+                        .PLAGUE_SPAWN_COUNT; i++) {
+                    placed.add(placeSummon(document, UUID.randomUUID().toString(), casterId,
+                            new org.aventyrs.api.monster.SummonEntry(org.aventyrs.api.monster.SummonEntry.CARRASCO_PREFIX
+                                    + org.aventyrs.core.monster.MonsterCategory.DEVIANTE.name(), 0, List.of(), casterId),
+                            null, null, false, null));
+                }
+            }
+        } else {
+            placed.add(placeSummon(document, UUID.randomUUID().toString(), casterId,
+                    new org.aventyrs.api.monster.SummonEntry(spawner.kind(), spawner.conjuradorManaGraduation(),
+                            spawner.powers(), casterId, spawner.enhancement(), null),
+                    null, spawner.summonRounds(), false, null));
+        }
+        return new SpawnResult(spawner.withSpawned(placed.stream().map(SceneParticipantEntry::characterSheetId)
+                .toList(), face), placed);
+    }
+
+    /** The invocações casterId controls in document — every summon of theirs but the uncontrolled and the replaced. */
+    private static int controlledSummonCount(SceneDocument document, String casterId) {
+        return (int) summonsOf(document).stream()
+                .filter(held -> held.casterCharacterSheetId().equals(casterId) && !held.uncontrolled()
+                        && !held.replaced())
+                .count();
+    }
+
+    /** A GM's player id, who owns what obeys nobody; empty when the table has none. */
+    private java.util.Optional<String> gmPlayerId() {
+        org.aventyrs.api.player.PlayerDocument gm = mongoTemplate.findOne(
+                org.springframework.data.mongodb.core.query.Query.query(
+                        org.springframework.data.mongodb.core.query.Criteria.where("role")
+                                .is(org.aventyrs.api.player.PlayerRole.GM)),
+                org.aventyrs.api.player.PlayerDocument.class);
+        return java.util.Optional.ofNullable(gm).map(org.aventyrs.api.player.PlayerDocument::getId);
+    }
+
+    /** spawner stops: its creatures still standing go with it when it takes them (Festim, Cuspidor). */
+    private void endSpawner(SceneDocument document, SceneSummonSpawnerEntry spawner) {
+        if (!spawner.takesItsSummons()) {
+            return;
+        }
+        for (String summonId : spawner.spawnedOrEmpty()) {
+            if (summonsOf(document).stream().anyMatch(held -> held.summonId().equals(summonId))) {
+                dropSummon(document, summonId);
+            }
+        }
+    }
+
+    /** The server's dice, for a spawner that rolls (Festim dos Mortos); replaceable in tests. */
+    private org.aventyrs.core.util.DiceRoller diceRoller = () -> RANDOM.nextInt(6) + 1;
+
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+    /** Test seam: the dice a Festim dos Mortos rolls. */
+    void setDiceRoller(org.aventyrs.core.util.DiceRoller roller) {
+        this.diceRoller = roller;
     }
 
     /** Whose player a combatant belongs to — the one who controls what they invoke. */
@@ -830,6 +1029,12 @@ public class SceneService {
         }
 
         document.setCombatScene(false);
+        // "Quando a Cena de Combate termina … os mortos invocados são destruídos" (Cuspidor de Pragas, core 0.1.6.26).
+        List<SceneSummonSpawnerEntry> combatScoped = spawnersOf(document).stream()
+                .filter(SceneSummonSpawnerEntry::isCombatScoped).toList();
+        document.setSummonSpawners(spawnersOf(document).stream()
+                .filter(spawner -> !spawner.isCombatScoped()).toList());
+        combatScoped.forEach(spawner -> endSpawner(document, spawner));
         resetRotation(document, Map.of());
         return toResponse(repository.save(document));
     }
@@ -896,7 +1101,7 @@ public class SceneService {
                     .map(SceneSummonEntry::summonId)
                     .toList();
             for (String summonId : replaced) {
-                removeFromDocument(document, summonId);
+                dropSummon(document, summonId);
                 rosterChanged = true;
             }
         }
@@ -943,24 +1148,31 @@ public class SceneService {
         List<SceneSummonEntry> ticked = summonsOf(document).stream().map(SceneSummonEntry::ticked).toList();
         document.setSummons(ticked);
         for (SceneSummonEntry spent : ticked.stream().filter(SceneSummonEntry::isSpent).toList()) {
-            removeFromDocument(document, spent.summonId());
+            dropSummon(document, spent.summonId());
             changed = true;
         }
         List<SceneSummonSpawnerEntry> standing = new ArrayList<>();
         for (SceneSummonSpawnerEntry spawner : spawnersOf(document)) {
             SceneSummonSpawnerEntry next = spawner.ticked();
-            if (next.remainingRounds() > 0) {
+            if (next.isSpent()) {
+                endSpawner(document, next);
+                changed = true;
+            } else {
                 standing.add(next);
             }
         }
-        document.setSummonSpawners(standing);
+        List<SceneSummonSpawnerEntry> fired = new ArrayList<>();
         for (SceneSummonSpawnerEntry spawner : standing) {
             if (document.getParticipants().stream()
                     .anyMatch(entry -> entry.characterSheetId().equals(spawner.casterCharacterSheetId()))) {
-                spawn(document, spawner);
-                changed = true;
+                SpawnResult result = spawn(document, spawner);
+                fired.add(result.spawner());
+                changed |= !result.placed().isEmpty();
+            } else {
+                fired.add(spawner);
             }
         }
+        document.setSummonSpawners(fired);
         return changed;
     }
 
