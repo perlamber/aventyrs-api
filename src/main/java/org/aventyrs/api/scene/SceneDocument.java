@@ -144,4 +144,13 @@ public class SceneDocument {
 
     /** What invokes a creature each Rodada (client 0.0.95) — {@code null} on older documents. */
     private List<SceneSummonSpawnerEntry> summonSpawners;
+
+    /**
+     * The hexes the GM painted with terrain (core 0.1.6.16) — water, climbable faces, obstacles, ground levels. {@code
+     * null} on older documents, read as none; {@link #difficultTerrain} keeps the plain Terreno Difícil painted before.
+     */
+    private List<SceneTerrainCellEntry> terrainCells;
+
+    /** The Reação window open right now (core 0.1.6.17), {@code null} when none is. */
+    private SceneReactionWindowEntry reactionWindow;
 }

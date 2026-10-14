@@ -508,6 +508,72 @@ class SceneServiceIntegrationTest {
         assertEquals(List.of(new GridPositionDto(5, 5)), sceneService.get(sceneId).difficultTerrain());
     }
 
+    /** Core 0.1.6.16: a terrain template paints water and a ledge, a plain one clears them, both survive a reload. */
+    @Test
+    void paintedTerrainCellsPersistAndClear() {
+        String sceneId = newScene("Rio");
+        org.aventyrs.api.scene.dto.TerrainCellDto water =
+                new org.aventyrs.api.scene.dto.TerrainCellDto(0, 0, "WATER", false, 0, "HARD");
+        org.aventyrs.api.scene.dto.TerrainCellDto plain =
+                new org.aventyrs.api.scene.dto.TerrainCellDto(0, 0, "GROUND", false, 0, null);
+
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(4, 4)), true);
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(4, 4), new GridPosition(5, 5)), false, water);
+        sceneService.paintTerrain(sceneId, List.of(new GridPosition(5, 5)), false, plain);
+
+        var response = sceneService.get(sceneId);
+        assertEquals(List.of(), response.difficultTerrain(), "a template replaces the plain paint under it");
+        assertEquals(List.of(new org.aventyrs.api.scene.dto.TerrainCellDto(4, 4, "WATER", false, 0, "HARD")),
+                response.terrainCells());
+    }
+
+    /** Core 0.1.6.17: a Reação window persists until every reactor answers, then clears. */
+    @Test
+    void aReactionWindowClosesOnceEveryReactorAnswers() {
+        String sceneId = newScene("Ponte");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 12, UUID.randomUUID()));
+
+        var opened = sceneService.openReactionWindow(sceneId, new org.aventyrs.api.scene.dto.ReactionWindowOpenMessage(
+                "MOVEMENT", characterSheetId1, List.of(characterSheetId2), new GridPositionDto(4, 4), 0, "passa"));
+        assertFalse(opened.closed());
+        assertEquals(opened.windowId(), sceneService.get(sceneId).reactionWindow().windowId(),
+                "a reconnecting client replays it");
+
+        var answered = sceneService.answerReactionWindow(sceneId, new org.aventyrs.api.scene.dto.ReactionAnswerMessage(
+                opened.windowId(), characterSheetId2, "REACT", "DEFENDER_O_PERIMETRO"));
+
+        assertTrue(answered.closed());
+        assertEquals("REACT", answered.answers().get(characterSheetId2));
+        assertNull(sceneService.get(sceneId).reactionWindow());
+    }
+
+    @Test
+    void theGmClosesAReactionWindowNobodyAnswered() {
+        String sceneId = newScene("Ponte");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId2, 12, UUID.randomUUID()));
+        var opened = sceneService.openReactionWindow(sceneId, new org.aventyrs.api.scene.dto.ReactionWindowOpenMessage(
+                "CASTING", characterSheetId1, List.of(characterSheetId2), new GridPositionDto(4, 4), 0, null));
+
+        assertTrue(sceneService.closeReactionWindow(sceneId, opened.windowId()).closed());
+        assertNull(sceneService.get(sceneId).reactionWindow());
+    }
+
+    /** Core 0.1.6.16: a move may carry a height, and a move without one keeps it. */
+    @Test
+    void elevationPersistsAcrossMoves() {
+        String sceneId = newScene("Céu");
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(3, 3), false, 4);
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(3, 4), false, null);
+
+        assertEquals(4, sceneService.get(sceneId).participants().get(0).elevation());
+        sceneService.moveParticipant(sceneId, characterSheetId1, new GridPosition(3, 5), false, 0);
+        assertEquals(0, sceneService.get(sceneId).participants().get(0).elevation());
+    }
+
     /** A document written before difficultTerrain existed has no such field at all. */
     @Test
     void aScenePersistedBeforeTerrenoDificilStillLoads() {

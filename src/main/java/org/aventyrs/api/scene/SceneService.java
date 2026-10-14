@@ -38,6 +38,10 @@ import org.aventyrs.api.scene.dto.SceneParticipantResponse;
 import org.aventyrs.api.scene.dto.SceneResponse;
 import org.aventyrs.api.scene.dto.SceneUpdateRequest;
 import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
+import org.aventyrs.api.scene.dto.TerrainCellDto;
+import org.aventyrs.api.scene.dto.ReactionWindowEvent;
+import org.aventyrs.api.scene.dto.ReactionAnswerMessage;
+import org.aventyrs.api.scene.dto.ReactionWindowOpenMessage;
 import org.aventyrs.api.scene.dto.TurnAdvancedEvent;
 import org.aventyrs.api.monster.MonsterSheetRepository;
 import org.aventyrs.api.sheet.CharacterSheetRepository;
@@ -100,7 +104,7 @@ public class SceneService {
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
                 // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
                 // follows field declaration order.
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
         return toResponse(repository.save(document));
     }
 
@@ -431,6 +435,15 @@ public class SceneService {
      */
     public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition,
                                                  boolean sharesSpace) {
+        return moveParticipant(id, characterSheetId, newPosition, sharesSpace, null);
+    }
+
+    /**
+     * Moves a participant and, when elevation is given, sets its height in UD (core 0.1.6.16) — a flyer rising, a
+     * climber on a wall, a swimmer under water. {@code null} keeps the height it had. Trusted like sharesSpace.
+     */
+    public SceneParticipantEntry moveParticipant(String id, String characterSheetId, GridPosition newPosition,
+                                                 boolean sharesSpace, Integer elevation) {
         SceneDocument document = findOrThrow(id);
         Set<GridPosition> permittedShared = new HashSet<>(sharedPositions(document.getParticipants()));
         if (sharesSpace) {
@@ -440,6 +453,9 @@ public class SceneService {
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         int index = indexOfParticipant(participants, characterSheetId);
         SceneParticipantEntry moved = participants.get(index).withPosition(newPosition);
+        if (elevation != null) {
+            moved = moved.withElevation(elevation == 0 ? null : elevation);
+        }
         participants.set(index, moved);
         requireDistinctPositions(participants, permittedShared);
 
@@ -581,6 +597,9 @@ public class SceneService {
         document.setDifficultTerrain(difficultTerrainOf(document).stream()
                 .filter(cell -> cell.x() < width && cell.y() < height)
                 .toList());
+        document.setTerrainCells(terrainCellsOf(document).stream()
+                .filter(cell -> cell.x() < width && cell.y() < height)
+                .toList());
         repository.save(document);
 
         return new GridResizedEvent(width, height);
@@ -593,6 +612,18 @@ public class SceneService {
      * with no auth here that is a client-side restriction, as for {@link #resizeGrid}.
      */
     public TerrainPaintedEvent paintTerrain(String id, List<GridPosition> cells, boolean difficult) {
+        return paintTerrain(id, cells, difficult, null);
+    }
+
+    /**
+     * The GM paints cells with a terrain template (core 0.1.6.16) — or, with none, marks/clears plain Terreno Difícil
+     * as before. A plain template clears both kinds of paint from the cells. Cells beyond the extent are dropped.
+     */
+    public TerrainPaintedEvent paintTerrain(String id, List<GridPosition> cells, boolean difficult,
+                                            TerrainCellDto template) {
+        if (template != null) {
+            return paintTerrainCells(id, cells, template);
+        }
         SceneDocument document = findOrThrow(id);
         int width = document.getWidth() > 0 ? document.getWidth() : GridPosition.GRID_SIZE;
         int height = document.getHeight() > 0 ? document.getHeight() : GridPosition.GRID_SIZE;
@@ -609,7 +640,117 @@ public class SceneService {
         }
         document.setDifficultTerrain(List.copyOf(painted));
         repository.save(document);
-        return new TerrainPaintedEvent(painted.stream().map(cell -> new GridPositionDto(cell.x(), cell.y())).toList());
+        return terrainEventOf(document);
+    }
+
+    private TerrainPaintedEvent paintTerrainCells(String id, List<GridPosition> cells, TerrainCellDto template) {
+        SceneDocument document = findOrThrow(id);
+        int width = document.getWidth() > 0 ? document.getWidth() : GridPosition.GRID_SIZE;
+        int height = document.getHeight() > 0 ? document.getHeight() : GridPosition.GRID_SIZE;
+        Map<GridPosition, SceneTerrainCellEntry> painted = new LinkedHashMap<>();
+        for (SceneTerrainCellEntry entry : terrainCellsOf(document)) {
+            painted.put(new GridPosition(entry.x(), entry.y()), entry);
+        }
+        Set<GridPosition> difficult = new LinkedHashSet<>(difficultTerrainOf(document));
+        for (GridPosition cell : cells == null ? List.<GridPosition>of() : cells) {
+            if (cell.x() >= width || cell.y() >= height) {
+                continue;
+            }
+            difficult.remove(cell);
+            if (template.isPlain()) {
+                painted.remove(cell);
+            } else {
+                painted.put(cell, new SceneTerrainCellEntry(cell.x(), cell.y(),
+                        template.kind() == null ? "GROUND" : template.kind(), template.difficult(),
+                        template.groundLevel(), template.difficulty()));
+            }
+        }
+        document.setDifficultTerrain(List.copyOf(difficult));
+        document.setTerrainCells(List.copyOf(painted.values()));
+        repository.save(document);
+        return terrainEventOf(document);
+    }
+
+    private static TerrainPaintedEvent terrainEventOf(SceneDocument document) {
+        return new TerrainPaintedEvent(
+                difficultTerrainOf(document).stream().map(cell -> new GridPositionDto(cell.x(), cell.y())).toList(),
+                terrainCellDtosOf(document));
+    }
+
+    /**
+     * Opens a Reação window (core 0.1.6.17), replacing any still open — an action can wait on one window at a time.
+     * The actor and every reactor must be participants; reactors who are the actor are dropped.
+     */
+    public ReactionWindowEvent openReactionWindow(String id, ReactionWindowOpenMessage message) {
+        SceneDocument document = findOrThrow(id);
+        indexOfParticipant(document.getParticipants(), message.actorCharacterSheetId());
+        List<String> reactors = new ArrayList<>();
+        for (String reactor : message.reactorCharacterSheetIds() == null
+                ? List.<String>of() : message.reactorCharacterSheetIds()) {
+            indexOfParticipant(document.getParticipants(), reactor);
+            if (!reactor.equals(message.actorCharacterSheetId()) && !reactors.contains(reactor)) {
+                reactors.add(reactor);
+            }
+        }
+        SceneReactionWindowEntry entry = new SceneReactionWindowEntry(UUID.randomUUID().toString(), message.kind(),
+                message.actorCharacterSheetId(), List.copyOf(reactors),
+                message.position() == null ? 0 : message.position().x(),
+                message.position() == null ? 0 : message.position().y(), message.elevation(), message.description(),
+                Map.of(), Instant.now());
+        boolean closed = entry.isComplete();
+        document.setReactionWindow(closed ? null : entry);
+        repository.save(document);
+        return toWindowEvent(entry, closed);
+    }
+
+    /** Records one reactor's answer; the window closes (and is cleared) once every reactor has answered. */
+    public ReactionWindowEvent answerReactionWindow(String id, ReactionAnswerMessage message) {
+        SceneDocument document = findOrThrow(id);
+        SceneReactionWindowEntry open = document.getReactionWindow();
+        if (open == null || !open.windowId().equals(message.windowId())
+                || !open.reactorIds().contains(message.reactorCharacterSheetId())) {
+            throw new IllegalArgumentException("No such reactor in the open Reação window: "
+                    + message.reactorCharacterSheetId());
+        }
+        Map<String, String> answers = new LinkedHashMap<>(open.answers() == null ? Map.of() : open.answers());
+        answers.put(message.reactorCharacterSheetId(), message.answer());
+        SceneReactionWindowEntry answered = new SceneReactionWindowEntry(open.windowId(), open.kind(), open.actorId(),
+                open.reactorIds(), open.x(), open.y(), open.elevation(), open.description(), Map.copyOf(answers),
+                open.openedAt());
+        boolean closed = answered.isComplete();
+        document.setReactionWindow(closed ? null : answered);
+        repository.save(document);
+        return toWindowEvent(answered, closed);
+    }
+
+    /** The GM's "Pular reações": closes the open window whoever has not answered. */
+    public ReactionWindowEvent closeReactionWindow(String id, String windowId) {
+        SceneDocument document = findOrThrow(id);
+        SceneReactionWindowEntry open = document.getReactionWindow();
+        if (open == null || windowId != null && !open.windowId().equals(windowId)) {
+            throw new IllegalArgumentException("No such open Reação window: " + windowId);
+        }
+        document.setReactionWindow(null);
+        repository.save(document);
+        return toWindowEvent(open, true);
+    }
+
+    private static ReactionWindowEvent toWindowEvent(SceneReactionWindowEntry entry, boolean closed) {
+        return new ReactionWindowEvent(entry.windowId(), entry.kind(), entry.actorId(), entry.reactorIds(),
+                new GridPositionDto(entry.x(), entry.y()), entry.elevation(), entry.description(),
+                entry.answers() == null ? Map.of() : entry.answers(), closed);
+    }
+
+    /** {@code terrainCells}, null-safe — absent on a document persisted before core 0.1.6.16. */
+    private static List<SceneTerrainCellEntry> terrainCellsOf(SceneDocument document) {
+        return document.getTerrainCells() == null ? List.of() : document.getTerrainCells();
+    }
+
+    private static List<TerrainCellDto> terrainCellDtosOf(SceneDocument document) {
+        return terrainCellsOf(document).stream()
+                .map(cell -> new TerrainCellDto(cell.x(), cell.y(), cell.kind(), cell.difficult(), cell.groundLevel(),
+                        cell.difficulty()))
+                .toList();
     }
 
     /** {@code difficultTerrain}, null-safe — absent on a document persisted before it existed. */
@@ -1351,7 +1492,9 @@ public class SceneService {
                         .map(cell -> new GridPositionDto(cell.x(), cell.y()))
                         .toList(),
                 summonsOf(document),
-                spawnersOf(document));
+                spawnersOf(document),
+                terrainCellDtosOf(document),
+                document.getReactionWindow() == null ? null : toWindowEvent(document.getReactionWindow(), false));
     }
 
     /** {@code null} on any document persisted before connections existed. */
@@ -1394,7 +1537,8 @@ public class SceneService {
                 toConcealmentDto(entry.concealment()),
                 entry.initiativeOverride() == null ? null : entry.initiativeOverride().value(),
                 entry.initiativeOverride() == null ? null : entry.initiativeOverride().rodadas(),
-                entry.initiativeOverride() == null ? null : entry.initiativeOverride().started());
+                entry.initiativeOverride() == null ? null : entry.initiativeOverride().started(),
+                entry.elevationOrZero());
     }
 
     private static SceneConcealmentEntry toConcealmentEntry(ConcealmentDto dto) {

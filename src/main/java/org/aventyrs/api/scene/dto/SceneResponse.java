@@ -27,6 +27,8 @@ public record SceneResponse(
         Map<Direction, SceneConnectionResponse> connections,
         List<GridPositionDto> difficultTerrain,
         List<org.aventyrs.api.scene.SceneSummonEntry> summons,
-        List<org.aventyrs.api.scene.SceneSummonSpawnerEntry> summonSpawners
+        List<org.aventyrs.api.scene.SceneSummonSpawnerEntry> summonSpawners,
+        List<TerrainCellDto> terrainCells,
+        ReactionWindowEvent reactionWindow
 ) {
 }

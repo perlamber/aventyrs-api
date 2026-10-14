@@ -14,7 +14,20 @@ import java.util.List;
  */
 public record CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
                                     List<String> frenzyModes, boolean compelled, String riding, boolean ferocious,
-                                    boolean concentrating, List<HeldConditionDto> conditions) {
+                                    boolean concentrating, List<HeldConditionDto> conditions,
+                                    Integer meleeReachUd) {
+
+    /**
+     * A state frame from before core 0.1.6.19 — no melee reach advertised ({@code meleeReachUd}, the UD the
+     * participant's ready melee weapons reach, is what lets another client judge Defender o Perímetro against it).
+     */
+    public CombatantStateMessage(String characterSheetId, String sizeCategory, Integer frenzyRounds,
+            List<String> frenzyModes, boolean compelled, String riding, boolean ferocious, boolean concentrating,
+            List<HeldConditionDto> conditions) {
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, concentrating,
+                conditions, null);
+    }
+
 
     /**
      * A state message from before core 0.1.5. {@code conditions} are the Condições the participant holds

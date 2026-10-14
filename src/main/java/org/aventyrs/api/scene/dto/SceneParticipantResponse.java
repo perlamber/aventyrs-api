@@ -18,6 +18,15 @@ public record SceneParticipantResponse(
         ConcealmentDto concealment,
         Integer initiativeOverride,
         Integer initiativeOverrideRodadas,
-        Boolean initiativeOverrideStarted
+        Boolean initiativeOverrideStarted,
+        int elevation
 ) {
+
+    /** A participant at the baseline. */
+    public SceneParticipantResponse(String characterSheetId, int initiativeValue, UUID group, GridPositionDto position,
+            int joinedAtRound, ConcealmentDto concealment, Integer initiativeOverride, Integer initiativeOverrideRodadas,
+            Boolean initiativeOverrideStarted) {
+        this(characterSheetId, initiativeValue, group, position, joinedAtRound, concealment, initiativeOverride,
+                initiativeOverrideRodadas, initiativeOverrideStarted, 0);
+    }
 }
