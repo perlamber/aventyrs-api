@@ -72,7 +72,7 @@ class SceneTurnOrderIntegrationTest {
     private String join(int initiative) {
         String sheetId = characterSheetService.create(new CharacterSheetCreateRequest(
                 new CharacterDto("Combatant " + initiative, new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.MASCULINO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null,
+                        Sexo.MASCULINO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null),
                 playerId)).id();

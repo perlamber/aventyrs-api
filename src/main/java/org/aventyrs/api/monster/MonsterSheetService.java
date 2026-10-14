@@ -74,7 +74,9 @@ public class MonsterSheetService {
                 request.tokenImageUrl(),
                 null,
                 null,
-                List.of());
+                List.of(),
+                null,
+                null);
         return toResponse(repository.save(document));
     }
 
@@ -83,7 +85,26 @@ public class MonsterSheetService {
      * character} is derived from the creature core rebuilds from summon, as a foe's is from its blueprint.
      */
     public MonsterSheetResponse createSummon(String id, SummonEntry summon, String playerId) {
-        MonsterSheet sheet = summonTemplate(summon).spawn(new Player());
+        return createSummon(id, summon, playerId, 0);
+    }
+
+    /**
+     * Marks the sheet id as a body left behind (core 0.1.6.24) — a corpse-raised undead that fell or whose Magia ended,
+     * raisable again. Nothing happens to a sheet that no longer exists.
+     */
+    public void markCorpse(String id) {
+        repository.findById(id).ifPresent(document -> {
+            document.setCorpse(true);
+            repository.save(document);
+        });
+    }
+
+    /**
+     * {@link #createSummon(String, SummonEntry, String)} for a body raised timesRaised times (core 0.1.6.24) — an undead
+     * raised from a corpse carries the corpse's count plus one.
+     */
+    public MonsterSheetResponse createSummon(String id, SummonEntry summon, String playerId, int timesRaised) {
+        MonsterSheet sheet = summon.spawn(new Player());
         MonsterSheetDocument document = new MonsterSheetDocument(
                 id,
                 null,
@@ -104,13 +125,12 @@ public class MonsterSheetService {
                 null,
                 summon,
                 null,
-                List.of());
+                List.of(),
+                timesRaised,
+                null);
         return toResponse(repository.save(document));
     }
 
-    private static org.aventyrs.core.monster.SummonedMonsterTemplate summonTemplate(SummonEntry summon) {
-        return summon.toTemplate();
-    }
 
     public MonsterSheetResponse get(String id) {
         return toResponse(findOrThrow(id));
@@ -227,7 +247,7 @@ public class MonsterSheetService {
         // An invoked creature has no blueprint: core rebuilds it from its summon descriptor.
         SummonEntry summon = document.getSummon();
         MonsterBlueprint blueprint = summon == null ? MonsterBlueprintMapper.toCore(document.getBlueprint()) : null;
-        MonsterSheet sheet = summon == null ? blueprint.spawn(new Player()) : summonTemplate(summon).spawn(new Player());
+        MonsterSheet sheet = summon == null ? blueprint.spawn(new Player()) : summon.spawn(new Player());
         Character character = sheet.getCharacter();
         return new MonsterSheetResponse(
                 document.getId(),
@@ -263,7 +283,10 @@ public class MonsterSheetService {
                 document.getTokenImageUrl(),
                 summon == null ? null : new org.aventyrs.api.monster.dto.SummonDto(summon.kind(),
                         summon.conjuradorManaGraduation(), summon.powers(), summon.casterCharacterSheetId(),
-                        summon.enhancement(), summon.familiar()),
-                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()));
+                        summon.enhancement(), summon.familiar(), summon.bodySize(), summon.butcher(),
+                        summon.uncontrolled()),
+                document.getSubordinates() == null ? List.of() : List.copyOf(document.getSubordinates()),
+                document.getTimesRaised() == null ? 0 : document.getTimesRaised(),
+                Boolean.TRUE.equals(document.getCorpse()));
     }
 }

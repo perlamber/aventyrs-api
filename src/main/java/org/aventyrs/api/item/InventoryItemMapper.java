@@ -45,7 +45,9 @@ public final class InventoryItemMapper {
                 ItemMapper.toPowerStoneEntry(dto.powerStone()),
                 dto.regaliaGrade(),
                 dto.activeAbilityName(),
-                dto.donatedByAventyr());
+                dto.donatedByAventyr(),
+                dto.quantity(),
+                dto.loadedProjectiles());
     }
 
     public static InventoryItemDto toDto(InventoryItemEntry entry) {
@@ -68,6 +70,8 @@ public final class InventoryItemMapper {
                 ItemMapper.toPowerStoneDto(entry.powerStone()),
                 entry.regaliaGrade(),
                 entry.activeAbilityName(),
-                entry.donatedByAventyr());
+                entry.donatedByAventyr(),
+                entry.quantity(),
+                entry.loadedProjectiles());
     }
 }

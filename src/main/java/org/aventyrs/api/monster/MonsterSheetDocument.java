@@ -105,4 +105,16 @@ public class MonsterSheetDocument {
      * frame, like a character's. Null on a document from before this field.
      */
     private List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates;
+
+    /**
+     * How many times this body has been raised as an undead (core 0.1.6.24, table ruling 2026-10-14: at most 4). Null
+     * on a document from before this field reads as 0.
+     */
+    private Integer timesRaised;
+
+    /**
+     * Whether this sheet is a body left behind — an undead raised from a corpse that fell or whose Magia ended (core
+     * {@code CombatantSheet#isCorpse}). Null reads as false.
+     */
+    private Boolean corpse;
 }

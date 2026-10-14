@@ -35,7 +35,15 @@ public record SceneParticipantEntry(
         GridPosition position,
         int joinedAtRound,
         SceneConcealmentEntry concealment,
-        SceneInitiativeOverrideEntry initiativeOverride) {
+        SceneInitiativeOverrideEntry initiativeOverride,
+        Integer elevation) {
+
+    /** An entry at the baseline — every entry before core 0.1.6.16. */
+    public SceneParticipantEntry(String characterSheetId, int initiativeValue, UUID group, GridPosition position,
+                                 int joinedAtRound, SceneConcealmentEntry concealment,
+                                 SceneInitiativeOverrideEntry initiativeOverride) {
+        this(characterSheetId, initiativeValue, group, position, joinedAtRound, concealment, initiativeOverride, null);
+    }
 
     /** An entry with no Iniciativa override. */
     public SceneParticipantEntry(String characterSheetId, int initiativeValue, UUID group, GridPosition position,
@@ -51,24 +59,35 @@ public record SceneParticipantEntry(
     /** This entry with its concealment replaced — {@code null} lifts it. */
     public SceneParticipantEntry withConcealment(SceneConcealmentEntry newConcealment) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
-                newConcealment, initiativeOverride);
+                newConcealment, initiativeOverride, elevation);
     }
 
     /** This entry with its Iniciativa override replaced — {@code null} lifts it. */
     public SceneParticipantEntry withInitiativeOverride(SceneInitiativeOverrideEntry override) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
-                concealment, override);
+                concealment, override, elevation);
     }
 
     /** This entry in the rotation from round onward. */
     public SceneParticipantEntry withJoinedAtRound(int round) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, round,
-                concealment, initiativeOverride);
+                concealment, initiativeOverride, elevation);
     }
 
     /** This entry moved to position. */
     public SceneParticipantEntry withPosition(GridPosition newPosition) {
         return new SceneParticipantEntry(characterSheetId, initiativeValue, group, newPosition, joinedAtRound,
-                concealment, initiativeOverride);
+                concealment, initiativeOverride, elevation);
+    }
+
+    /** This entry at newElevation UD — {@code null} back to the baseline (core 0.1.6.16). */
+    public SceneParticipantEntry withElevation(Integer newElevation) {
+        return new SceneParticipantEntry(characterSheetId, initiativeValue, group, position, joinedAtRound,
+                concealment, initiativeOverride, newElevation);
+    }
+
+    /** The elevation in UD, 0 when never set. */
+    public int elevationOrZero() {
+        return elevation == null ? 0 : elevation;
     }
 }

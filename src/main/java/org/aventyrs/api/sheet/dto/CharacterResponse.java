@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Set;
 import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.action.ActionProfile;
-import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -20,7 +19,7 @@ public record CharacterResponse(
         RaceResponse race,
         Sexo sexo,
         Deity deity,
-        Alignment alignment,
+        int alignment,
         SizeCategory sizeCategory,
         ActionProfile actionProfile,
         Map<AttributeDomain, AttributeValueResponse> attributes,
@@ -60,12 +59,12 @@ public record CharacterResponse(
         List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> trainedCompanions
 ) {
     /** The shape before core 0.0.103 added Aliado da Natureza's trained creatures — none. */
-    public CharacterResponse(String id, String name, RaceResponse race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueResponse> attributes, Map<EgoDomain, EgoValueResponse> egos, Map<SkillType, CharacterSkillResponse> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, int actionPoints, int temporaryActionPointsBonus, CharacterStatus status, int reactions, int freeActions, int manaMultiplier, int lifeMultiplier, int determinationMultiplier, boolean centelhaSuperiorSelected, List<FeatResponse> feats, List<InventoryItemDto> equipment, TitleResponse primaryTitle, TitleResponse secondaryTitle, TitleResponse tertiaryTitle, List<String> spells, List<MimetizedSpellResponse> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundResponse> backgrounds, List<DefectResponse> defects, List<QualityResponse> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks) {
+    public CharacterResponse(String id, String name, RaceResponse race, Sexo sexo, Deity deity, int alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueResponse> attributes, Map<EgoDomain, EgoValueResponse> egos, Map<SkillType, CharacterSkillResponse> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, int actionPoints, int temporaryActionPointsBonus, CharacterStatus status, int reactions, int freeActions, int manaMultiplier, int lifeMultiplier, int determinationMultiplier, boolean centelhaSuperiorSelected, List<FeatResponse> feats, List<InventoryItemDto> equipment, TitleResponse primaryTitle, TitleResponse secondaryTitle, TitleResponse tertiaryTitle, List<String> spells, List<MimetizedSpellResponse> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundResponse> backgrounds, List<DefectResponse> defects, List<QualityResponse> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks) {
         this(id, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, devotionTier, devotionPicks, null);
     }
 
     /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
-    public CharacterResponse(String id, String name, RaceResponse race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueResponse> attributes, Map<EgoDomain, EgoValueResponse> egos, Map<SkillType, CharacterSkillResponse> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, int actionPoints, int temporaryActionPointsBonus, CharacterStatus status, int reactions, int freeActions, int manaMultiplier, int lifeMultiplier, int determinationMultiplier, boolean centelhaSuperiorSelected, List<FeatResponse> feats, List<InventoryItemDto> equipment, TitleResponse primaryTitle, TitleResponse secondaryTitle, TitleResponse tertiaryTitle, List<String> spells, List<MimetizedSpellResponse> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundResponse> backgrounds, List<DefectResponse> defects, List<QualityResponse> qualities) {
+    public CharacterResponse(String id, String name, RaceResponse race, Sexo sexo, Deity deity, int alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueResponse> attributes, Map<EgoDomain, EgoValueResponse> egos, Map<SkillType, CharacterSkillResponse> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, int actionPoints, int temporaryActionPointsBonus, CharacterStatus status, int reactions, int freeActions, int manaMultiplier, int lifeMultiplier, int determinationMultiplier, boolean centelhaSuperiorSelected, List<FeatResponse> feats, List<InventoryItemDto> equipment, TitleResponse primaryTitle, TitleResponse secondaryTitle, TitleResponse tertiaryTitle, List<String> spells, List<MimetizedSpellResponse> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundResponse> backgrounds, List<DefectResponse> defects, List<QualityResponse> qualities) {
         this(id, name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
     }
 
@@ -75,7 +74,7 @@ public record CharacterResponse(
             RaceResponse race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            int alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueResponse> attributes,
@@ -112,7 +111,7 @@ public record CharacterResponse(
             RaceResponse race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            int alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueResponse> attributes,
@@ -148,7 +147,7 @@ public record CharacterResponse(
                              RaceResponse race,
                              Sexo sexo,
                              Deity deity,
-                             Alignment alignment,
+                             int alignment,
                              SizeCategory sizeCategory,
                              ActionProfile actionProfile,
                              Map<AttributeDomain, AttributeValueResponse> attributes,

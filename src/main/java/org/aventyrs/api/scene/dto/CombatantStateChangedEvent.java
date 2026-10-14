@@ -5,7 +5,16 @@ import java.util.List;
 /** {@link CombatantStateMessage}, relayed on {@code /topic/scenes/{sceneId}/state}. */
 public record CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
                                          List<String> frenzyModes, boolean compelled, String riding, boolean ferocious,
-                                         boolean concentrating, List<HeldConditionDto> conditions) {
+                                         boolean concentrating, List<HeldConditionDto> conditions,
+                                         Integer meleeReachUd) {
+
+    /** A state event from before core 0.1.6.19 — no melee reach advertised. */
+    public CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,
+            List<String> frenzyModes, boolean compelled, String riding, boolean ferocious, boolean concentrating,
+            List<HeldConditionDto> conditions) {
+        this(characterSheetId, sizeCategory, frenzyRounds, frenzyModes, compelled, riding, ferocious, concentrating,
+                conditions, null);
+    }
 
     /** A state event from before core 0.1.5 — no held Condições reported ({@code null}, not "none"). */
     public CombatantStateChangedEvent(String characterSheetId, String sizeCategory, Integer frenzyRounds,

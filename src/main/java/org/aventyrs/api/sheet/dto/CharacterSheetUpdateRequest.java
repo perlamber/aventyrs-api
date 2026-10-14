@@ -33,8 +33,24 @@ public record CharacterSheetUpdateRequest(
         List<@Valid InventoryItemDto> inventory,
         String tokenImageUrl,
         /** Core 0.0.76's Ego state beyond the temporary spend. {@code null} leaves the stored one alone. */
-        @Valid EgoLedgerDto egoLedger
+        @Valid EgoLedgerDto egoLedger,
+        /** Core 0.1.6.3's finished-Sessão count. {@code null} leaves the stored one alone. */
+        @Min(0) Integer completedSessions
 ) {
+
+    /** A request from a client before the Sessão count — the stored one is left alone. */
+    public CharacterSheetUpdateRequest(CharacterDto character, String playerId, BigDecimal totalExperience,
+            BigDecimal unUsedExperience, int hitPointsSpent, int magicPointsSpent, int determinationPointsSpent,
+            int shieldPoints, int famaPositiva, int famaNegativa, int equipmentPoints,
+            Map<EgoDomain, Integer> temporaryEgoPoints, List<TemporaryBonusDto> temporaryBonuses,
+            List<BleedingDto> bleedingEffects, List<ManaDrainDto> manaDrains, List<WitheringDto> witheringEffects,
+            List<PendingEgoRecoveryDto> pendingEgoRecoveries, List<LifeStealDto> lifeSteals,
+            List<InventoryItemDto> inventory, String tokenImageUrl, EgoLedgerDto egoLedger) {
+        this(character, playerId, totalExperience, unUsedExperience, hitPointsSpent, magicPointsSpent,
+                determinationPointsSpent, shieldPoints, famaPositiva, famaNegativa, equipmentPoints, temporaryEgoPoints,
+                temporaryBonuses, bleedingEffects, manaDrains, witheringEffects, pendingEgoRecoveries, lifeSteals,
+                inventory, tokenImageUrl, egoLedger, null);
+    }
 
     /** A request from a client before the Ego ledger — the stored one is left alone. */
     public CharacterSheetUpdateRequest(CharacterDto character, String playerId, BigDecimal totalExperience,

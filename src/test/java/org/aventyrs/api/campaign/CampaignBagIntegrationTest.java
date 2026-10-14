@@ -97,7 +97,7 @@ class CampaignBagIntegrationTest {
     private String newSheet(String name) {
         return characterSheetService.create(new CharacterSheetCreateRequest(
                 new CharacterDto(name, new RaceDto("HUMAN", null, null, null, null, null),
-                        Sexo.FEMININO, null, Alignment.NEUTRAL, null, ActionProfile.IMPULSIVO, null, null, null, null,
+                        Sexo.FEMININO, null, 6, null, ActionProfile.IMPULSIVO, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 playerId)).id();
     }
