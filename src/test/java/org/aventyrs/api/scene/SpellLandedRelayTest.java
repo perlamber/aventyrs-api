@@ -66,4 +66,18 @@ class SpellLandedRelayTest {
         assertEquals(7, read.durationRounds());
         assertEquals(true, read.alternateChain());
     }
+
+    /** The Magia's damage and the cast's PM ride the landing, for Alma de AEther's negation (client 0.1.6.2). */
+    @Test
+    void theDamageAndTheManaSpentSurviveTheWire() {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        SpellLandedMessage sent = new SpellLandedMessage("caster", "ELEMENTAL:BOLA_DE_FOGO", false, "pc", true, 0,
+                null, List.of(2, 3, 4), List.of(1, 1), null, null, null, false, 9, "MAGICO", 4);
+
+        SpellLandedMessage read = mapper.readValue(mapper.writeValueAsString(sent), SpellLandedMessage.class);
+
+        assertEquals(9, read.rawDamage());
+        assertEquals("MAGICO", read.damageType());
+        assertEquals(4, read.manaSpent());
+    }
 }

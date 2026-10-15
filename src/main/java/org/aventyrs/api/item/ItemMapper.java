@@ -102,26 +102,28 @@ final class ItemMapper {
     static List<ItemImprovementEntry> toImprovementEntries(List<ItemImprovementDto> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementEntry(improvement.definition(),
-                        improvement.selectedDefense(), improvement.selectedElementalType()))
+                        improvement.selectedDefense(), improvement.selectedElementalType(),
+                        improvement.selectedTerrain()))
                 .toList();
     }
 
     static List<ItemImprovementDto> toImprovementDtos(List<ItemImprovementEntry> improvements) {
         return improvements == null ? List.of() : improvements.stream()
                 .map(improvement -> new ItemImprovementDto(improvement.definition(),
-                        improvement.selectedDefense(), improvement.selectedElementalType()))
+                        improvement.selectedDefense(), improvement.selectedElementalType(),
+                        improvement.selectedTerrain()))
                 .toList();
     }
 
     static PowerStoneEntry toPowerStoneEntry(PowerStoneDto powerStone) {
         return powerStone == null ? null
                 : new PowerStoneEntry(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
-                        powerStone.improvement());
+                        powerStone.improvement(), powerStone.remainingCharges(), powerStone.lastChanceUsed());
     }
 
     static PowerStoneDto toPowerStoneDto(PowerStoneEntry powerStone) {
         return powerStone == null ? null
                 : new PowerStoneDto(powerStone.type(), powerStone.quality(), powerStone.masterpiece(),
-                        powerStone.improvement());
+                        powerStone.improvement(), powerStone.remainingCharges(), powerStone.lastChanceUsed());
     }
 }

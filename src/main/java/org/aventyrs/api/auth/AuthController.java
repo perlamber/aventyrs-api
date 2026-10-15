@@ -37,6 +37,12 @@ public class AuthController {
         return authService.login(request.login(), request.password());
     }
 
+    /** A fresh token for the presented (still valid) one — the client's sliding-session keep-alive. */
+    @PostMapping("/refresh")
+    public LoginResponse refresh(@AuthenticationPrincipal Jwt jwt) {
+        return authService.refresh(jwt.getSubject());
+    }
+
     /** The player the presented token belongs to. */
     @GetMapping("/me")
     public PlayerResponse me(@AuthenticationPrincipal Jwt jwt) {

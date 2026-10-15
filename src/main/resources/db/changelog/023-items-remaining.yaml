@@ -1,0 +1,868 @@
+# Pedras do Poder V19 (core 0.1.6.7, table rulings 2026-10-12). The Encaixe Aprimoramento is gone: it is
+# stripped from every improvements list. A stone socketed into an item becomes its own POWER_STONE inventory entry
+# (full Cargas — remainingCharges null reads as full), since a stone is now a carried item bound only in combat.
+# A character's worn equipment hands its stone to the sheet's inventory; a campaign-bag item leaves its stone as a
+# second bag entry. Standalone GM items (the items collection) simply drop theirs.
+# quantity/loadedProjectiles need no migration: absent reads as 1 unit and an empty magazine.
+databaseChangeLog:
+  - changeSet:
+      id: 001-character-sheets-encaixe-and-stones
+      author: aventyrs-api
+      comment: Strip Encaixe; move socketed stones to inventory
+      changes:
+        - runCommand:
+            command: >
+              {
+                "update": "characterSheets",
+                "updates": [
+                  {
+                    "q": {},
+                    "u": [
+                      {
+                        "$set": {
+                          "inventory": {
+                            "$concatArrays": [
+                              {
+                                "$map": {
+                                  "input": {
+                                    "$ifNull": [
+                                      "$inventory",
+                                      []
+                                    ]
+                                  },
+                                  "as": "it",
+                                  "in": {
+                                    "$mergeObjects": [
+                                      "$$it",
+                                      {
+                                        "improvements": {
+                                          "$filter": {
+                                            "input": {
+                                              "$ifNull": [
+                                                "$$it.improvements",
+                                                []
+                                              ]
+                                            },
+                                            "as": "imp",
+                                            "cond": {
+                                              "$ne": [
+                                                "$$imp.definition",
+                                                "ENCAIXE"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "powerStone": {
+                                          "$cond": [
+                                            {
+                                              "$eq": [
+                                                "$$it.category",
+                                                "POWER_STONE"
+                                              ]
+                                            },
+                                            "$$it.powerStone",
+                                            null
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "$map": {
+                                  "input": {
+                                    "$filter": {
+                                      "input": {
+                                        "$concatArrays": [
+                                          {
+                                            "$ifNull": [
+                                              "$inventory",
+                                              []
+                                            ]
+                                          },
+                                          {
+                                            "$cond": [
+                                              {
+                                                "$eq": [
+                                                  {
+                                                    "$type": "$character"
+                                                  },
+                                                  "object"
+                                                ]
+                                              },
+                                              {
+                                                "$ifNull": [
+                                                  "$character.equipment",
+                                                  []
+                                                ]
+                                              },
+                                              []
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      "as": "it",
+                                      "cond": {
+                                        "$and": [
+                                          {
+                                            "$ne": [
+                                              {
+                                                "$ifNull": [
+                                                  "$$it.powerStone",
+                                                  null
+                                                ]
+                                              },
+                                              null
+                                            ]
+                                          },
+                                          {
+                                            "$ne": [
+                                              "$$it.category",
+                                              "POWER_STONE"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "as": "it",
+                                  "in": {
+                                    "templateName": null,
+                                    "name": "$$it.powerStone.type",
+                                    "description": "",
+                                    "category": "POWER_STONE",
+                                    "rarity": {
+                                      "$switch": {
+                                        "branches": [
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "JOLDA"
+                                              ]
+                                            },
+                                            "then": "UNCOMMON"
+                                          },
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "JOIA"
+                                              ]
+                                            },
+                                            "then": "RARE"
+                                          },
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "RELIQUIA"
+                                              ]
+                                            },
+                                            "then": "EPIC"
+                                          }
+                                        ],
+                                        "default": "MYTHIC"
+                                      }
+                                    },
+                                    "weightClass": "LIGHT",
+                                    "price": 0,
+                                    "physicalDefenseBonus": 0,
+                                    "magicDefenseBonus": 0,
+                                    "hardness": 0,
+                                    "damageTaken": 0,
+                                    "castingBonus": 0,
+                                    "favor": null,
+                                    "masterpiece": null,
+                                    "improvements": [],
+                                    "powerStone": {
+                                      "type": "$$it.powerStone.type",
+                                      "quality": "$$it.powerStone.quality",
+                                      "masterpiece": {
+                                        "$ifNull": [
+                                          "$$it.powerStone.masterpiece",
+                                          null
+                                        ]
+                                      },
+                                      "improvement": {
+                                        "$cond": [
+                                          {
+                                            "$ne": [
+                                              {
+                                                "$ifNull": [
+                                                  "$$it.powerStone.masterpiece",
+                                                  null
+                                                ]
+                                              },
+                                              null
+                                            ]
+                                          },
+                                          {
+                                            "$ifNull": [
+                                              "$$it.powerStone.improvement",
+                                              null
+                                            ]
+                                          },
+                                          null
+                                        ]
+                                      },
+                                      "remainingCharges": null,
+                                      "lastChanceUsed": false
+                                    },
+                                    "regaliaGrade": null,
+                                    "activeAbilityName": null,
+                                    "donatedByAventyr": false,
+                                    "quantity": 1,
+                                    "loadedProjectiles": []
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "character": {
+                            "$cond": [
+                              {
+                                "$eq": [
+                                  {
+                                    "$type": "$character"
+                                  },
+                                  "object"
+                                ]
+                              },
+                              {
+                                "$mergeObjects": [
+                                  "$character",
+                                  {
+                                    "equipment": {
+                                      "$map": {
+                                        "input": {
+                                          "$cond": [
+                                            {
+                                              "$eq": [
+                                                {
+                                                  "$type": "$character"
+                                                },
+                                                "object"
+                                              ]
+                                            },
+                                            {
+                                              "$ifNull": [
+                                                "$character.equipment",
+                                                []
+                                              ]
+                                            },
+                                            []
+                                          ]
+                                        },
+                                        "as": "it",
+                                        "in": {
+                                          "$mergeObjects": [
+                                            "$$it",
+                                            {
+                                              "improvements": {
+                                                "$filter": {
+                                                  "input": {
+                                                    "$ifNull": [
+                                                      "$$it.improvements",
+                                                      []
+                                                    ]
+                                                  },
+                                                  "as": "imp",
+                                                  "cond": {
+                                                    "$ne": [
+                                                      "$$imp.definition",
+                                                      "ENCAIXE"
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "powerStone": {
+                                                "$cond": [
+                                                  {
+                                                    "$eq": [
+                                                      "$$it.category",
+                                                      "POWER_STONE"
+                                                    ]
+                                                  },
+                                                  "$$it.powerStone",
+                                                  null
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "$character"
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "multi": true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-monster-sheets-encaixe-and-stones
+      author: aventyrs-api
+      comment: Strip Encaixe; move socketed stones to inventory
+      changes:
+        - runCommand:
+            command: >
+              {
+                "update": "monsterSheets",
+                "updates": [
+                  {
+                    "q": {},
+                    "u": [
+                      {
+                        "$set": {
+                          "inventory": {
+                            "$concatArrays": [
+                              {
+                                "$map": {
+                                  "input": {
+                                    "$ifNull": [
+                                      "$inventory",
+                                      []
+                                    ]
+                                  },
+                                  "as": "it",
+                                  "in": {
+                                    "$mergeObjects": [
+                                      "$$it",
+                                      {
+                                        "improvements": {
+                                          "$filter": {
+                                            "input": {
+                                              "$ifNull": [
+                                                "$$it.improvements",
+                                                []
+                                              ]
+                                            },
+                                            "as": "imp",
+                                            "cond": {
+                                              "$ne": [
+                                                "$$imp.definition",
+                                                "ENCAIXE"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "powerStone": {
+                                          "$cond": [
+                                            {
+                                              "$eq": [
+                                                "$$it.category",
+                                                "POWER_STONE"
+                                              ]
+                                            },
+                                            "$$it.powerStone",
+                                            null
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "$map": {
+                                  "input": {
+                                    "$filter": {
+                                      "input": {
+                                        "$concatArrays": [
+                                          {
+                                            "$ifNull": [
+                                              "$inventory",
+                                              []
+                                            ]
+                                          },
+                                          {
+                                            "$cond": [
+                                              {
+                                                "$eq": [
+                                                  {
+                                                    "$type": "$character"
+                                                  },
+                                                  "object"
+                                                ]
+                                              },
+                                              {
+                                                "$ifNull": [
+                                                  "$character.equipment",
+                                                  []
+                                                ]
+                                              },
+                                              []
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      "as": "it",
+                                      "cond": {
+                                        "$and": [
+                                          {
+                                            "$ne": [
+                                              {
+                                                "$ifNull": [
+                                                  "$$it.powerStone",
+                                                  null
+                                                ]
+                                              },
+                                              null
+                                            ]
+                                          },
+                                          {
+                                            "$ne": [
+                                              "$$it.category",
+                                              "POWER_STONE"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "as": "it",
+                                  "in": {
+                                    "templateName": null,
+                                    "name": "$$it.powerStone.type",
+                                    "description": "",
+                                    "category": "POWER_STONE",
+                                    "rarity": {
+                                      "$switch": {
+                                        "branches": [
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "JOLDA"
+                                              ]
+                                            },
+                                            "then": "UNCOMMON"
+                                          },
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "JOIA"
+                                              ]
+                                            },
+                                            "then": "RARE"
+                                          },
+                                          {
+                                            "case": {
+                                              "$eq": [
+                                                "$$it.powerStone.quality",
+                                                "RELIQUIA"
+                                              ]
+                                            },
+                                            "then": "EPIC"
+                                          }
+                                        ],
+                                        "default": "MYTHIC"
+                                      }
+                                    },
+                                    "weightClass": "LIGHT",
+                                    "price": 0,
+                                    "physicalDefenseBonus": 0,
+                                    "magicDefenseBonus": 0,
+                                    "hardness": 0,
+                                    "damageTaken": 0,
+                                    "castingBonus": 0,
+                                    "favor": null,
+                                    "masterpiece": null,
+                                    "improvements": [],
+                                    "powerStone": {
+                                      "type": "$$it.powerStone.type",
+                                      "quality": "$$it.powerStone.quality",
+                                      "masterpiece": {
+                                        "$ifNull": [
+                                          "$$it.powerStone.masterpiece",
+                                          null
+                                        ]
+                                      },
+                                      "improvement": {
+                                        "$cond": [
+                                          {
+                                            "$ne": [
+                                              {
+                                                "$ifNull": [
+                                                  "$$it.powerStone.masterpiece",
+                                                  null
+                                                ]
+                                              },
+                                              null
+                                            ]
+                                          },
+                                          {
+                                            "$ifNull": [
+                                              "$$it.powerStone.improvement",
+                                              null
+                                            ]
+                                          },
+                                          null
+                                        ]
+                                      },
+                                      "remainingCharges": null,
+                                      "lastChanceUsed": false
+                                    },
+                                    "regaliaGrade": null,
+                                    "activeAbilityName": null,
+                                    "donatedByAventyr": false,
+                                    "quantity": 1,
+                                    "loadedProjectiles": []
+                                  }
+                                }
+                              }
+                            ]
+                          },
+                          "character": {
+                            "$cond": [
+                              {
+                                "$eq": [
+                                  {
+                                    "$type": "$character"
+                                  },
+                                  "object"
+                                ]
+                              },
+                              {
+                                "$mergeObjects": [
+                                  "$character",
+                                  {
+                                    "equipment": {
+                                      "$map": {
+                                        "input": {
+                                          "$cond": [
+                                            {
+                                              "$eq": [
+                                                {
+                                                  "$type": "$character"
+                                                },
+                                                "object"
+                                              ]
+                                            },
+                                            {
+                                              "$ifNull": [
+                                                "$character.equipment",
+                                                []
+                                              ]
+                                            },
+                                            []
+                                          ]
+                                        },
+                                        "as": "it",
+                                        "in": {
+                                          "$mergeObjects": [
+                                            "$$it",
+                                            {
+                                              "improvements": {
+                                                "$filter": {
+                                                  "input": {
+                                                    "$ifNull": [
+                                                      "$$it.improvements",
+                                                      []
+                                                    ]
+                                                  },
+                                                  "as": "imp",
+                                                  "cond": {
+                                                    "$ne": [
+                                                      "$$imp.definition",
+                                                      "ENCAIXE"
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "powerStone": {
+                                                "$cond": [
+                                                  {
+                                                    "$eq": [
+                                                      "$$it.category",
+                                                      "POWER_STONE"
+                                                    ]
+                                                  },
+                                                  "$$it.powerStone",
+                                                  null
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    }
+                                  }
+                                ]
+                              },
+                              "$character"
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "multi": true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 003-campaign-bag-encaixe-and-stones
+      author: aventyrs-api
+      comment: Strip Encaixe; split socketed stones into bag entries
+      changes:
+        - runCommand:
+            command: >
+              {
+                "update": "campaigns",
+                "updates": [
+                  {
+                    "q": {
+                      "bag.0": {
+                        "$exists": true
+                      }
+                    },
+                    "u": [
+                      {
+                        "$set": {
+                          "bag": {
+                            "$concatArrays": [
+                              {
+                                "$map": {
+                                  "input": "$bag",
+                                  "as": "b",
+                                  "in": {
+                                    "$mergeObjects": [
+                                      "$$b",
+                                      {
+                                        "item": {
+                                          "$mergeObjects": [
+                                            "$$b.item",
+                                            {
+                                              "improvements": {
+                                                "$filter": {
+                                                  "input": {
+                                                    "$ifNull": [
+                                                      "$$b.item.improvements",
+                                                      []
+                                                    ]
+                                                  },
+                                                  "as": "imp",
+                                                  "cond": {
+                                                    "$ne": [
+                                                      "$$imp.definition",
+                                                      "ENCAIXE"
+                                                    ]
+                                                  }
+                                                }
+                                              },
+                                              "powerStone": {
+                                                "$cond": [
+                                                  {
+                                                    "$eq": [
+                                                      "$$b.item.category",
+                                                      "POWER_STONE"
+                                                    ]
+                                                  },
+                                                  "$$b.item.powerStone",
+                                                  null
+                                                ]
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "$map": {
+                                  "input": {
+                                    "$filter": {
+                                      "input": "$bag",
+                                      "as": "b",
+                                      "cond": {
+                                        "$and": [
+                                          {
+                                            "$ne": [
+                                              {
+                                                "$ifNull": [
+                                                  "$$b.item.powerStone",
+                                                  null
+                                                ]
+                                              },
+                                              null
+                                            ]
+                                          },
+                                          {
+                                            "$ne": [
+                                              "$$b.item.category",
+                                              "POWER_STONE"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "as": "b",
+                                  "in": {
+                                    "id": {
+                                      "$concat": [
+                                        "$$b.id",
+                                        "-stone"
+                                      ]
+                                    },
+                                    "sourceName": "$$b.sourceName",
+                                    "addedAt": "$$b.addedAt",
+                                    "item": {
+                                      "$let": {
+                                        "vars": {
+                                          "it": "$$b.item"
+                                        },
+                                        "in": {
+                                          "templateName": null,
+                                          "name": "$$it.powerStone.type",
+                                          "description": "",
+                                          "category": "POWER_STONE",
+                                          "rarity": {
+                                            "$switch": {
+                                              "branches": [
+                                                {
+                                                  "case": {
+                                                    "$eq": [
+                                                      "$$it.powerStone.quality",
+                                                      "JOLDA"
+                                                    ]
+                                                  },
+                                                  "then": "UNCOMMON"
+                                                },
+                                                {
+                                                  "case": {
+                                                    "$eq": [
+                                                      "$$it.powerStone.quality",
+                                                      "JOIA"
+                                                    ]
+                                                  },
+                                                  "then": "RARE"
+                                                },
+                                                {
+                                                  "case": {
+                                                    "$eq": [
+                                                      "$$it.powerStone.quality",
+                                                      "RELIQUIA"
+                                                    ]
+                                                  },
+                                                  "then": "EPIC"
+                                                }
+                                              ],
+                                              "default": "MYTHIC"
+                                            }
+                                          },
+                                          "weightClass": "LIGHT",
+                                          "price": 0,
+                                          "physicalDefenseBonus": 0,
+                                          "magicDefenseBonus": 0,
+                                          "hardness": 0,
+                                          "damageTaken": 0,
+                                          "castingBonus": 0,
+                                          "favor": null,
+                                          "masterpiece": null,
+                                          "improvements": [],
+                                          "powerStone": {
+                                            "type": "$$it.powerStone.type",
+                                            "quality": "$$it.powerStone.quality",
+                                            "masterpiece": {
+                                              "$ifNull": [
+                                                "$$it.powerStone.masterpiece",
+                                                null
+                                              ]
+                                            },
+                                            "improvement": {
+                                              "$cond": [
+                                                {
+                                                  "$ne": [
+                                                    {
+                                                      "$ifNull": [
+                                                        "$$it.powerStone.masterpiece",
+                                                        null
+                                                      ]
+                                                    },
+                                                    null
+                                                  ]
+                                                },
+                                                {
+                                                  "$ifNull": [
+                                                    "$$it.powerStone.improvement",
+                                                    null
+                                                  ]
+                                                },
+                                                null
+                                              ]
+                                            },
+                                            "remainingCharges": null,
+                                            "lastChanceUsed": false
+                                          },
+                                          "regaliaGrade": null,
+                                          "activeAbilityName": null,
+                                          "donatedByAventyr": false,
+                                          "quantity": 1,
+                                          "loadedProjectiles": []
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    ],
+                    "multi": true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 004-items-encaixe-and-stones
+      author: aventyrs-api
+      comment: Strip Encaixe and socketed stones from GM items
+      changes:
+        - runCommand:
+            command: >
+              {
+                "update": "items",
+                "updates": [
+                  {
+                    "q": {},
+                    "u": [
+                      {
+                        "$set": {
+                          "improvements": {
+                            "$filter": {
+                              "input": {
+                                "$ifNull": [
+                                  "$improvements",
+                                  []
+                                ]
+                              },
+                              "as": "imp",
+                              "cond": {
+                                "$ne": [
+                                  "$$imp.definition",
+                                  "ENCAIXE"
+                                ]
+                              }
+                            }
+                          },
+                          "powerStone": null
+                        }
+                      }
+                    ],
+                    "multi": true
+                  }
+                ]
+              }

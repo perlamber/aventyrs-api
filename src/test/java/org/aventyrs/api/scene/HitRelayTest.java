@@ -68,4 +68,26 @@ class HitRelayTest {
 
         verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);
     }
+
+    /** A missed attack still tells the target's owner it was attacked — Ymiriana, Espinhosa (core 0.1.6.11). */
+    @Test
+    void anAttackNoticeWithoutDamageIsStillRelayed() {
+        AttackHitMessage message = new AttackHitMessage("hero-1", "foe-1", 0, false, false, null, null, "ATTACK",
+                null, false, null, null, null, null, null, "ATAQUE_CORPO_A_CORPO", true, null, null, null);
+
+        controller.hit("scene-1", message);
+
+        verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);
+    }
+
+    /** A Solve-Vidas reaping asks the victim's owner to kill it — a frame with no damage of its own. */
+    @Test
+    void aSolveVidasReapingIsRelayed() {
+        AttackHitMessage message = new AttackHitMessage("hero-1", "foe-1", 0, false, false, null, null,
+                AttackHitMessage.SOLVE_VIDAS, null, null);
+
+        controller.hit("scene-1", message);
+
+        verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);
+    }
 }

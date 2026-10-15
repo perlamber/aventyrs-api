@@ -7,6 +7,7 @@ import static org.aventyrs.api.analytics.AnalyticsEventType.COMBAT_ENDED;
 import static org.aventyrs.api.analytics.AnalyticsEventType.COMBAT_STARTED;
 import static org.aventyrs.api.analytics.AnalyticsEventType.CONDITION;
 import static org.aventyrs.api.analytics.AnalyticsEventType.DAMAGE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.HAZARD;
 import static org.aventyrs.api.analytics.AnalyticsEventType.HIDDEN;
 import static org.aventyrs.api.analytics.AnalyticsEventType.INITIATIVE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.MOVE;
@@ -47,7 +48,13 @@ import org.aventyrs.api.scene.dto.SceneActionEvent;
 import org.aventyrs.api.scene.dto.SceneCombatStartedEvent;
 import org.aventyrs.api.scene.dto.ScenePingEvent;
 import org.aventyrs.api.scene.dto.ScenePingMessage;
+import org.aventyrs.api.scene.dto.PowerStoneEventMessage;
 import org.aventyrs.api.scene.dto.SpellLandedMessage;
+import org.aventyrs.api.scene.dto.CombatantActionMessage;
+import org.aventyrs.api.scene.dto.HazardMessage;
+import org.aventyrs.api.scene.dto.ReactionAnswerMessage;
+import org.aventyrs.api.scene.dto.ReactionWindowCloseMessage;
+import org.aventyrs.api.scene.dto.ReactionWindowOpenMessage;
 import org.aventyrs.api.scene.dto.SubordinateChangeMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintMessage;
 import org.aventyrs.api.scene.dto.TerrainPaintedEvent;
@@ -117,10 +124,11 @@ public class SceneRealtimeController {
         try {
             SceneParticipantEntry updated = sceneService.moveParticipant(
                     sceneId, message.characterSheetId(), toGridPosition(message.position()),
-                    Boolean.TRUE.equals(message.sharesSpace()));
+                    Boolean.TRUE.equals(message.sharesSpace()), message.elevation());
             messagingTemplate.convertAndSend(
                     "/topic/scenes/" + sceneId + "/moves",
-                    new TokenMovedEvent(updated.characterSheetId(), toDto(updated.position())));
+                    new TokenMovedEvent(updated.characterSheetId(), toDto(updated.position()),
+                            updated.elevationOrZero(), message.path()));
             analytics.record(MOVE, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected move in scene {} for participant {}: {}",
@@ -164,6 +172,10 @@ public class SceneRealtimeController {
                         message.restLockedHitPoints(), message.subordinates());
                 if (message.bleedingEffects() != null) {
                     characterSheetService.updateBleeding(message.characterSheetId(), message.bleedingEffects());
+                }
+                if (message.powerStoneCombatState() != null) {
+                    characterSheetService.updatePowerStoneCombatState(message.characterSheetId(),
+                            message.powerStoneCombatState());
                 }
             }
             messagingTemplate.convertAndSend(
@@ -271,7 +283,8 @@ public class SceneRealtimeController {
         try {
             List<GridPosition> cells = message.cells() == null ? List.of()
                     : message.cells().stream().map(SceneRealtimeController::toGridPosition).toList();
-            TerrainPaintedEvent event = sceneService.paintTerrain(sceneId, cells, message.difficult());
+            TerrainPaintedEvent event = sceneService.paintTerrain(sceneId, cells, message.difficult(),
+                    message.template());
             messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/terrain", event);
         } catch (RuntimeException ex) {
             log.warn("Rejected terrain paint in scene {}: {}", sceneId, ex.getMessage());
@@ -460,6 +473,92 @@ public class SceneRealtimeController {
     }
 
     /**
+     * The acting client pauses its action where it provoked Reações (core 0.1.6.17) — a movement at a route checkpoint,
+     * a casting before its roll — and names who may answer. Persisted (one window at a time) so a reconnecting client
+     * replays it, and broadcast; a window naming nobody closes at once. A malformed or foreign one is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/reaction-windows")
+    public void openReactionWindow(@DestinationVariable String sceneId, @Payload ReactionWindowOpenMessage message) {
+        if (message == null || message.kind() == null || message.actorCharacterSheetId() == null) {
+            return;
+        }
+        try {
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/reaction-windows",
+                    sceneService.openReactionWindow(sceneId, message));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Reação window in scene {} for participant {}: {}",
+                    sceneId, message.actorCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /** One reactor passes or reacted; the window closes once all have answered (core 0.1.6.17). */
+    @MessageMapping("/scenes/{sceneId}/reaction-answers")
+    public void answerReactionWindow(@DestinationVariable String sceneId, @Payload ReactionAnswerMessage message) {
+        if (message == null || message.windowId() == null || message.reactorCharacterSheetId() == null
+                || message.answer() == null) {
+            return;
+        }
+        try {
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/reaction-windows",
+                    sceneService.answerReactionWindow(sceneId, message));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Reação answer in scene {} from participant {}: {}",
+                    sceneId, message.reactorCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /** The GM's "Pular reações" — GM-only ({@code StompAuthChannelInterceptor}), closes the open window. */
+    @MessageMapping("/scenes/{sceneId}/reaction-windows/close")
+    public void closeReactionWindow(@DestinationVariable String sceneId, @Payload ReactionWindowCloseMessage message) {
+        try {
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/reaction-windows",
+                    sceneService.closeReactionWindow(sceneId, message == null ? null : message.windowId()));
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Reação window close in scene {}: {}", sceneId, ex.getMessage());
+        }
+    }
+
+    /**
+     * The GM making a participant fall, stop or resume breathing, or pass a Rodada without air outside combat (core
+     * 0.1.6.14) — GM-only ({@code StompAuthChannelInterceptor}), relayed, never persisted: the client that owns the
+     * target applies it to its core sheet and saves it through its next {@link #status} frame. Membership of the target
+     * is asserted; a malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/hazards")
+    public void hazard(@DestinationVariable String sceneId, @Payload HazardMessage message) {
+        if (message == null || !message.isWellFormed()) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/hazards", message);
+            analytics.record(HAZARD, sceneId, null, List.of(message.targetCharacterSheetId()), message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected hazard in scene {} for participant {}: {}",
+                    sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * A combatant declaring an action (core 0.1.6.21) — relayed so every other table logs it and a Preparação's holder
+     * may react from the history. Never persisted, like {@link #ping}; membership of the actor is asserted and a
+     * malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/combatant-actions")
+    public void combatantAction(@DestinationVariable String sceneId, @Payload CombatantActionMessage message) {
+        if (message == null || !message.isWellFormed()) {
+            return;
+        }
+        try {
+            sceneService.requireParticipant(sceneId, message.actorCharacterSheetId());
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/combatant-actions", message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected combatant action in scene {} for participant {}: {}",
+                    sceneId, message.actorCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
      * An Iniciativa Ego point changing a participant's place in the order (core 0.0.79). Persisted, because this
      * server owns the order ({@link SceneService#advanceTurn}), and broadcast so every board shows it. Membership
      * is asserted by the lookup. Rejected silently like {@link #hidden}.
@@ -496,6 +595,18 @@ public class SceneRealtimeController {
                 List.of(message.targetCharacterSheetId()), message);
     }
 
+    /**
+     * A Pedra do Poder bound, removed, lapsed or spent on Vitalitas Immanis (core 0.1.6.7) — relayed for every client's
+     * log, never persisted here: the Cargas and the host's Dureza ride the sheet, the binding its {@code /status} frame.
+     */
+    @MessageMapping("/scenes/{sceneId}/power-stones")
+    public void powerStone(@DestinationVariable String sceneId, @Payload PowerStoneEventMessage message) {
+        if (message == null || message.characterSheetId() == null || message.action() == null) {
+            return;
+        }
+        messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/power-stones", message);
+    }
+
     @MessageMapping("/scenes/{sceneId}/ego-grants")
     public void egoGrant(@DestinationVariable String sceneId, @Payload EgoGrantMessage message) {
         if (message == null || message.domain() == null) {
@@ -518,7 +629,8 @@ public class SceneRealtimeController {
                     "/topic/scenes/" + sceneId + "/state",
                     new CombatantStateChangedEvent(message.characterSheetId(), message.sizeCategory(),
                             message.frenzyRounds(), message.frenzyModes(), message.compelled(),
-                            message.riding(), message.ferocious(), message.concentrating(), message.conditions()));
+                            message.riding(), message.ferocious(), message.concentrating(), message.conditions(),
+                            message.meleeReachUd()));
             analytics.record(COMBATANT_STATE, sceneId, message.characterSheetId(), null, message);
         } catch (RuntimeException ex) {
             log.warn("Rejected state change in scene {} for participant {}: {}",

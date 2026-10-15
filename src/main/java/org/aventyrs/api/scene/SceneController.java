@@ -96,6 +96,17 @@ public class SceneController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * An Abantesma was struck — one Rodada off its Duração instead of PV (core 0.1.6.25). The roster is broadcast
+     * either way, since its remaining Rodadas changed.
+     */
+    @PostMapping("/{id}/summons/{summonId}/shorten")
+    public ResponseEntity<Void> shortenSummon(@PathVariable String id, @PathVariable String summonId) {
+        service.shortenSummon(id, summonId);
+        broadcastRoster(id);
+        return ResponseEntity.noContent().build();
+    }
+
     /** casterId's Concentração was lost — the summons it held start their trailing Rodadas (client 0.0.95). */
     @PostMapping("/{id}/summons/release/{casterId}")
     public ResponseEntity<Void> releaseConcentration(@PathVariable String id, @PathVariable String casterId) {

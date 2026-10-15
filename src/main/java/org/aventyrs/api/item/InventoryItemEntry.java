@@ -42,6 +42,23 @@ public record InventoryItemEntry(
         PowerStoneEntry powerStone,
         RegaliaGrade regaliaGrade,
         String activeAbilityName,
-        boolean donatedByAventyr
+        boolean donatedByAventyr,
+        Integer quantity,
+        List<String> loadedProjectiles
 ) {
+
+    /**
+     * The shape before core 0.1.6.6 — one unit, nothing loaded. {@code quantity} and {@code loadedProjectiles} are
+     * boxed/nullable so a document saved before they existed still reads: {@code null} means 1 and empty.
+     */
+    public InventoryItemEntry(String templateName, String name, String description, ItemCategory category,
+                              ItemRarity rarity, ItemWeightClass weightClass, int price, int physicalDefenseBonus,
+                              int magicDefenseBonus, int hardness, int damageTaken, int castingBonus,
+                              ItemFavorEntry favor, ItemMasterpieceEntry masterpiece,
+                              List<ItemImprovementEntry> improvements, PowerStoneEntry powerStone,
+                              RegaliaGrade regaliaGrade, String activeAbilityName, boolean donatedByAventyr) {
+        this(templateName, name, description, category, rarity, weightClass, price, physicalDefenseBonus,
+                magicDefenseBonus, hardness, damageTaken, castingBonus, favor, masterpiece, improvements, powerStone,
+                regaliaGrade, activeAbilityName, donatedByAventyr, null, null);
+    }
 }

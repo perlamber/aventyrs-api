@@ -75,8 +75,8 @@ public final class CombatantSheetMapper {
     private CombatantSheetMapper() {
     }
 
-    /** core's own {@code Character#alignment} default (it replaced the former {@code tendencia} int in core 0.0.31). */
-    private static final Alignment DEFAULT_ALIGNMENT = Alignment.NEUTRAL;
+    /** core's own {@code Character#alignment} default: tendência 6, Neutro. */
+    private static final int DEFAULT_ALIGNMENT = Alignment.DEFAULT;
 
     /** core's own {@code AttributeValue#base} default. */
     private static final int DEFAULT_ATTRIBUTE_BASE = 1;
@@ -95,7 +95,7 @@ public final class CombatantSheetMapper {
             "NASCIDO_DA_FLORESTA", "MEIO_ELFO");
 
     public static CharacterEntry toEntry(String characterId, CharacterDto character) {
-        Alignment alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
+        int alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
         SizeCategory sizeCategory = character.sizeCategory() == null ? SizeCategory.ZERO : character.sizeCategory();
         CharacterStatus status = character.status() == null ? CharacterStatus.CLEAN : character.status();
         int actionPoints = character.actionPoints() == null ? ActionPointsService.DEFAULT_ACTION_POINTS : character.actionPoints();
@@ -699,7 +699,7 @@ public final class CombatantSheetMapper {
         int determinationMultiplier = character.determinationMultiplier() == null
                 ? DeterminationPointsService.DEFAULT_DETERMINATION_MULTIPLIER : character.determinationMultiplier();
         boolean centelhaSuperiorSelected = character.centelhaSuperiorSelected() != null && character.centelhaSuperiorSelected();
-        Alignment alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
+        int alignment = character.alignment() == null ? DEFAULT_ALIGNMENT : character.alignment();
 
         Map<AttributeDomain, AttributeValueResponse> attributesResponse = new EnumMap<>(AttributeDomain.class);
         attributes.forEach((domain, value) -> attributesResponse.put(domain, new AttributeValueResponse(

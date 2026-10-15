@@ -11,6 +11,14 @@ public record PowerStoneDto(
         @NotNull PowerStoneType type,
         @NotNull PowerStoneQuality quality,
         PowerStoneMasterpiece masterpiece,
-        PowerStoneImprovement improvement
+        PowerStoneImprovement improvement,
+        Integer remainingCharges,
+        Boolean lastChanceUsed
 ) {
+
+    /** The shape before core 0.1.6.7 — {@code null} Cargas reads as a full stone. */
+    public PowerStoneDto(PowerStoneType type, PowerStoneQuality quality, PowerStoneMasterpiece masterpiece,
+                         PowerStoneImprovement improvement) {
+        this(type, quality, masterpiece, improvement, null, null);
+    }
 }

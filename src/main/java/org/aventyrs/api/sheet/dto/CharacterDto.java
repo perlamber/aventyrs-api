@@ -1,6 +1,8 @@
 package org.aventyrs.api.sheet.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -8,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import org.aventyrs.api.item.dto.InventoryItemDto;
 import org.aventyrs.core.action.ActionProfile;
-import org.aventyrs.core.character.Alignment;
 import org.aventyrs.core.character.AttributeDomain;
 import org.aventyrs.core.character.Character.Sexo;
 import org.aventyrs.core.character.CharacterStatus;
@@ -25,9 +26,9 @@ import org.aventyrs.core.skill.SkillType;
  * binding to 0/null, same reasoning as {@code CharacterSheetService#normalizeTemporaryEgoPoints}.
  * {@code attributes}/{@code egos} are nullable/partial the same way — any {@link AttributeDomain}
  * left out defaults to base 1/racialBonus 0/variable 0, and any {@link EgoDomain} left out
- * defaults to base 2/variable 0. {@code alignment} defaults to {@code Alignment.NEUTRAL} when
- * omitted, matching core's own {@code Character#alignment} default (it replaced the former
- * unvalidated {@code tendencia} int in core 0.0.31). {@code skills}/{@code egoAdvantages} only need entries for
+ * defaults to base 2/variable 0. {@code alignment} is the 1–10 tendência and defaults to
+ * {@code Alignment.DEFAULT} (6, Neutro) when omitted, matching core's own {@code Character#alignment}
+ * default. {@code skills}/{@code egoAdvantages} only need entries for
  * Perícias actually trained / Vantagens actually chosen; a missing {@link SkillType}/{@link
  * EgoDomain} key means untrained/unchosen, so it's left as-is rather than defaulted. {@code
  * actionProfile} is required, unlike those: core's own {@code Character#actionProfile} is
@@ -48,7 +49,7 @@ public record CharacterDto(
         @NotNull @Valid RaceDto race,
         Sexo sexo,
         Deity deity,
-        Alignment alignment,
+        @Min(1) @Max(10) Integer alignment,
         SizeCategory sizeCategory,
         @NotNull ActionProfile actionProfile,
         Map<AttributeDomain, @Valid AttributeValueDto> attributes,
@@ -91,12 +92,12 @@ public record CharacterDto(
         List<org.aventyrs.api.sheet.dto.TrainedCompanionDto> trainedCompanions
 ) {
     /** The shape before core 0.0.103 added Aliado da Natureza's trained creatures — none. */
-    public CharacterDto(@NotBlank String name, @NotNull RaceDto race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, @NotNull ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks) {
+    public CharacterDto(@NotBlank String name, @NotNull RaceDto race, Sexo sexo, Deity deity, Integer alignment, SizeCategory sizeCategory, @NotNull ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities, org.aventyrs.core.character.DevotionTier devotionTier, List<org.aventyrs.api.sheet.dto.DevotionPickDto> devotionPicks) {
         this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, devotionTier, devotionPicks, null);
     }
 
     /** The shape before core 0.0.86 added the devotion tier and its rung picks — none set. */
-    public CharacterDto(String name, RaceDto race, Sexo sexo, Deity deity, Alignment alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities) {
+    public CharacterDto(String name, RaceDto race, Sexo sexo, Deity deity, Integer alignment, SizeCategory sizeCategory, ActionProfile actionProfile, Map<AttributeDomain, AttributeValueDto> attributes, Map<EgoDomain, EgoValueDto> egos, Map<SkillType, CharacterSkillDto> skills, List<String> attributeAbilities, Map<EgoDomain, String> egoAdvantages, List<String> activeAbilities, Integer actionPoints, Integer temporaryActionPointsBonus, CharacterStatus status, Integer reactions, Integer freeActions, Integer manaMultiplier, Integer lifeMultiplier, Integer determinationMultiplier, Boolean centelhaSuperiorSelected, List<FeatDto> feats, List<InventoryItemDto> equipment, TitleDto primaryTitle, TitleDto secondaryTitle, TitleDto tertiaryTitle, List<String> spells, List<MimetizedSpellDto> mimetizedSpells, Set<SkillType> quickLearningSkills, Integer centelhas, List<BackgroundDto> backgrounds, List<DefectDto> defects, List<QualityDto> qualities) {
         this(name, race, sexo, deity, alignment, sizeCategory, actionProfile, attributes, egos, skills, attributeAbilities, egoAdvantages, activeAbilities, actionPoints, temporaryActionPointsBonus, status, reactions, freeActions, manaMultiplier, lifeMultiplier, determinationMultiplier, centelhaSuperiorSelected, feats, equipment, primaryTitle, secondaryTitle, tertiaryTitle, spells, mimetizedSpells, quickLearningSkills, centelhas, backgrounds, defects, qualities, null, null);
     }
 
@@ -105,7 +106,7 @@ public record CharacterDto(
             RaceDto race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            Integer alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueDto> attributes,
@@ -141,7 +142,7 @@ public record CharacterDto(
             RaceDto race,
             Sexo sexo,
             Deity deity,
-            Alignment alignment,
+            Integer alignment,
             SizeCategory sizeCategory,
             ActionProfile actionProfile,
             Map<AttributeDomain, AttributeValueDto> attributes,
@@ -176,7 +177,7 @@ public record CharacterDto(
                         RaceDto race,
                         Sexo sexo,
                         Deity deity,
-                        Alignment alignment,
+                        Integer alignment,
                         SizeCategory sizeCategory,
                         ActionProfile actionProfile,
                         Map<AttributeDomain, AttributeValueDto> attributes,

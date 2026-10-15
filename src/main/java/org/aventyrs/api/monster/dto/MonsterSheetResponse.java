@@ -60,6 +60,10 @@ public record MonsterSheetResponse(
         String tokenImageUrl,
         SummonDto summon,
         /** The Subordinados this foe commands (core 0.1.5.6). */
-        List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates
+        List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates,
+        /** How many times this body was raised as an undead (core 0.1.6.24). */
+        int timesRaised,
+        /** Whether it is a body left behind by a corpse-raised undead (core 0.1.6.24). */
+        boolean corpse
 ) {
 }
