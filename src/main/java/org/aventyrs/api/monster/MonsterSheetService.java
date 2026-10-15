@@ -181,15 +181,16 @@ public class MonsterSheetService {
     public static final String ALL_CAMPAIGNS = "all";
     public static final String LORE = "lore";
 
-    /** A status no picker offers: the foe already fell. */
+    /** A status neither the Bestiário nor a picker lists: the foe already fell, and is out of the game. */
     private static final Set<org.aventyrs.core.character.CharacterStatus> FALLEN = EnumSet.of(
             org.aventyrs.core.character.CharacterStatus.FALLEN,
             org.aventyrs.core.character.CharacterStatus.COMMA,
             org.aventyrs.core.character.CharacterStatus.DEAD);
 
     /**
-     * The Bestiário: every foe a Mestre authored. Summons and conjured foes are never listed. campaign is {@link
-     * #ALL_CAMPAIGNS} (or null), {@link #LORE} for the foes of no Campanha, or a Campanha id for that Campanha's own.
+     * The Bestiário: every foe a Mestre authored that has not fallen. Summons and conjured foes are never listed.
+     * campaign is {@link #ALL_CAMPAIGNS} (or null), {@link #LORE} for the foes of no Campanha, or a Campanha id for
+     * that Campanha's own.
      */
     public List<MonsterSheetResponse> listBestiary(String campaign) {
         Criteria criteria = bestiaryCriteria();
@@ -199,6 +200,7 @@ public class MonsterSheetService {
             criteria = criteria.and("campaignId").is(campaign);
         }
         return mongoTemplate.find(Query.query(criteria), MonsterSheetDocument.class).stream()
+                .filter(MonsterSheetService::standing)
                 .map(this::toResponse).toList();
     }
 
@@ -218,7 +220,7 @@ public class MonsterSheetService {
                 : criteria.orOperator(Criteria.where("campaignId").is(null), Criteria.where("campaignId").is(campaignId));
         Set<String> elsewhere = Set.copyOf(placedOutside(sceneId));
         return mongoTemplate.find(Query.query(criteria), MonsterSheetDocument.class).stream()
-                .filter(document -> document.getStatus() == null || !FALLEN.contains(document.getStatus()))
+                .filter(MonsterSheetService::standing)
                 .filter(document -> !elsewhere.contains(document.getId()))
                 .map(this::toResponse)
                 .toList();
@@ -229,6 +231,11 @@ public class MonsterSheetService {
         Query query = sceneId == null ? new Query() : Query.query(Criteria.where("_id").ne(sceneId));
         return mongoTemplate.findDistinct(query, "participants.characterSheetId",
                 org.aventyrs.api.scene.SceneDocument.class, String.class);
+    }
+
+    /** Whether document has not fallen (see {@link #FALLEN}). */
+    private static boolean standing(MonsterSheetDocument document) {
+        return document.getStatus() == null || !FALLEN.contains(document.getStatus());
     }
 
     private static Criteria bestiaryCriteria() {

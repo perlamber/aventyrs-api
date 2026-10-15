@@ -193,6 +193,23 @@ class SceneConjureIntegrationTest {
     }
 
     @Test
+    void theBestiaryHidesFallenFoes() throws Exception {
+        String campaign = "campaign-" + UUID.randomUUID();
+        String standing = createFoe(campaign);
+        String fallen = createFoe(campaign);
+        String coma = createFoe(campaign);
+        String dead = createFoe(campaign);
+        monsterSheetService.updateCombatStatus(fallen, 0, 0, 0, CharacterStatus.FALLEN, null);
+        monsterSheetService.updateCombatStatus(coma, 0, 0, 0, CharacterStatus.COMMA, null);
+        monsterSheetService.updateCombatStatus(dead, 0, 0, 0, CharacterStatus.DEAD, null);
+
+        assertEquals(Set.of(standing), idsOf(get("/api/monster-sheets/bestiary").param("campaign", campaign)));
+        Set<String> all = idsOf(get("/api/monster-sheets/bestiary"));
+        assertTrue(all.contains(standing));
+        assertFalse(all.contains(fallen) || all.contains(coma) || all.contains(dead));
+    }
+
+    @Test
     void placeableOffersCampaignAndLoreFoesNotFallenAndNotInAnotherScene() throws Exception {
         String campaign = "campaign-" + UUID.randomUUID();
         String lore = createFoe(null);
