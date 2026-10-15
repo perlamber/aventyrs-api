@@ -36,7 +36,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String GM_AUTHORITY = "ROLE_" + SecurityConfig.ROLE_GM;
     private static final Pattern GM_ONLY_DESTINATION =
-            Pattern.compile("^/app/scenes/[^/]+/(grid|combat|combat/end|time|terrain|initiative|subordinates|hazards|reaction-windows/close)$");
+            Pattern.compile("^/app/scenes/[^/]+/(grid|combat|combat/end|time|terrain|initiative|subordinates|hazards|aura|reaction-windows/close)$");
 
     private final JwtDecoder jwtDecoder;
     private final Converter<org.springframework.security.oauth2.jwt.Jwt, AbstractAuthenticationToken> converter;

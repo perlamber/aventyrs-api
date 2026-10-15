@@ -19,6 +19,7 @@ import static org.aventyrs.api.analytics.AnalyticsEventType.SUBORDINATE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.TIME;
 import static org.aventyrs.api.analytics.AnalyticsEventType.TURN_ADVANCED;
 
+import org.aventyrs.api.scene.dto.AuraMessage;
 import org.aventyrs.api.scene.dto.EgoGrantMessage;
 import org.aventyrs.api.scene.dto.EgoGrantedEvent;
 import org.aventyrs.api.scene.dto.InitiativeOverriddenEvent;
@@ -536,6 +537,30 @@ public class SceneRealtimeController {
         } catch (RuntimeException ex) {
             log.warn("Rejected hazard in scene {} for participant {}: {}",
                     sceneId, message.targetCharacterSheetId(), ex.getMessage());
+        }
+    }
+
+    /**
+     * What the GM's client works out for a monster aura (core 0.1.7.4) — a target's aura grants, a pulse hit, or the
+     * board's footprints. GM-only ({@code StompAuthChannelInterceptor}), relayed, never persisted: the owner of a
+     * target applies it and saves through its next {@link #status} frame. Membership of the named participants is
+     * asserted; a malformed message is dropped.
+     */
+    @MessageMapping("/scenes/{sceneId}/aura")
+    public void aura(@DestinationVariable String sceneId, @Payload AuraMessage message) {
+        if (message == null || !message.isWellFormed()) {
+            return;
+        }
+        try {
+            if (message.targetCharacterSheetId() != null) {
+                sceneService.requireParticipant(sceneId, message.targetCharacterSheetId());
+            }
+            if (message.holderCharacterSheetId() != null) {
+                sceneService.requireParticipant(sceneId, message.holderCharacterSheetId());
+            }
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/aura", message);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected aura message in scene {}: {}", sceneId, ex.getMessage());
         }
     }
 

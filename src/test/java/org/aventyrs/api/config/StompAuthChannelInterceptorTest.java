@@ -45,6 +45,9 @@ class StompAuthChannelInterceptorTest {
         assertThrows(MessageDeliveryException.class,
                 () -> interceptor.preSend(send("/app/scenes/s1/hazards", "PLAYER"), channel));
         assertDoesNotThrow(() -> interceptor.preSend(send("/app/scenes/s1/hazards", SecurityConfig.ROLE_GM), channel));
+        assertThrows(MessageDeliveryException.class,
+                () -> interceptor.preSend(send("/app/scenes/s1/aura", "PLAYER"), channel));
+        assertDoesNotThrow(() -> interceptor.preSend(send("/app/scenes/s1/aura", SecurityConfig.ROLE_GM), channel));
         assertDoesNotThrow(() -> interceptor.preSend(send("/app/scenes/s1/status", "PLAYER"), channel));
     }
 }
