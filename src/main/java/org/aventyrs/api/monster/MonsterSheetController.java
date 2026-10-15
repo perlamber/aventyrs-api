@@ -34,6 +34,31 @@ public class MonsterSheetController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
     }
 
+    /**
+     * The Bestiário: authored foes only, no summons and no conjured ones (core 0.1.7.5). {@code campaign} is {@code
+     * all} (the default), {@code lore}, or a Campanha id.
+     */
+    @GetMapping("/bestiary")
+    public List<MonsterSheetResponse> bestiary(@RequestParam(required = false) String campaign) {
+        return service.listBestiary(campaign);
+    }
+
+    /**
+     * The Bestiário foes a Cena's picker offers: campaignId's and the lore ones, none fallen, none standing in a Cena
+     * other than sceneId (core 0.1.7.5).
+     */
+    @GetMapping("/placeable")
+    public List<MonsterSheetResponse> placeable(@RequestParam(required = false) String campaignId,
+            @RequestParam(required = false) String sceneId) {
+        return service.listPlaceable(campaignId, sceneId);
+    }
+
+    /** A conjurable monster as it would come out, never stored (core 0.1.7.5). */
+    @PostMapping("/generate-preview")
+    public MonsterSheetResponse generatePreview(@Valid @RequestBody org.aventyrs.api.monster.dto.ConjurePreviewRequest request) {
+        return service.preview(request);
+    }
+
     @GetMapping("/{id}")
     public MonsterSheetResponse get(@PathVariable String id) {
         return service.get(id);

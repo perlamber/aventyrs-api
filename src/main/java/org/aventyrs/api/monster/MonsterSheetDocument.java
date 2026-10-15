@@ -117,4 +117,20 @@ public class MonsterSheetDocument {
      * {@code CombatantSheet#isCorpse}). Null reads as false.
      */
     private Boolean corpse;
+
+    /**
+     * The Campanha this foe belongs to, or {@code null} for a lore foe that any Campanha may use (table ruling,
+     * 2026-10-15). It only filters what the Bestiário and a Cena's monster picker offer.
+     */
+    private String campaignId;
+
+    /**
+     * Whether this foe was conjured straight into a Cena from a {@code ConjurePreset} rather than authored in the
+     * Bestiário. A conjured foe is never listed in the Bestiário, and it is deleted when it leaves its Cena. Null
+     * reads as false.
+     */
+    private Boolean conjured;
+
+    /** The Cena a conjured foe currently stands in. It follows it on travel. Null for every other sheet. */
+    private String conjuredInSceneId;
 }

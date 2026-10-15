@@ -185,6 +185,11 @@ public class SceneService {
     public SceneParticipantResponse addParticipant(String id, AddParticipantRequest request) {
         SceneDocument document = findOrThrow(id);
         requireCombatantExists(request.characterSheetId());
+        requireNotPlacedElsewhere(id, request.characterSheetId());
+        // A conjured foe only arrives here by travelling; it now stands in this Cena.
+        if (monsterSheetService.isConjured(request.characterSheetId())) {
+            monsterSheetService.moveConjured(request.characterSheetId(), id);
+        }
 
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
         // Before anyone has acted the newcomer joins the rotation immediately, at its sorted spot;
@@ -211,9 +216,113 @@ public class SceneService {
     }
 
     public void removeParticipant(String id, String characterSheetId) {
+        removeParticipant(id, characterSheetId, true);
+    }
+
+    /**
+     * Takes characterSheetId out of the Cena. A conjured foe leaving is deleted (core 0.1.7.5), unless it is only
+     * travelling to the next Cena ({@code deleteConjured} false, {@code SceneConnectionService#travel}).
+     */
+    public void removeParticipant(String id, String characterSheetId, boolean deleteConjured) {
         SceneDocument document = findOrThrow(id);
         removeFromDocument(document, characterSheetId);
         repository.save(document);
+        if (deleteConjured) {
+            monsterSheetService.deleteConjured(characterSheetId);
+        }
+    }
+
+    // ---------- conjured foes (core 0.1.7.5) ----------
+
+    /** The most foes one conjure places. */
+    public static final int MAXIMUM_CONJURE_COUNT = 20;
+
+    /** Where the bundled conjure portraits live on a client: {@code bundled:<dir>/<file>.png}. */
+    public static final String CONJURED_TOKEN_PREFIX = "bundled:conjured/";
+
+    /**
+     * Conjures count plain monsters from a {@code ConjurePreset} around the Mestre's centre hex (table ruling,
+     * 2026-10-15). Each copy is generated from the same seed, so every copy is the same monster; copies after the
+     * first are numbered "Nome 2", "Nome 3"…
+     *
+     * <p>Each one is stored as a conjured monster sheet for playerId (the GM), with no portrait meaning the preset's
+     * bundled one. It joins the Cena the way {@link #addParticipant} does, with its Iniciativa rolled here: 3d6 plus
+     * its Iniciativa Ego, the client's {@code Initiative#rollFor}. The first copy stands on centre when it is free,
+     * and the rest fill the nearest free hexes around it, never overlapping.
+     */
+    public List<SceneParticipantResponse> conjure(String id, org.aventyrs.api.scene.dto.ConjureRequest request,
+            String playerId) {
+        SceneDocument document = findOrThrow(id);
+        if (request.count() < 1 || request.count() > MAXIMUM_CONJURE_COUNT) {
+            throw new IllegalArgumentException("Conjure count must be 1.." + MAXIMUM_CONJURE_COUNT + ": " + request.count());
+        }
+        GridPosition centre = request.centre() == null ? null : new GridPosition(request.centre().x(), request.centre().y());
+        int width = extent(document.getWidth());
+        int height = extent(document.getHeight());
+        if (centre == null || centre.x() < 0 || centre.y() < 0 || centre.x() >= width || centre.y() >= height) {
+            throw new IllegalArgumentException("The centre hex must lie inside the Cena: " + centre);
+        }
+        String owner = playerId != null ? playerId
+                : gmPlayerId().orElseThrow(() -> new IllegalArgumentException("No GM to own the conjured foes"));
+        org.aventyrs.core.monster.MonsterBlueprint base = org.aventyrs.api.monster.MonsterSheetService.generate(
+                request.preset(), request.powerDegree(), request.kind(), request.name(), request.seed());
+        String token = request.tokenImageUrl() == null || request.tokenImageUrl().isBlank()
+                ? CONJURED_TOKEN_PREFIX + request.preset().name().toLowerCase(java.util.Locale.ROOT) + ".png"
+                : request.tokenImageUrl();
+        UUID group = request.group() == null ? UUID.randomUUID() : request.group();
+        int initiativeEgo = base.buildCharacter()
+                .getEffectiveEgoTotal(org.aventyrs.core.character.EgoDomain.INICIATIVA);
+
+        List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants());
+        boolean joinsNow = document.getCurrentIndex() == -1;
+        List<SceneParticipantResponse> added = new ArrayList<>();
+        for (int copy = 1; copy <= request.count(); copy++) {
+            org.aventyrs.core.monster.MonsterBlueprint blueprint = copy == 1 ? base
+                    : base.toBuilder().name(base.getName() + " " + copy).build();
+            org.aventyrs.api.monster.MonsterSheetDocument sheet = monsterSheetService.createConjured(
+                    blueprint, owner, request.campaignId(), id, token);
+            GridPosition position = isFree(participants, centre) ? centre
+                    : freePositionNear(participants, centre, width, height);
+            SceneParticipantEntry entry = new SceneParticipantEntry(
+                    sheet.getId(),
+                    rollThreeD6() + initiativeEgo,
+                    group,
+                    position,
+                    joinsNow ? document.getCurrentRound() : document.getCurrentRound() + 1,
+                    toConcealmentEntry(request.concealment()));
+            if (joinsNow) {
+                participants.add(rotationInsertionIndex(participants, document.getCurrentRound(), entry), entry);
+            } else {
+                participants.add(entry);
+            }
+            added.add(toParticipantResponse(entry));
+        }
+        document.setParticipants(participants);
+        repository.save(document);
+        return added;
+    }
+
+    private int rollThreeD6() {
+        return diceRoller.rollD6() + diceRoller.rollD6() + diceRoller.rollD6();
+    }
+
+    /** A stored extent, or the whole board for a Cena from before extents were stored. */
+    private static int extent(int stored) {
+        return stored <= 0 ? GridPosition.GRID_SIZE : Math.min(stored, GridPosition.GRID_SIZE);
+    }
+
+    /**
+     * Refuses a Bestiário foe that already stands in another Cena: it may stand in one at a time (table ruling,
+     * 2026-10-15). Characters, summons and conjured foes are not checked here.
+     */
+    private void requireNotPlacedElsewhere(String sceneId, String combatantSheetId) {
+        boolean bestiaryFoe = monsterSheetRepository.findById(combatantSheetId)
+                .map(sheet -> sheet.getSummon() == null && !Boolean.TRUE.equals(sheet.getConjured()))
+                .orElse(false);
+        if (bestiaryFoe && monsterSheetService.placedOutside(sceneId).contains(combatantSheetId)) {
+            throw new org.aventyrs.api.common.ConflictException(
+                    "MonsterSheet already stands in another Scene: " + combatantSheetId);
+        }
     }
 
     /**
@@ -601,13 +710,19 @@ public class SceneService {
 
     /** The free hex nearest centre, by ring — falling back to the first free one anywhere. */
     private GridPosition freePositionNear(List<SceneParticipantEntry> participants, GridPosition centre) {
+        return freePositionNear(participants, centre, GridPosition.GRID_SIZE, GridPosition.GRID_SIZE);
+    }
+
+    /** {@link #freePositionNear(List, GridPosition)} that never leaves a width × height board. */
+    private GridPosition freePositionNear(List<SceneParticipantEntry> participants, GridPosition centre,
+            int width, int height) {
         if (centre != null) {
             for (int radius = 1; radius < GridPosition.GRID_SIZE; radius++) {
                 for (int dy = -radius; dy <= radius; dy++) {
                     for (int dx = -radius; dx <= radius; dx++) {
                         int x = centre.x() + dx;
                         int y = centre.y() + dy;
-                        if (x < 0 || y < 0 || x >= GridPosition.GRID_SIZE || y >= GridPosition.GRID_SIZE) {
+                        if (x < 0 || y < 0 || x >= width || y >= height) {
                             continue;
                         }
                         GridPosition candidate = new GridPosition(x, y);
@@ -1568,6 +1683,8 @@ public class SceneService {
         if (!repository.existsById(id)) {
             throw new NotFoundException("Scene not found: " + id);
         }
+        // Conjured foes exist only for their Cena (core 0.1.7.5).
+        monsterSheetService.deleteConjuredIn(id);
         repository.deleteById(id);
     }
 

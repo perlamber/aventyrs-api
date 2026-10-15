@@ -30,6 +30,20 @@ public record MonsterSheetUpdateRequest(
         List<@Valid PendingEgoRecoveryDto> pendingEgoRecoveries,
         List<@Valid LifeStealDto> lifeSteals,
         List<@Valid InventoryItemDto> inventory,
-        String tokenImageUrl
+        String tokenImageUrl,
+        /** Its Campanha; null for a lore foe (core 0.1.7.5). Every update rewrites it. */
+        String campaignId
 ) {
+
+    /** A lore foe, the shape every caller had before Campanhas scoped the Bestiário. */
+    public MonsterSheetUpdateRequest(MonsterBlueprintDto blueprint, String playerId, int hitPointsSpent,
+            int magicPointsSpent, int determinationPointsSpent, int shieldPoints,
+            Map<EgoDomain, Integer> temporaryEgoPoints, List<TemporaryBonusDto> temporaryBonuses,
+            List<BleedingDto> bleedingEffects, List<ManaDrainDto> manaDrains, List<WitheringDto> witheringEffects,
+            List<PendingEgoRecoveryDto> pendingEgoRecoveries, List<LifeStealDto> lifeSteals,
+            List<InventoryItemDto> inventory, String tokenImageUrl) {
+        this(blueprint, playerId, hitPointsSpent, magicPointsSpent, determinationPointsSpent, shieldPoints,
+                temporaryEgoPoints, temporaryBonuses, bleedingEffects, manaDrains, witheringEffects,
+                pendingEgoRecoveries, lifeSteals, inventory, tokenImageUrl, null);
+    }
 }

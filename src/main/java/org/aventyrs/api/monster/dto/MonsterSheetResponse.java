@@ -64,6 +64,12 @@ public record MonsterSheetResponse(
         /** How many times this body was raised as an undead (core 0.1.6.24). */
         int timesRaised,
         /** Whether it is a body left behind by a corpse-raised undead (core 0.1.6.24). */
-        boolean corpse
+        boolean corpse,
+        /** Its Campanha, or null for a lore foe (core 0.1.7.5). */
+        String campaignId,
+        /** Conjured straight into a Cena, never listed in the Bestiário (core 0.1.7.5). */
+        boolean conjured,
+        /** The Cena a conjured foe stands in; null otherwise. */
+        String conjuredInSceneId
 ) {
 }

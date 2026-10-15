@@ -79,6 +79,20 @@ public class SceneController {
         return ResponseEntity.status(HttpStatus.CREATED).body(added);
     }
 
+    /**
+     * Conjures plain monsters from a {@code ConjurePreset} around a hex (core 0.1.7.5). They are owned by the GM
+     * calling, are never in the Bestiário, and leave with the Cena — see {@link SceneService#conjure}.
+     */
+    @PostMapping("/{id}/conjure")
+    public ResponseEntity<List<SceneParticipantResponse>> conjure(@PathVariable String id,
+            @Valid @RequestBody org.aventyrs.api.scene.dto.ConjureRequest request,
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.springframework.security.oauth2.jwt.Jwt jwt) {
+        List<SceneParticipantResponse> added = service.conjure(id, request, jwt == null ? null : jwt.getSubject());
+        broadcastRoster(id);
+        return ResponseEntity.status(HttpStatus.CREATED).body(added);
+    }
+
     /** An invoked creature joins as its caster's participant (client 0.0.95) — see {@link SceneService#addSummon}. */
     @PostMapping("/{id}/summons")
     public ResponseEntity<SceneParticipantResponse> addSummon(@PathVariable String id,

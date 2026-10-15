@@ -59,7 +59,7 @@ import org.testcontainers.mongodb.MongoDBContainer;
 @AutoConfigureMockMvc
 // Endpoints need a logged-in player; GM so the table-running ones are reachable too.
 @WithMockUser(roles = "GM")
-class MonsterSheetControllerIntegrationTest {
+public class MonsterSheetControllerIntegrationTest {
 
     @Container
     @ServiceConnection
@@ -88,7 +88,7 @@ class MonsterSheetControllerIntegrationTest {
     }
 
     /** Mirrors core's {@code SampleMonster.GOBLIN_SELVAGEM} — legal, Presa, GP 5. */
-    static MonsterBlueprintDto goblin(String name) {
+    public static MonsterBlueprintDto goblin(String name) {
         return new MonsterBlueprintDto(
                 name, 5, null, SizeCategory.MINUS_ONE,
                 Map.of(AttributeDomain.VIGOR, 3, AttributeDomain.STRENGTH, 3, AttributeDomain.DEXTERITY, 4,

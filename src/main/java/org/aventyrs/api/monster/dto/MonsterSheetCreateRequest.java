@@ -15,6 +15,14 @@ public record MonsterSheetCreateRequest(
         @NotNull @Valid MonsterBlueprintDto blueprint,
         @NotBlank String playerId,
         String tokenImageUrl,
-        List<@Valid InventoryItemDto> inventory
+        List<@Valid InventoryItemDto> inventory,
+        /** Its Campanha; null for a lore foe (core 0.1.7.5). */
+        String campaignId
 ) {
+
+    /** A lore foe, the shape every caller had before Campanhas scoped the Bestiário. */
+    public MonsterSheetCreateRequest(MonsterBlueprintDto blueprint, String playerId, String tokenImageUrl,
+            List<InventoryItemDto> inventory) {
+        this(blueprint, playerId, tokenImageUrl, inventory, null);
+    }
 }

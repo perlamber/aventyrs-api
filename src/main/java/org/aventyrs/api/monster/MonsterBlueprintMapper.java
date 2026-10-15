@@ -112,6 +112,55 @@ public final class MonsterBlueprintMapper {
                 entry.famaNegativa());
     }
 
+    // ---- core → entry --------------------------------------------------------------------------
+
+    /**
+     * The entry a core blueprint is stored as. It is the inverse of {@link #toCore} for everything an
+     * entry holds, which is how a generated (conjured) monster is persisted. Equipment and {@code
+     * CreatureType} have no column here, so a blueprint carrying them loses them.
+     */
+    public static MonsterBlueprintEntry fromCore(MonsterBlueprint blueprint) {
+        MonsterAdjustments adjustments = blueprint.getAdjustments();
+        Map<SkillType, Integer> levelShifts = new EnumMap<>(SkillType.class);
+        Map<SkillType, Integer> skillBonuses = new EnumMap<>(SkillType.class);
+        for (SkillType skill : SkillType.values()) {
+            if (adjustments.getSkillLevelShift(skill) != 0) {
+                levelShifts.put(skill, adjustments.getSkillLevelShift(skill));
+            }
+            if (adjustments.getSkillBonus(skill) != 0) {
+                skillBonuses.put(skill, adjustments.getSkillBonus(skill));
+            }
+        }
+        return new MonsterBlueprintEntry(
+                blueprint.getName(),
+                blueprint.getPowerDegree(),
+                blueprint.getKind(),
+                blueprint.getSizeCategory(),
+                Map.copyOf(blueprint.getAttributeBases()),
+                Set.copyOf(blueprint.getTrainedSkills()),
+                Set.copyOf(blueprint.getGnoseUpgrades()),
+                Map.copyOf(blueprint.getProgressionUpgrades()),
+                List.copyOf(blueprint.getModels()),
+                blueprint.getAbilities().stream()
+                        .map(selection -> new MonstrousAbilityEntry(selection.ability().getModel(),
+                                selection.ability().name(), null, Map.copyOf(selection.choices())))
+                        .toList(),
+                blueprint.getFeats().stream()
+                        .map(feat -> new FeatEntry(((Enum<?>) feat.catalogEntry()).name(), List.of(), null))
+                        .toList(),
+                Map.copyOf(blueprint.getEgoAllocation()),
+                new MonsterAdjustmentsEntry(levelShifts, skillBonuses,
+                        adjustments.getDefense(org.aventyrs.core.character.DefenseType.PHYSICAL),
+                        adjustments.getDefense(org.aventyrs.core.character.DefenseType.MAGIC),
+                        adjustments.getActionPoints(), adjustments.getLifeMultiplier(),
+                        adjustments.getManaMultiplier(), adjustments.getDeterminationMultiplier()),
+                blueprint.isUndead(),
+                blueprint.isIntelligent(),
+                Set.copyOf(blueprint.getCriticalEffectImmunities()),
+                blueprint.getFamaPositiva(),
+                blueprint.getFamaNegativa());
+    }
+
     // ---- entry → core --------------------------------------------------------------------------
 
     /**

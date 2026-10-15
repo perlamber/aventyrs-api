@@ -139,7 +139,8 @@ public class SceneConnectionService {
         // them up against the edge they walk in through instead of dumping them at cell (0,0).
         Map<String, GridPosition> arrivals = new LinkedHashMap<>();
         for (SceneParticipantEntry traveller : travellers) {
-            sceneService.removeParticipant(sceneId, traveller.characterSheetId());
+            // A conjured foe travels with its group rather than vanishing (core 0.1.7.5).
+            sceneService.removeParticipant(sceneId, traveller.characterSheetId(), false);
             if (!alreadyAtDestination.contains(traveller.characterSheetId())) {
                 sceneService.addParticipant(neighbourId, new AddParticipantRequest(
                         traveller.characterSheetId(), traveller.initiativeValue(), traveller.group()));

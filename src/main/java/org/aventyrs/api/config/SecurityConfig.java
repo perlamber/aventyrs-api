@@ -81,10 +81,11 @@ public class SecurityConfig {
                                 "/api/scenes/*/connections").hasRole(ROLE_GM)
                         .requestMatchers(DELETE, "/api/scenes/*").hasRole(ROLE_GM)
                         .requestMatchers(POST, "/api/scenes/*/combat", "/api/scenes/*/combat/end",
-                                "/api/scenes/*/time").hasRole(ROLE_GM)
+                                "/api/scenes/*/time", "/api/scenes/*/conjure").hasRole(ROLE_GM)
 
                         // Monster stat blocks: readable by everyone, authored by the GM.
-                        .requestMatchers(POST, "/api/monster-sheets").hasRole(ROLE_GM)
+                        .requestMatchers(POST, "/api/monster-sheets", "/api/monster-sheets/generate-preview")
+                                .hasRole(ROLE_GM)
                         .requestMatchers(PUT, "/api/monster-sheets/**").hasRole(ROLE_GM)
                         .requestMatchers(DELETE, "/api/monster-sheets/**").hasRole(ROLE_GM)
 
