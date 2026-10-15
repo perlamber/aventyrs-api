@@ -36,7 +36,8 @@ scp -q "$jar" "$HOST":/opt/aventyrs/aventyrs-api.jar
 scp -q docker-compose.yml "$HOST":aventyrs-api/docker-compose.yml
 ssh -t "$HOST" '
   set -e
-  cd ~/aventyrs-api && docker compose --env-file /etc/aventyrs/aventyrs.env up -d
+  mkdir -p /opt/aventyrs/logs
+  cd ~/aventyrs-api && API_LOG_DIR=/opt/aventyrs/logs docker compose --env-file /etc/aventyrs/aventyrs.env up -d
   cd /opt/aventyrs && rm -rf app.new && java -Djarmode=tools -jar aventyrs-api.jar extract --destination app.new >/dev/null
   rm -f aventyrs-api.jar
   rm -rf app && mv app.new app

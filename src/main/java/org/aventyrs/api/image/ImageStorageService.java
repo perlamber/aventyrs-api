@@ -4,12 +4,16 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
+import java.util.HexFormat;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -31,6 +35,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 @Service
 public class ImageStorageService {
 
+    private static final Logger log = LoggerFactory.getLogger(ImageStorageService.class);
+
     /** Maps each supported image format to the file extension used for its storage key. */
     private static final Map<String, String> ALLOWED_IMAGE_TYPES = Map.of(
             "image/png", ".png",
@@ -39,6 +45,7 @@ public class ImageStorageService {
             "image/bmp", ".bmp");
 
     private final S3Client s3Client;
+    private final String s3Endpoint;
     private final String bucket;
     private final String publicBaseUrl;
 
@@ -48,6 +55,7 @@ public class ImageStorageService {
             @Value("${seaweedfs.s3.secret-key}") String secretKey,
             @Value("${seaweedfs.s3.bucket}") String bucket,
             @Value("${seaweedfs.filer-url}") String filerUrl) {
+        this.s3Endpoint = s3Endpoint;
         this.bucket = bucket;
         this.publicBaseUrl = filerUrl + "/buckets/" + bucket;
         this.s3Client = S3Client.builder()
@@ -64,14 +72,17 @@ public class ImageStorageService {
             s3Client.headBucket(HeadBucketRequest.builder().bucket(bucket).build());
         } catch (S3Exception ex) {
             if (ex.statusCode() != 404) {
+                log.error("Can't reach bucket '{}' at {} (S3 status {})", bucket, s3Endpoint, ex.statusCode(), ex);
                 throw ex;
             }
+            log.warn("Bucket '{}' missing at {}; creating it", bucket, s3Endpoint);
             s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
         }
     }
 
     public String upload(MultipartFile file) {
         if (file.isEmpty()) {
+            log.warn("Rejected image upload: empty file '{}'", file.getOriginalFilename());
             throw new IllegalArgumentException("File must not be empty");
         }
 
@@ -85,8 +96,12 @@ public class ImageStorageService {
         // Sniffed from the file's own bytes rather than the client-supplied Content-Type/filename,
         // which are trivially spoofable and would otherwise make this an unrestricted file upload.
         String contentType = detectImageType(bytes);
-        String extension = ALLOWED_IMAGE_TYPES.get(contentType);
+        // Map.of rejects a null key, so an unrecognised file must not reach get().
+        String extension = contentType == null ? null : ALLOWED_IMAGE_TYPES.get(contentType);
         if (extension == null) {
+            log.warn("Rejected image upload '{}': {} bytes, client content type {}, starts with {}",
+                    file.getOriginalFilename(), bytes.length, file.getContentType(),
+                    HexFormat.of().formatHex(bytes, 0, Math.min(bytes.length, 8)));
             throw new IllegalArgumentException("Only PNG, JPEG, GIF, and BMP images are supported");
         }
 
@@ -97,10 +112,18 @@ public class ImageStorageService {
                     PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
                     RequestBody.fromBytes(bytes));
         } catch (S3Exception ex) {
+            log.error("putObject {} to bucket '{}' at {} failed (S3 status {})",
+                    key, bucket, s3Endpoint, ex.statusCode(), ex);
             throw new ImageStorageException("Failed to store image in SeaweedFS", ex);
+        } catch (SdkClientException ex) {
+            // No HTTP answer at all: SeaweedFS down, wrong endpoint, connection refused...
+            log.error("putObject {} to bucket '{}' at {} failed: {}", key, bucket, s3Endpoint, ex.getMessage(), ex);
+            throw new ImageStorageException("Failed to reach SeaweedFS", ex);
         }
 
-        return publicBaseUrl + "/" + key;
+        String url = publicBaseUrl + "/" + key;
+        log.debug("Stored image {} ({}, {} bytes) -> {}", key, contentType, bytes.length, url);
+        return url;
     }
 
     /** Returns the detected {@code image/*} content type, or {@code null} if none of the supported formats match. */

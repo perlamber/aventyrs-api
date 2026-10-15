@@ -43,7 +43,11 @@ services:
     image: chrislusf/seaweedfs:latest
     container_name: aventyrs-seaweedfs
     restart: unless-stopped
-    command: server -dir=/data -master -volume -filer -s3
+    # The volume server's slot count defaults to (free disk / volume size limit, 30GB). On a small
+    # disk that left 7 slots, all taken by the default collection, so the S3 bucket's own collection
+    # got "No writable volumes and no free volumes left" (500 on every putObject). 1GB volumes with
+    # an explicit max keep slots available.
+    command: server -dir=/data -master -volume -filer -s3 -master.volumeSizeLimitMB=1024 -volume.max=50
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-admin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-secret}
@@ -54,6 +58,32 @@ services:
       - "127.0.0.1:8333:8333" # S3 gateway (authenticated uploads via AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY)
     volumes:
       - seaweedfs-data:/data
+
+  # --- Logs --------------------------------------------------------------------------------------
+
+  # Mirrors the API's JSON log file into this container's output so Dozzle can show it (the API
+  # runs under systemd, not Docker). -F keeps following across Logback's file rotation. Prod sets
+  # API_LOG_DIR=/opt/aventyrs/logs (scripts/deploy-prod.sh passes it); locally run the API with LOG_FILE=./logs/aventyrs-api.log.
+  api-logs:
+    image: busybox:1.37
+    container_name: aventyrs-api-logs
+    restart: unless-stopped
+    command: ["tail", "-n", "200", "-F", "/logs/aventyrs-api.log"]
+    volumes:
+      - ${API_LOG_DIR:-./logs}:/logs:ro
+
+  # Live log viewer for every container here (API via api-logs, SeaweedFS, Mongo) at
+  # http://localhost:9999. On prod, open it through scripts/prod-logs.sh (SSH tunnel).
+  # 8080 and 3000 are taken by the SeaweedFS volume server and Metabase.
+  dozzle:
+    image: amir20/dozzle:v11.3.2
+    container_name: aventyrs-dozzle
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dozzle-data:/data   # Dozzle's users and settings
 
   # --- Analytics (opt-in: `docker compose --profile analytics ...`, never started by a plain `up`) ---
 
@@ -141,3 +171,4 @@ volumes:
   warehouse-data:
   metabase-data:
   metabase-db-data:
+  dozzle-data:

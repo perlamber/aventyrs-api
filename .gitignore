@@ -47,3 +47,6 @@ warehouse/data/
 warehouse/**/__pycache__/
 warehouse/*.egg-info/
 .DS_Store
+
+# Local API log file (LOG_FILE=./logs/aventyrs-api.log), tailed by the api-logs container
+/logs/

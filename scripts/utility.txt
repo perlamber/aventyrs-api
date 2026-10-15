@@ -1,0 +1,5 @@
+ssh -i /.ssh/id_rsa administrador@192.168.99.99
+
+htpasswd -bnBC 10 "" ''
+
+ssh -N -L 27018:localhost:27017 -L 3001:localhost:3000 administrador@192.168.99.99
