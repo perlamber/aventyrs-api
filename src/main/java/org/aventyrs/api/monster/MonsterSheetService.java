@@ -45,9 +45,26 @@ public class MonsterSheetService {
     private final MagicPointsService magicPointsService = new MagicPointsServiceImpl();
     private final ActionPointsService actionPointsService = new ActionPointsServiceImpl();
 
-    public MonsterSheetService(MonsterSheetRepository repository, PlayerRepository playerRepository) {
+    /**
+     * Field-level writes for what a status frame and a dismissal touch at the same moment (core 0.1.7): a corpse-raised
+     * undead's fall sends both its status and its dismissal, and a whole-document save of either used to erase the
+     * other's change — the body lost its corpse mark.
+     */
+    private final org.springframework.data.mongodb.core.MongoTemplate mongoTemplate;
+
+    public MonsterSheetService(MonsterSheetRepository repository, PlayerRepository playerRepository,
+            org.springframework.data.mongodb.core.MongoTemplate mongoTemplate) {
         this.repository = repository;
         this.playerRepository = playerRepository;
+        this.mongoTemplate = mongoTemplate;
+    }
+
+    /** Sets update's fields on sheet id alone — nothing else on the document is read or rewritten. */
+    private void setFields(String id, org.springframework.data.mongodb.core.query.Update update) {
+        findOrThrow(id);
+        mongoTemplate.updateFirst(org.springframework.data.mongodb.core.query.Query.query(
+                org.springframework.data.mongodb.core.query.Criteria.where("_id").is(id)), update,
+                MonsterSheetDocument.class);
     }
 
     public MonsterSheetResponse create(MonsterSheetCreateRequest request) {
@@ -93,10 +110,9 @@ public class MonsterSheetService {
      * raisable again. Nothing happens to a sheet that no longer exists.
      */
     public void markCorpse(String id) {
-        repository.findById(id).ifPresent(document -> {
-            document.setCorpse(true);
-            repository.save(document);
-        });
+        if (repository.existsById(id)) {
+            setFields(id, new org.springframework.data.mongodb.core.query.Update().set("corpse", true));
+        }
     }
 
     /**
@@ -183,32 +199,29 @@ public class MonsterSheetService {
     public void updateCombatStatus(String id, int hitPointsSpent, int magicPointsSpent, int determinationPointsSpent,
             org.aventyrs.core.character.CharacterStatus status,
             java.util.Map<org.aventyrs.core.character.EgoDomain, Integer> temporaryEgoPoints) {
-        MonsterSheetDocument document = findOrThrow(id);
-        document.setHitPointsSpent(hitPointsSpent);
+        org.springframework.data.mongodb.core.query.Update update = new org.springframework.data.mongodb.core.query.Update()
+                .set("hitPointsSpent", hitPointsSpent)
+                .set("magicPointsSpent", magicPointsSpent)
+                .set("determinationPointsSpent", determinationPointsSpent);
         // Without this a player joining the Cena reads the blueprint-derived CLEAN and draws no badge.
         if (status != null) {
-            document.setStatus(status);
+            update.set("status", status);
         }
-        document.setMagicPointsSpent(magicPointsSpent);
-        document.setDeterminationPointsSpent(determinationPointsSpent);
         if (temporaryEgoPoints != null) {
-            document.setTemporaryEgoPoints(CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
+            update.set("temporaryEgoPoints", CombatantSheetMapper.normalizeTemporaryEgoPoints(temporaryEgoPoints));
         }
-        repository.save(document);
+        setFields(id, update);
     }
 
     /** Replaces the foe's running Sangramentos with what its owner's client reports (core's {@code Bleeding}). */
     public void updateBleeding(String id, java.util.List<org.aventyrs.api.sheet.dto.BleedingDto> bleedingEffects) {
-        MonsterSheetDocument document = findOrThrow(id);
-        document.setBleedingEffects(CombatantSheetMapper.toBleedingEntries(bleedingEffects));
-        repository.save(document);
+        setFields(id, new org.springframework.data.mongodb.core.query.Update()
+                .set("bleedingEffects", CombatantSheetMapper.toBleedingEntries(bleedingEffects)));
     }
 
     /** The Subordinados this foe commands, as the GM's status frame reports them (core 0.1.5.6). */
     public void updateSubordinates(String id, List<org.aventyrs.api.sheet.dto.SubordinateDto> subordinates) {
-        MonsterSheetDocument document = findOrThrow(id);
-        document.setSubordinates(List.copyOf(subordinates));
-        repository.save(document);
+        setFields(id, new org.springframework.data.mongodb.core.query.Update().set("subordinates", List.copyOf(subordinates)));
     }
 
     public void delete(String id) {
