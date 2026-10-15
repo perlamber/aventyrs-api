@@ -87,6 +87,10 @@ class AuthSecurityIntegrationTest {
         mockMvc.perform(get("/api/players")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/character-sheets")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/skills")).andExpect(status().isOk());
+        // Images are fetched by JavaFX without a token: reading is public (404 for a name that was
+        // never uploaded, not 401), uploading is not.
+        mockMvc.perform(get("/api/images/not-an-upload.png")).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/images")).andExpect(status().isUnauthorized());
     }
 
     @Test

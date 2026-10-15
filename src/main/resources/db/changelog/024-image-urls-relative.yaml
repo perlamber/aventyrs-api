@@ -1,0 +1,56 @@
+# Image URLs become relative (/api/images/<uuid>.<ext>, served by ImageController). Uploads used to
+# store the filer's absolute URL, e.g. http://localhost:8888/buckets/my-bucket/images/<uuid>.jpg,
+# which no remote client can reach. The S3 key (images/<uuid>.<ext>) is unchanged, so only the
+# stored string is rewritten. Runs in every context: prod holds such URLs too.
+databaseChangeLog:
+  - changeSet:
+      id: 001-scene-image-url-relative
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "scenes",
+                updates: [
+                  {
+                    q: { imageUrl: { $regex: "^https?://[^/]+/buckets/[^/]+/images/" } },
+                    u: [ { $set: { imageUrl: { $concat: [ "/api/images/",
+                           { $arrayElemAt: [ { $split: [ "$imageUrl", "/images/" ] }, 1 ] } ] } } } ],
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 002-character-token-image-url-relative
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "characterSheets",
+                updates: [
+                  {
+                    q: { tokenImageUrl: { $regex: "^https?://[^/]+/buckets/[^/]+/images/" } },
+                    u: [ { $set: { tokenImageUrl: { $concat: [ "/api/images/",
+                           { $arrayElemAt: [ { $split: [ "$tokenImageUrl", "/images/" ] }, 1 ] } ] } } } ],
+                    multi: true
+                  }
+                ]
+              }
+  - changeSet:
+      id: 003-monster-token-image-url-relative
+      author: aventyrs-api
+      changes:
+        - runCommand:
+            command: >
+              {
+                update: "monsterSheets",
+                updates: [
+                  {
+                    q: { tokenImageUrl: { $regex: "^https?://[^/]+/buckets/[^/]+/images/" } },
+                    u: [ { $set: { tokenImageUrl: { $concat: [ "/api/images/",
+                           { $arrayElemAt: [ { $split: [ "$tokenImageUrl", "/images/" ] }, 1 ] } ] } } } ],
+                    multi: true
+                  }
+                ]
+              }

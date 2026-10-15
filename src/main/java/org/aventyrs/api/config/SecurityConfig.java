@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/api/auth/login").permitAll()
                         // Static rules data, and the client's pre-login "is the server up" probe.
                         .requestMatchers(GET, "/api/skills").permitAll()
+                        // Uploaded images, fetched by JavaFX without a token; names are random UUIDs.
+                        .requestMatchers(GET, "/api/images/*").permitAll()
                         .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/error").permitAll()
