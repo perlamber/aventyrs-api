@@ -3,7 +3,7 @@
 # SSH tunnel, for as long as this script runs (Ctrl-C closes it).
 #   scripts/prod-logs.sh             # http://localhost:9999
 #   LOCAL_PORT=9998 scripts/prod-logs.sh
-# Containers: aventyrs-api-logs = the API (WARN+; AVENTYRS_LOG_LEVEL=DEBUG in
+# Containers: aventyrs-api-logs = the API (INFO+; AVENTYRS_LOG_LEVEL=DEBUG in
 # /etc/aventyrs/aventyrs.env + restart for more), aventyrs-seaweedfs = image storage, aventyrs-mongo.
 set -euo pipefail
 HOST=${DEPLOY_HOST:-administrador@192.168.99.99}

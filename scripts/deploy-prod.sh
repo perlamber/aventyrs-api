@@ -6,7 +6,10 @@
 #    API's `org.aventyrs.core:aventyrs-core:<version>` dependency at it if it lags behind.
 # 2. Builds the boot jar, uploads it and runs it extracted (lib/*.jar): liquibase-mongodb can't
 #    read its own version from inside Spring Boot's nested-jar format and fails at startup.
-# 3. Deletes the built jar locally and the uploaded jar on the server (only app/ is kept).
+# 3. scripts/deploy-remote.sh (run on the server) restarts the unit and waits until the API has really
+#    started — Spring "Started", Liquibase done, HTTP answering, still alive 15s later. On failure it
+#    prints the journal, rolls back to the previous build (app.prev) and this script exits non-zero.
+# 4. Deletes the built jar locally and the uploaded jar on the server (app/ + app.prev/ are kept).
 set -euo pipefail
 HOST=${DEPLOY_HOST:-administrador@192.168.99.99}
 cd "$(dirname "$0")/.."
@@ -34,14 +37,11 @@ echo "==> Deploying $(basename "$jar") (core $core_version)"
 
 scp -q "$jar" "$HOST":/opt/aventyrs/aventyrs-api.jar
 scp -q docker-compose.yml "$HOST":aventyrs-api/docker-compose.yml
+scp -q scripts/deploy-remote.sh "$HOST":aventyrs-api/deploy-remote.sh
 ssh -t "$HOST" '
   set -e
   mkdir -p /opt/aventyrs/logs
   cd ~/aventyrs-api && API_LOG_DIR=/opt/aventyrs/logs docker compose --env-file /etc/aventyrs/aventyrs.env up -d
-  cd /opt/aventyrs && rm -rf app.new && java -Djarmode=tools -jar aventyrs-api.jar extract --destination app.new >/dev/null
-  rm -f aventyrs-api.jar
-  rm -rf app && mv app.new app
-  sudo systemctl restart aventyrs-api
-  for i in $(seq 1 36); do ss -tln | grep -q ":22696" && break; sleep 5; done
-  systemctl is-active aventyrs-api
-'
+  bash ~/aventyrs-api/deploy-remote.sh
+' || { status=$?; echo "==> DEPLOY FAILED (exit $status) — see the journal above" >&2; exit "$status"; }
+echo "==> Deployed $(basename "$jar") (core $core_version)"
