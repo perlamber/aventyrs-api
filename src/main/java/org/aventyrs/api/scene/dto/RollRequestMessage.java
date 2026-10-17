@@ -21,6 +21,9 @@ import org.aventyrs.core.skill.SkillType;
  * {@code characterSheetId} already stands on in {@link TokenMoveMessage}.
  *
  * @param targetCharacterSheetIds empty or {@code null} means every participant may answer.
+ * @param reaction                an {@code ATTACK} made as a Reação — Defender o Perímetro, Impedir Conjuração, a fired
+ *                                Preparação — which the defender's {@code IncomingAttack#reaction} carries (core
+ *                                0.1.7.18, Esquiva). {@code false} when absent.
  */
 public record RollRequestMessage(
         RollRequestKind kind,
@@ -30,7 +33,16 @@ public record RollRequestMessage(
         String attackerCharacterSheetId,
         List<String> targetCharacterSheetIds,
         String prompt,
-        String specialization) {
+        String specialization,
+        boolean reaction) {
+
+    /** A request that is not a Reação attack — every one before the field existed. */
+    public RollRequestMessage(RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel, int attackBonus,
+            String attackerCharacterSheetId, List<String> targetCharacterSheetIds, String prompt,
+            String specialization) {
+        this(kind, skill, difficultyLevel, attackBonus, attackerCharacterSheetId, targetCharacterSheetIds, prompt,
+                specialization, false);
+    }
 
     /** A request naming no Especialização — every caller but the Narrador's Perícia check. */
     public RollRequestMessage(RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel, int attackBonus,

@@ -359,6 +359,22 @@ class SceneServiceIntegrationTest {
     }
 
     @Test
+    void aReactionAttackRequestSaysSoAndKeepsSayingItOnReplay() {
+        String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
+        sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));
+
+        RollRequestedEvent event = sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.ATTACK, SkillType.ESQUIVA_E_APARAR, DifficultyLevel.MEDIUM, 1, null,
+                List.of(characterSheetId1), null, null, true));
+
+        assertTrue(event.reaction(), "Esquiva's +2 reads it on the defender's client (core 0.1.7.18)");
+        assertTrue(sceneService.get(sceneId).rollRequests().get(0).reaction());
+        assertFalse(sceneService.requestRoll(sceneId, new RollRequestMessage(
+                RollRequestKind.ATTACK, SkillType.ESQUIVA_E_APARAR, DifficultyLevel.MEDIUM, 1, null,
+                List.of(characterSheetId1), null)).reaction());
+    }
+
+    @Test
     void anAttackRequestCarriesItsGrauDeDificuldadeAndFlatBonus() {
         String sceneId = sceneService.create(new SceneCreateRequest("Scene", "URBAN", 100, 100)).id();
         sceneService.addParticipant(sceneId, new AddParticipantRequest(characterSheetId1, 15, UUID.randomUUID()));

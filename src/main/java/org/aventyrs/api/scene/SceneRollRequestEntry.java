@@ -41,7 +41,16 @@ public record SceneRollRequestEntry(
         List<String> targetCharacterSheetIds,
         String prompt,
         Instant requestedAt,
-        String specialization) {
+        String specialization,
+        boolean reaction) {
+
+    /** A request that is not a Reação attack — and every one persisted before the field existed (core 0.1.7.18). */
+    public SceneRollRequestEntry(String requestId, RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel,
+            int attackBonus, String attackerCharacterSheetId, List<String> targetCharacterSheetIds, String prompt,
+            Instant requestedAt, String specialization) {
+        this(requestId, kind, skill, difficultyLevel, attackBonus, attackerCharacterSheetId, targetCharacterSheetIds,
+                prompt, requestedAt, specialization, false);
+    }
 
     /** A request naming no Especialização — and every one persisted before the field existed. */
     public SceneRollRequestEntry(String requestId, RollRequestKind kind, SkillType skill, DifficultyLevel difficultyLevel,

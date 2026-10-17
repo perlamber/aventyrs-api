@@ -1500,7 +1500,8 @@ public class SceneService {
                 targets,
                 message.prompt(),
                 Instant.now(),
-                message.specialization());
+                message.specialization(),
+                message.reaction());
 
         appendTo(id, "rollRequests", entry);
         return toRollRequestedEvent(entry);
@@ -1560,7 +1561,8 @@ public class SceneService {
     private RollRequestedEvent toRollRequestedEvent(SceneRollRequestEntry entry) {
         return new RollRequestedEvent(entry.requestId(), entry.kind(), entry.skill(),
                 entry.difficultyLevel(), entry.attackBonus(), entry.attackerCharacterSheetId(),
-                entry.targetCharacterSheetIds(), entry.prompt(), entry.requestedAt(), entry.specialization());
+                entry.targetCharacterSheetIds(), entry.prompt(), entry.requestedAt(), entry.specialization(),
+                entry.reaction());
     }
 
     private RollRespondedEvent toRollRespondedEvent(SceneRollResponseEntry entry) {
