@@ -324,4 +324,41 @@ class SceneTurnOrderIntegrationTest {
         assertEquals(byInitiative(List.of(everyone.get(1), everyone.get(2), everyone.get(4), everyone.get(5), waiting)),
                 rodadaOne.rotation());
     }
+
+    /**
+     * Paranoia Saudável's Rodada 0.0 (core 0.1.7.15): claimants queue in rotation order, each advance at combat start
+     * hands one of them the action with the cursor left before the first Turn, and Rodada 0 then opens on the
+     * highest Iniciativa as ever.
+     */
+    @Test
+    void rodadaZeroZeroHandsEachClaimantTheirActionBeforeRodadaZero() {
+        List<String> joined = joinAll(18, 9, 4);
+        String fast = joined.get(0);
+        String middle = joined.get(1);
+        String slow = joined.get(2);
+        sceneService.startCombat(sceneId);
+
+        sceneService.claimPreInitiative(sceneId, slow);
+        assertEquals(List.of(middle, slow), sceneService.claimPreInitiative(sceneId, middle));
+
+        TurnAdvancedEvent first = sceneService.advanceTurn(sceneId);
+        assertEquals(middle, first.characterSheetId());
+        assertTrue(first.preInitiative());
+        assertEquals(-1, first.currentIndex());
+        assertEquals(middle, sceneService.get(sceneId).preInitiativeActor());
+
+        TurnAdvancedEvent second = sceneService.advanceTurn(sceneId);
+        assertEquals(slow, second.characterSheetId());
+        assertTrue(second.preInitiative());
+
+        TurnAdvancedEvent rodadaZero = sceneService.advanceTurn(sceneId);
+        assertEquals(fast, rodadaZero.characterSheetId());
+        assertEquals(0, rodadaZero.currentRound());
+        assertEquals(0, rodadaZero.currentIndex());
+        assertFalse(Boolean.TRUE.equals(rodadaZero.preInitiative()));
+        assertEquals(null, sceneService.get(sceneId).preInitiativeActor());
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> sceneService.claimPreInitiative(sceneId, fast), "closed once the first Turn began");
+    }
 }

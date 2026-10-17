@@ -153,4 +153,13 @@ public class SceneDocument {
 
     /** The Reação window open right now (core 0.1.6.17), {@code null} when none is. */
     private SceneReactionWindowEntry reactionWindow;
+
+    /**
+     * Paranoia Saudável's Rodada 0.0 (core 0.1.7.15): who claimed an action before Rodada 0, in rotation order,
+     * not yet given it. {@code null} on any document persisted before it existed.
+     */
+    private List<String> preInitiativeQueue;
+
+    /** Whose Rodada 0.0 action it is now, or {@code null}. */
+    private String preInitiativeActor;
 }

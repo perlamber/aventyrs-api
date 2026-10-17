@@ -44,7 +44,20 @@ public record AttackHitMessage(String attackerCharacterSheetId, String targetCha
                                String criticalResult, java.util.List<String> criticalEffects,
                                java.util.List<String> bypassedReductions, String additionalElement,
                                String sanctity, String attackSkill, Boolean primaryTarget, String projectile,
-                               Integer weaponDamage, Boolean projectileDestroyed) {
+                               Integer weaponDamage, Boolean projectileDestroyed, Integer equipmentDamage) {
+
+    /** Without the target's defensive-equipment damage — every hit before core 0.1.7.12. */
+    public AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
+            boolean ignoreDamageReduction, boolean halved, String damageType, String elementalType,
+            String sourceKind, String sourceRef, Boolean wasCritical, String criticalResult,
+            java.util.List<String> criticalEffects, java.util.List<String> bypassedReductions,
+            String additionalElement, String sanctity, String attackSkill, Boolean primaryTarget, String projectile,
+            Integer weaponDamage, Boolean projectileDestroyed) {
+        this(attackerCharacterSheetId, targetCharacterSheetId, rawDamage, ignoreDamageReduction, halved, damageType,
+                elementalType, sourceKind, sourceRef, wasCritical, criticalResult, criticalEffects, bypassedReductions,
+                additionalElement, sanctity, attackSkill, primaryTarget, projectile, weaponDamage, projectileDestroyed,
+                null);
+    }
 
     /** Without the hit's sanctity and the attack notice — every hit before core 0.1.6.11. */
     public AttackHitMessage(String attackerCharacterSheetId, String targetCharacterSheetId, int rawDamage,
@@ -80,6 +93,7 @@ public record AttackHitMessage(String attackerCharacterSheetId, String targetCha
     public boolean carriesAnything() {
         return rawDamage > 0 || criticalEffects != null && !criticalEffects.isEmpty() || attackSkill != null
                 || weaponDamage != null && weaponDamage > 0 || Boolean.TRUE.equals(projectileDestroyed)
+                || equipmentDamage != null && equipmentDamage > 0
                 || SOLVE_VIDAS.equals(sourceKind);
     }
 

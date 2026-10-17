@@ -14,6 +14,8 @@ import org.aventyrs.api.monster.MonsterSheetService;
 import org.aventyrs.api.scene.dto.AttackHitMessage;
 import org.aventyrs.api.sheet.CharacterSheetService;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 /** An unmitigated hit on someone another client owns: relayed to the table, never recorded. */
@@ -75,6 +77,18 @@ class HitRelayTest {
         AttackHitMessage message = new AttackHitMessage("hero-1", "foe-1", 0, false, false, null, null, "ATTACK",
                 null, false, null, null, null, null, null, "ATAQUE_CORPO_A_CORPO", true, null, null, null);
 
+        controller.hit("scene-1", message);
+
+        verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);
+    }
+
+    /** Estilhaçador's 2 to the target's Escudo rides even a hit whose damage was nothing (core 0.1.7.12). */
+    @Test
+    void aFrameCarryingOnlyEquipmentDamageIsStillRelayed() {
+        AttackHitMessage message = new AttackHitMessage("hero-1", "foe-1", 0, false, false, null, null, "ATTACK",
+                null, false, null, null, null, null, null, null, null, null, null, null, 2);
+
+        assertTrue(message.carriesAnything());
         controller.hit("scene-1", message);
 
         verify(template).convertAndSend("/topic/scenes/scene-1/hits", message);

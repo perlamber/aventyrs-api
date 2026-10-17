@@ -29,6 +29,10 @@ public record SceneResponse(
         List<org.aventyrs.api.scene.SceneSummonEntry> summons,
         List<org.aventyrs.api.scene.SceneSummonSpawnerEntry> summonSpawners,
         List<TerrainCellDto> terrainCells,
-        ReactionWindowEvent reactionWindow
+        ReactionWindowEvent reactionWindow,
+        /** Whose Rodada 0.0 action it is (core 0.1.7.15), or {@code null}. */
+        String preInitiativeActor,
+        /** Who still waits for a Rodada 0.0 action, in order — empty when none. */
+        List<String> preInitiativeQueue
 ) {
 }

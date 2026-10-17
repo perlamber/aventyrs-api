@@ -11,6 +11,7 @@ import static org.aventyrs.api.analytics.AnalyticsEventType.HAZARD;
 import static org.aventyrs.api.analytics.AnalyticsEventType.HIDDEN;
 import static org.aventyrs.api.analytics.AnalyticsEventType.INITIATIVE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.MOVE;
+import static org.aventyrs.api.analytics.AnalyticsEventType.PRE_INITIATIVE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_REQUEST;
 import static org.aventyrs.api.analytics.AnalyticsEventType.ROLL_RESPONSE;
 import static org.aventyrs.api.analytics.AnalyticsEventType.SPELL_LANDED;
@@ -72,6 +73,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.aventyrs.api.analytics.AnalyticsRecorder;
+import org.aventyrs.api.scene.dto.PreInitiativeClaimMessage;
+import org.aventyrs.api.scene.dto.PreInitiativeQueuedEvent;
 import org.aventyrs.api.scene.dto.AttackHitMessage;
 import org.aventyrs.api.scene.dto.DamageDealtMessage;
 import org.aventyrs.api.scene.dto.TitleEffectsDto;
@@ -588,6 +591,27 @@ public class SceneRealtimeController {
      * server owns the order ({@link SceneService#advanceTurn}), and broadcast so every board shows it. Membership
      * is asserted by the lookup. Rejected silently like {@link #hidden}.
      */
+    /**
+     * Paranoia Saudável's Rodada 0.0 (core 0.1.7.15): a combatant claims an action before Rodada 0. Queued in rotation
+     * order ({@link SceneService#claimPreInitiative}) and broadcast; each claimant is then handed the action by the
+     * next turn advances. Rejected silently outside combat start, like {@link #move}.
+     */
+    @MessageMapping("/scenes/{sceneId}/pre-initiative")
+    public void claimPreInitiative(@DestinationVariable String sceneId, @Payload PreInitiativeClaimMessage message) {
+        if (message == null || message.characterSheetId() == null) {
+            return;
+        }
+        try {
+            var queue = sceneService.claimPreInitiative(sceneId, message.characterSheetId());
+            PreInitiativeQueuedEvent event = new PreInitiativeQueuedEvent(message.characterSheetId(), queue);
+            messagingTemplate.convertAndSend("/topic/scenes/" + sceneId + "/pre-initiative", event);
+            analytics.record(PRE_INITIATIVE, sceneId, message.characterSheetId(), null, event);
+        } catch (RuntimeException ex) {
+            log.warn("Rejected Rodada 0.0 claim in scene {} for participant {}: {}",
+                    sceneId, message.characterSheetId(), ex.getMessage());
+        }
+    }
+
     @MessageMapping("/scenes/{sceneId}/initiative")
     public void initiative(@DestinationVariable String sceneId, @Payload InitiativeOverrideMessage message) {
         try {

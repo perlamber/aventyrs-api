@@ -104,7 +104,7 @@ public class SceneService {
                 false, false, Map.of(), null, null, request.width(), request.height(), Instant.now(), List.of(),
                 // abilityHistory, between actionHistory and rollRequests — @AllArgsConstructor
                 // follows field declaration order.
-                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null);
         return toResponse(repository.save(document));
     }
 
@@ -1162,6 +1162,9 @@ public class SceneService {
      * so the next combat's Rodadas wrapped early and its Turns landed on the wrong combatants.
      */
     private static void resetRotation(SceneDocument document, Map<String, Integer> rainhaBonuses) {
+        // A Rodada 0.0 belongs to one combat's start.
+        document.setPreInitiativeQueue(null);
+        document.setPreInitiativeActor(null);
         List<SceneParticipantEntry> participants = new ArrayList<>(document.getParticipants().stream()
                 .map(entry -> entry.withJoinedAtRound(0))
                 .toList());
@@ -1207,6 +1210,23 @@ public class SceneService {
         SceneDocument document = findOrThrow(id);
         boolean rosterChanged = false;
         int round = document.getCurrentRound();
+
+        // Rodada 0.0 (core 0.1.7.15): before the first Turn, each claimant gets their action in turn; the cursor
+        // stays put, so Rodada 0 still opens on the highest Iniciativa once the queue is spent.
+        List<String> queue = new ArrayList<>(preInitiativeQueueOf(document));
+        if (document.isCombatScene() && round == 0 && document.getCurrentIndex() < 0 && !queue.isEmpty()) {
+            String actor = queue.remove(0);
+            document.setPreInitiativeQueue(queue);
+            document.setPreInitiativeActor(actor);
+            repository.save(document);
+            List<String> rotation = document.getParticipants().stream()
+                    .limit(rotationSize(document.getParticipants(), round))
+                    .map(SceneParticipantEntry::characterSheetId)
+                    .toList();
+            return new TurnAdvance(new TurnAdvancedEvent(actor, round, -1, rotation, true), false);
+        }
+        document.setPreInitiativeActor(null);
+        document.setPreInitiativeQueue(null);
 
         int finishingIndex = document.getCurrentIndex();
         if (finishingIndex >= 0 && finishingIndex < rotationSize(document.getParticipants(), round)) {
@@ -1823,7 +1843,47 @@ public class SceneService {
                 summonsOf(document),
                 spawnersOf(document),
                 terrainCellDtosOf(document),
-                document.getReactionWindow() == null ? null : toWindowEvent(document.getReactionWindow(), false));
+                document.getReactionWindow() == null ? null : toWindowEvent(document.getReactionWindow(), false),
+                document.getPreInitiativeActor(),
+                preInitiativeQueueOf(document));
+    }
+
+    /** {@code null}-safe read of the Rodada 0.0 queue — empty on a document persisted before it existed. */
+    private static List<String> preInitiativeQueueOf(SceneDocument document) {
+        return document.getPreInitiativeQueue() == null ? List.of() : document.getPreInitiativeQueue();
+    }
+
+    /**
+     * Paranoia Saudável (core 0.1.7.15): characterSheetId claims a Rodada 0.0 action — one of "Tempo de até 2PA,
+     * Ação Livre ou Reação" before anyone's first Turn, ignoring Iniciativa. Only at combat start (Rodada 0, cursor
+     * before the first Turn, nobody's Rodada 0.0 underway yet). Takers are queued in rotation order and given the
+     * action one by one by {@link #advanceTurnReporting}. The 2PD and the once-per-combat limit are paid and checked
+     * by the claimant's client on the live sheet (core {@code PreInitiativeService}) — this server holds none.
+     *
+     * @return the queue as it now stands
+     * @throws IllegalArgumentException outside that window, for a sheet not in the scene, or one already queued
+     */
+    public List<String> claimPreInitiative(String id, String characterSheetId) {
+        SceneDocument document = findOrThrow(id);
+        if (!document.isCombatScene() || document.getCurrentRound() != 0 || document.getCurrentIndex() >= 0
+                || document.getPreInitiativeActor() != null) {
+            throw new IllegalArgumentException("Rodada 0.0 is closed in scene: " + id);
+        }
+        List<String> rotation = document.getParticipants().stream()
+                .map(SceneParticipantEntry::characterSheetId)
+                .toList();
+        if (!rotation.contains(characterSheetId)) {
+            throw new IllegalArgumentException("Not a participant: " + characterSheetId);
+        }
+        List<String> queue = new ArrayList<>(preInitiativeQueueOf(document));
+        if (queue.contains(characterSheetId)) {
+            throw new IllegalArgumentException("Already claimed: " + characterSheetId);
+        }
+        queue.add(characterSheetId);
+        queue.sort(Comparator.comparingInt(rotation::indexOf));
+        document.setPreInitiativeQueue(queue);
+        repository.save(document);
+        return queue;
     }
 
     /** {@code null} on any document persisted before connections existed. */

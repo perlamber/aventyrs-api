@@ -20,6 +20,17 @@ public record TurnAdvancedEvent(
         String characterSheetId,
         int currentRound,
         int currentIndex,
-        List<String> rotation
+        List<String> rotation,
+        /**
+         * Whether this hands out a Rodada 0.0 action (Paranoia Saudável, core 0.1.7.15) rather than a Turn: the cursor
+         * stays before the first Turn and characterSheetId acts once, ignoring Iniciativa. {@code null}/false for a
+         * real Turn.
+         */
+        Boolean preInitiative
 ) {
+
+    /** A real Turn — every advance before core 0.1.7.15. */
+    public TurnAdvancedEvent(String characterSheetId, int currentRound, int currentIndex, List<String> rotation) {
+        this(characterSheetId, currentRound, currentIndex, rotation, null);
+    }
 }

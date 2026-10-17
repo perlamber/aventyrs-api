@@ -21,6 +21,7 @@ public enum AnalyticsEventType {
     MOVE,
     HIDDEN,
     INITIATIVE,
+    PRE_INITIATIVE,
     TIME,
     HAZARD
 }
